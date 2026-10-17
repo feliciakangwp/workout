@@ -1,0 +1,139 @@
+import { addDays, diffDays, startOfWeek, weekdayIndex } from '../dates';
+import { fmtPace } from '../format';
+import { TRACKED_LIFTS } from '../../data/exercises';
+import { DEMO_TODAY } from '../../data/mockData';
+import type { RecoveryDay, Workout } from '../../data/types';
+import { buildBuckets, type RangeKey, workoutsBetween } from './common';
+import { muscleCoverage } from './muscles';
+import { recoverySeries, recoveryStatus } from './recovery';
+import { avgPace, best5kPace, runs, totalKm } from './running';
+import { liftSummary, strengthIndexAt } from './strength';
+
+export interface PeriodStats {
+  workouts: number;
+  minutes: number;
+  runKm: number;
+  strengthIndex: number;
+  musclesOnTarget: number;
+  recoveryScore: number;
+}
+
+/** This week so far (Mon → today) vs the same days of the previous week. */
+export function weekComparison(workouts: Workout[], recovery: RecoveryDay[], today = DEMO_TODAY) {
+  const thisFrom = startOfWeek(today);
+  const lastFrom = addDays(thisFrom, -7);
+  const lastTo = addDays(today, -7);
+  const series = recoverySeries(recovery, workouts, today);
+  const stats = (from: string, to: string): PeriodStats => {
+    const ws = workoutsBetween(workouts, from, to);
+    const rec = series.find((p) => p.date === to);
+    return {
+      workouts: ws.length,
+      minutes: ws.reduce((a, w) => a + w.durationMin, 0),
+      runKm: totalKm(runs(ws)),
+      strengthIndex: strengthIndexAt(workouts, to) ?? 100,
+      musclesOnTarget: muscleCoverage(workouts, '7d', to).filter((m) => m.status === 'within').length,
+      recoveryScore: rec?.recoveryScore ?? 0,
+    };
+  };
+  const current = stats(thisFrom, today);
+  return {
+    current,
+    previous: stats(lastFrom, lastTo),
+    daysElapsed: diffDays(today, thisFrom) + 1,
+    recoveryLabel: recoveryStatus(current.recoveryScore).label,
+  };
+}
+
+export interface TrendPoint {
+  key: string;
+  label: string;
+  minutes: number;
+  runKm: number;
+  strengthIndex: number | null;
+  completed: number;
+  planned: number;
+  adherence: number;
+}
+
+export function trainingTrends(workouts: Workout[], range: RangeKey, today = DEMO_TODAY): TrendPoint[] {
+  return buildBuckets(range, today).map((b) => {
+    const ws = workoutsBetween(workouts, b.from, b.to);
+    const planned = diffDays(b.to, b.from) + 1; // one planned session per day
+    const completedDays = new Set(ws.map((w) => w.date)).size;
+    return {
+      key: b.key,
+      label: b.label,
+      minutes: ws.reduce((a, w) => a + w.durationMin, 0),
+      runKm: totalKm(runs(ws)),
+      strengthIndex: strengthIndexAt(workouts, b.to),
+      completed: completedDays,
+      planned,
+      adherence: Math.round((completedDays / planned) * 100),
+    };
+  });
+}
+
+export interface Insight {
+  kind: 'improving' | 'attention' | 'focus';
+  title: string;
+  points: string[];
+}
+
+/** Rule-based prototype insights computed from the shared data. */
+export function trainingInsights(workouts: Workout[], recovery: RecoveryDay[], today = DEMO_TODAY): Insight[] {
+  const lifts = TRACKED_LIFTS.map((n) => liftSummary(workouts, n)).filter((l) => l.history.length > 1);
+  const topLift = [...lifts].sort((a, b) => b.changeSinceStartPct - a.changeSinceStartPct)[0];
+  const allRuns = runs(workouts.filter((w) => w.date <= today));
+  const recentRuns = allRuns.filter((r) => r.date > addDays(today, -28));
+  const earlyRuns = allRuns.filter((r) => r.date <= addDays(allRuns[0]?.date ?? today, 27));
+  const paceGain = avgPace(earlyRuns) - avgPace(recentRuns);
+  const best = best5kPace(allRuns);
+
+  const coverage = muscleCoverage(workouts, '4w', today);
+  const low = coverage.filter((m) => m.status === 'significant' || m.status === 'below').sort((a, b) => a.pct - b.pct);
+  const series = recoverySeries(recovery, workouts, today);
+  const last7 = series.slice(-7);
+  const prior = series.slice(-35, -7);
+  const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / (xs.length || 1);
+  const hrvDelta = avg(last7.map((p) => p.hrv)) - avg(prior.map((p) => p.hrv));
+  const acwr = series.length ? series[series.length - 1].acuteLoad / (series[series.length - 1].chronicLoad || 1) : 1;
+  const weekendLong = workouts.filter((w) => w.date > addDays(today, -28) && weekdayIndex(w.date) === 4 && w.type === 'Running').length;
+
+  const improving: string[] = [];
+  if (topLift) improving.push(`${topLift.name} strength is up ${topLift.changeSinceStartPct.toFixed(0)}% since the start of the block.`);
+  if (paceGain > 0) improving.push(`Average running pace is ${Math.round(paceGain)} s/km faster than the first 4 weeks.`);
+  if (best) improving.push(`Best 5 km+ pace is now ${fmtPace(best)}/km.`);
+  if (hrvDelta > 0) improving.push(`HRV is trending up (+${hrvDelta.toFixed(1)} ms vs the previous 4 weeks).`);
+
+  const attention: string[] = [];
+  low.slice(0, 3).forEach((m) => attention.push(`${m.label}: ${m.weeklySets} sets/week vs a target of ${m.target} (${m.pct}%).`));
+  if (acwr > 1.3) attention.push(`Acute:chronic load ratio is ${acwr.toFixed(2)} — load is ramping quickly.`);
+  if (!attention.length) attention.push('All muscle groups are within target over the last 4 weeks.');
+
+  const focus: string[] = [];
+  if (low[0]) focus.push(`Add 2–3 sets of ${focusExercise(low[0].id)} to the Wednesday strength session.`);
+  if (low[1]) focus.push(`Include ${focusExercise(low[1].id)} as a finisher in one F45 session.`);
+  if (weekendLong < 2) focus.push('Build towards the 10 km goal with a weekly easy run that grows by ~0.5 km each week.');
+  focus.push(acwr > 1.3 ? 'Keep Tuesday as a true recovery day to absorb the load increase.' : 'Recovery is balanced — maintain the Tuesday Tuina / mobility session.');
+
+  return [
+    { kind: 'improving', title: 'What is improving', points: improving.slice(0, 3) },
+    { kind: 'attention', title: 'What needs attention', points: attention.slice(0, 3) },
+    { kind: 'focus', title: 'Suggested training focus', points: focus.slice(0, 3) },
+  ];
+}
+
+const FOCUS: Record<string, string> = {
+  quadriceps: 'goblet squats',
+  hamstrings: 'Nordic curls or leg curls',
+  glutes: 'hip thrusts',
+  calves: 'single-leg calf raises',
+  chest: 'push-ups or chest press',
+  back: 'seated cable rows',
+  shoulders: 'lateral raises',
+  biceps: 'bicep curls',
+  triceps: 'tricep pushdowns or dips',
+  core: 'Pallof presses and dead bugs',
+};
+const focusExercise = (id: string) => FOCUS[id] ?? 'targeted accessory work';
