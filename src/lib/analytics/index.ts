@@ -7,3 +7,4 @@ export * from './recovery';
 export * from './overview';
 export * from './race';
 export * from './body';
+export * from './simCompare';

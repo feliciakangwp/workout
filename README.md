@@ -93,6 +93,13 @@ you add your own.
   by time; SkiErg, Row Erg, Assault Bike and Bike Erg by distance and time (not offered in Strength sessions).
 - **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). On the Running page,
   pure runs are *Running* and runs inside HYROX / HYROX Engine sessions are *Hyrox Run*.
+- **Sim analysis** (HYROX page, and in each sim's details): every run and station of a completed sim is compared with
+  your best from any other sim, solo race or relay leg, with new bests flagged. Half and ¾ sims are scaled to a full
+  sim (station time ÷ distance share, plus a fatigue allowance of +4% / +2% on stations and +2% / +1% on runs) and
+  compared with your best full effort (runs + stations, Roxzone excluded).
+- **Race time estimate** (HYROX page): for upcoming solo and doubles races, a finish-time range from the best to the
+  average of every run, station and Roxzone across your sims and races (Pro / Open weights matched when possible).
+  Doubles use your doubles race splits when you have them, otherwise solo station times × 0.55.
 - **Add workout → HYROX** records race-style splits: Half, ¾ or Full Sim, a 1 km run before every station, and station
   distances / reps scaled to the sim. Half and ¾ station times are scaled to full distance for comparison.
 

@@ -7,6 +7,7 @@ import { sessionLoad, workoutMuscles } from '../lib/analytics';
 import { fmtLong } from '../lib/dates';
 import { fmtDuration, fmtPace, fmtTime } from '../lib/format';
 import { DemoBadge, MiniStat, TypeBadge } from './ui';
+import { SimComparison } from './SimAnalysis';
 
 export const fmtSetsReps = (e: ExerciseEntry) => {
   const m = entryMeasure(e);
@@ -59,6 +60,12 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
       </div>
 
       {workout.hyrox && <HyroxSplits workout={workout} />}
+      {workout.hyrox && (
+        <div>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Compared with your best runs and stations</h4>
+          <SimComparison workout={workout} />
+        </div>
+      )}
 
       {workout.run && !workout.hyrox && (
         <div>

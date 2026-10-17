@@ -202,7 +202,7 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
   const finish = (w: Omit<Workout, 'id' | 'isSample'>) => {
     addWorkout(w);
     deleteDraft(ownId); // no-op when the workout was never saved open
-    notify(`${w.title} completed — added to the workout log.`);
+    notify(w.hyrox ? `${w.title} completed. See how it compares with your bests on HYROX Performance.` : `${w.title} completed — added to the workout log.`);
     onClose();
   };
 

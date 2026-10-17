@@ -6,6 +6,7 @@ import { useData } from '../context/DataContext';
 import { STATION_BY_ID, stationSpec } from '../data/stations';
 import { RacePlan } from '../components/RacePlan';
 import { RaceAnalysis } from '../components/RaceAnalysis';
+import { RaceEstimateCard, SimAnalysisCard } from '../components/SimAnalysis';
 import type { StationId } from '../data/types';
 import { raceDivision, stationSummaries, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong, fmtShort } from '../lib/dates';
@@ -50,6 +51,8 @@ export function HyroxPerformance() {
       <div className="mb-5 space-y-5">
         <RacePlan />
         <RaceAnalysis />
+        <SimAnalysisCard />
+        <RaceEstimateCard />
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
