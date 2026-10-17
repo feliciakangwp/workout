@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEMO_TODAY, generateSample } from '../data/mockData';
-import type { CustomExercise, Goals, Profile, Race, RecoveryDay, SharedRace, UserData, WeekPlan, Workout, WorkoutDraft, WorkoutType } from '../data/types';
+import { planKey, type CustomExercise, type DraftForm, type Goals, type Profile, type Race, type RecoveryDay, type SharedRace, type UserData, type WeekPlan, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
 import { newUserData } from '../lib/backend';
 import { useAuth } from './AuthContext';
 
@@ -20,6 +20,9 @@ interface DataContextValue {
   /** Planned workouts per date for the weekly calendar (starts empty). */
   plan: WeekPlan;
   setDayPlan: (date: string, types: WorkoutType[]) => void;
+  /** Exercises planned ahead for a day's workout, keyed by planKey(). */
+  planDetails: Record<string, DraftForm>;
+  setPlanDetail: (key: string, form: DraftForm | null) => void;
   /** Workouts saved but not yet marked completed. */
   drafts: WorkoutDraft[];
   saveDraft: (d: WorkoutDraft) => void;
@@ -150,7 +153,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     [update, readOnly, shared, athlete, backend, loadShared],
   );
-  const setDayPlan = useCallback((date: string, types: WorkoutType[]) => update((d) => ({ ...d, plan: { ...d.plan, [date]: types } })), [update]);
+  const setDayPlan = useCallback(
+    (date: string, types: WorkoutType[]) =>
+      update((d) => {
+        // Unplanning a workout also drops the exercises planned for it.
+        const details = Object.fromEntries(Object.entries(d.planDetails ?? {}).filter(([k]) => !k.startsWith(`${date}|`) || types.some((t) => k === planKey(date, t))));
+        return { ...d, plan: { ...d.plan, [date]: types }, planDetails: details };
+      }),
+    [update],
+  );
+  const setPlanDetail = useCallback(
+    (key: string, form: DraftForm | null) =>
+      update((d) => {
+        const details = { ...(d.planDetails ?? {}) };
+        if (form) details[key] = form;
+        else delete details[key];
+        return { ...d, planDetails: details };
+      }),
+    [update],
+  );
   const saveDraft = useCallback(
     (draft: WorkoutDraft) => update((d) => ({ ...d, drafts: d.drafts.some((x) => x.id === draft.id) ? d.drafts.map((x) => (x.id === draft.id ? draft : x)) : [...d.drafts, draft] })),
     [update],
@@ -187,6 +208,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             updateGoals,
             plan: data.plan,
             setDayPlan,
+            planDetails: data.planDetails ?? {},
+            setPlanDetail,
             drafts: readOnly ? [] : data.drafts,
             saveDraft,
             deleteDraft,
@@ -194,7 +217,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             saveCustomExercises,
           }
         : null,
-    [data, sample, shared, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, saveDraft, deleteDraft, saveCustomExercises],
+    [data, sample, shared, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises],
   );
 
   if (!value)

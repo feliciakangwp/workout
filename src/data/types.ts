@@ -188,7 +188,12 @@ export interface WorkoutDraft {
   /** ISO timestamp of the last save. */
   savedAt: string;
   form: DraftForm;
+  /** Set when started from a planned workout (`date|type`). */
+  fromPlan?: string;
 }
+
+/** Key for a planned workout's exercises: `2026-10-18|Strength`. */
+export const planKey = (date: string, type: WorkoutType) => `${date}|${type}`;
 
 export interface Goals {
   currentWeightKg: number;
@@ -235,6 +240,8 @@ export interface UserData {
   added: Workout[];
   goals: Goals;
   plan: WeekPlan;
+  /** Exercises planned ahead for a day's workout, keyed by planKey(). */
+  planDetails?: Record<string, DraftForm>;
   drafts: WorkoutDraft[];
   customExercises: CustomExercise[];
 }

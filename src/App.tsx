@@ -15,6 +15,9 @@ import { HyroxPerformance } from './pages/HyroxPerformance';
 import { Recovery } from './pages/Recovery';
 import { WorkoutLog } from './pages/WorkoutLog';
 import { Friends } from './pages/Friends';
+import type { WorkoutType } from './data/types';
+
+type PlannedRef = { date: string; type: WorkoutType };
 
 const readHash = (): PageId => {
   const id = window.location.hash.replace('#/', '') as PageId;
@@ -44,8 +47,11 @@ function Gate() {
 function Dashboard() {
   const { readOnly } = useData();
   const [page, setPage] = useState<PageId>(readHash);
-  /** null = closed; otherwise the open workout being continued (or a blank form). */
-  const [adding, setAdding] = useState<{ draftId?: string; key: number } | null>(null);
+  /**
+   * null = closed. Otherwise: a blank form, an open workout being continued (draftId),
+   * a planned workout's exercises being planned (plan), or a planned workout being started (start).
+   */
+  const [adding, setAdding] = useState<{ draftId?: string; plan?: PlannedRef; start?: PlannedRef; key: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -63,7 +69,16 @@ function Dashboard() {
 
   // A friend's dashboard is view-only: nothing opens an editor.
   const openAdd = useCallback((draftId?: string) => !readOnly && setAdding({ draftId, key: Date.now() }), [readOnly]);
-  const ui = useMemo(() => ({ openAddWorkout: openAdd, openProfile: () => !readOnly && setProfileOpen(true), notify: setToast }), [openAdd, readOnly]);
+  const ui = useMemo(
+    () => ({
+      openAddWorkout: openAdd,
+      openPlanEditor: (date: string, type: WorkoutType) => !readOnly && setAdding({ plan: { date, type }, key: Date.now() }),
+      startPlannedWorkout: (date: string, type: WorkoutType) => !readOnly && setAdding({ start: { date, type }, key: Date.now() }),
+      openProfile: () => !readOnly && setProfileOpen(true),
+      notify: setToast,
+    }),
+    [openAdd, readOnly],
+  );
 
   useEffect(() => {
     if (!toast) return;
@@ -83,7 +98,7 @@ function Dashboard() {
         {page === 'log' && <WorkoutLog onAddWorkout={() => openAdd()} />}
         {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
       </Layout>
-      {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} onClose={() => setAdding(null)} />}
+      {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} plan={adding.plan} start={adding.start} onClose={() => setAdding(null)} />}
       <AthleteProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
       {toast && (
         <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg lg:bottom-5" role="status">

@@ -4,7 +4,7 @@ import { EXERCISES, EXERCISE_BY_NAME, entryMeasure, exerciseMeasure } from '../d
 import { DATA_START } from '../data/mockData';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
-import type { CustomExercise, Division, DraftForm, ExerciseEntry, ExerciseMeasure, HyroxSplit, RunData, RunKind, SimType, StationId, StationResult, Workout, WorkoutType } from '../data/types';
+import { planKey, type CustomExercise, type Division, type DraftForm, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { raceDivision, upcomingRaces } from '../lib/analytics';
@@ -90,8 +90,15 @@ function bestEfforts(workouts: Workout[]): Record<string, Best> {
   return out;
 }
 
-export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClose: () => void }) {
-  const { addWorkout, today, goals, drafts, saveDraft, deleteDraft, workouts, customExercises, saveCustomExercises } = useData();
+type PlannedRef = { date: string; type: WorkoutType };
+
+/**
+ * Workout form. Modes: a blank ad-hoc workout, continuing an open workout
+ * (draftId), planning a day's workout ahead (plan), or starting a planned
+ * workout pre-filled with its plan (start).
+ */
+export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: string; plan?: PlannedRef; start?: PlannedRef; onClose: () => void }) {
+  const { addWorkout, today, goals, drafts, saveDraft, deleteDraft, workouts, customExercises, saveCustomExercises, planDetails, setPlanDetail } = useData();
   const savedCustom = (name: string) => customExercises.find((c) => c.name === name);
   /** How a row is logged: chosen for a new custom exercise, saved for a reused one, else from the library. */
   const rowMeasure = (r: ExerciseRow): ExerciseMeasure => (r.name === CUSTOM ? r.customMeasure : savedCustom(r.name)?.measure ?? exerciseMeasure(r.name));
@@ -99,8 +106,20 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
   const nextRace = upcomingRaces(goals, today)[0];
   const defaultDivision: Division = nextRace ? raceDivision(nextRace, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' };
   const draft = drafts.find((d) => d.id === draftId);
-  // Initial values come from the open workout being continued, or a blank form.
-  const [init] = useState<DraftForm>(() => (draft ? draft.form : blankForm(today, defaultDivision)));
+  const planRef = plan ?? start;
+  // Initial values: the open workout being continued, the saved plan, or a blank form.
+  const [init] = useState<DraftForm>(() => {
+    if (draft) return draft.form;
+    if (planRef) {
+      const saved = planDetails[planKey(planRef.date, planRef.type)];
+      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), duration: planRef.type === 'HYROX' ? '' : '60' };
+      return { ...base, type: planRef.type, date: plan ? plan.date : today };
+    }
+    return blankForm(today, defaultDivision);
+  });
+  /** Open-workout id for Save: the one being continued, or a new one. */
+  const [ownId] = useState(() => draftId ?? `draft-${Date.now()}`);
+  const locked = !!planRef || !!draft?.fromPlan;
   const [date, setDate] = useState(init.date);
   const [type, setType] = useState<WorkoutType>(init.type);
   const [title, setTitle] = useState(init.title);
@@ -122,8 +141,16 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
 
   /** Keeps the workout open so it can be continued later. */
   const saveOpen = () => {
-    saveDraft({ id: draftId ?? `draft-${Date.now()}`, savedAt: new Date().toISOString(), form: formValues() });
+    saveDraft({ id: ownId, savedAt: new Date().toISOString(), form: formValues(), fromPlan: draft?.fromPlan ?? (start ? planKey(start.date, start.type) : undefined) });
     notify('Workout saved — continue it any time from the open workout bar.');
+    onClose();
+  };
+
+  /** Stores the exercises planned for this day's workout. */
+  const savePlan = () => {
+    if (!plan) return;
+    setPlanDetail(planKey(plan.date, plan.type), formValues());
+    notify(`${plan.type} plan saved for ${fmtShort(plan.date)}.`);
     onClose();
   };
 
@@ -174,7 +201,7 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
 
   const finish = (w: Omit<Workout, 'id' | 'isSample'>) => {
     addWorkout(w);
-    if (draftId) deleteDraft(draftId);
+    deleteDraft(ownId); // no-op when the workout was never saved open
     notify(`${w.title} completed — added to the workout log.`);
     onClose();
   };
@@ -319,24 +346,39 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
     <Modal
       open
       onClose={onClose}
-      title={draft ? 'Continue workout' : 'Add workout'}
+      title={plan ? `Plan ${plan.type} · ${fmtShort(plan.date)}` : draft ? 'Continue workout' : start ? `Start ${start.type}` : 'Add workout'}
       wide
       footer={
         <>
           <button className="btn-ghost mr-auto" onClick={onClose}>Close</button>
-          <button className="btn-ghost" onClick={saveOpen}>
-            <Save size={15} /> Save
-          </button>
-          <button className="btn-primary" onClick={submit}>
-            <CheckCircle2 size={15} /> Completed
-          </button>
+          {plan ? (
+            <button className="btn-primary" onClick={savePlan}>
+              <Save size={15} /> Save plan
+            </button>
+          ) : (
+            <>
+              <button className="btn-ghost" onClick={saveOpen}>
+                <Save size={15} /> Save
+              </button>
+              <button className="btn-primary" onClick={submit}>
+                <CheckCircle2 size={15} /> Completed
+              </button>
+            </>
+          )}
         </>
       }
     >
-      <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-        <b className="font-semibold">Save</b> keeps this workout open so you can keep logging sets and times. Tap <b className="font-semibold">Completed</b> when you finish — only then is it added to the workout log and charts.
-        {draft && <span className="mt-1 block text-blue-700/80">Last saved {new Date(draft.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.</span>}
-      </p>
+      {plan ? (
+        <p className="mb-4 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
+          Plan the exercises, sets, reps and target weights (or runs and times) for this workout. On the day, tap <b className="font-semibold">Start workout</b> at the top of the app to log it from this plan.
+        </p>
+      ) : (
+        <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          {start && <span className="mb-1 block font-semibold">Pre-filled from your plan — adjust anything you changed on the day.</span>}
+          <b className="font-semibold">Save</b> keeps this workout open so you can keep logging sets and times. Tap <b className="font-semibold">Completed</b> when you finish — only then is it added to the workout log and charts.
+          {draft && <span className="mt-1 block text-blue-700/80">Last saved {new Date(draft.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.</span>}
+        </p>
+      )}
       {errors.length > 0 && (
         <ul className="mb-4 list-disc space-y-0.5 rounded-lg bg-rose-50 py-2 pl-7 pr-3 text-xs text-rose-700" role="alert">
           {errors.map((e) => <li key={e}>{e}</li>)}
@@ -346,11 +388,11 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <label className="label" htmlFor="aw-date">Workout date</label>
-          <input id="aw-date" type="date" className="input" value={date} min={DATA_START} max={today} onChange={(e) => setDate(e.target.value)} />
+          <input id="aw-date" type="date" className="input disabled:bg-slate-50 disabled:text-slate-600" disabled={locked} value={date} min={DATA_START} max={plan ? undefined : today} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div>
           <label className="label" htmlFor="aw-type">Workout type</label>
-          <select id="aw-type" className="input" value={type} onChange={(e) => chooseType(e.target.value as WorkoutType)}>
+          <select id="aw-type" className="input disabled:bg-slate-50 disabled:text-slate-600" disabled={locked} value={type} onChange={(e) => chooseType(e.target.value as WorkoutType)}>
             {WORKOUT_TYPES.map((t) => <option key={t}>{t}</option>)}
           </select>
         </div>

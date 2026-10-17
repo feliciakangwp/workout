@@ -68,6 +68,9 @@ dashboards **read-only** from the Friends page (account menu → Friends).
   muscle groups are shown in bold on Muscle Analysis.
 - **Weekly training plan** (Overview): starts empty; plan F45, HYROX, HYROX Engine, Recovery, Running or Strength for
   today and future days. Past days are view-only. Swipe right for earlier weeks, left for later ones.
+- **Plan ahead**: on a planned day, *Plan exercises* fills in the workout (exercises, sets, reps, target weights, runs)
+  and *Save plan* keeps it. On the day, a *Today's plan → Start workout* bar opens the workout pre-filled from the plan.
+  *+ Add workout* is for unplanned (ad-hoc) sessions.
 - **Open workouts**: *Save* keeps a workout open (shown in a bar at the top of every page) so you can keep logging;
   only *Completed* adds it to the workout log and charts.
 - **Exercise logging**: lifts use sets × reps × weight, with your best previous effort shown in grey. Plank is logged

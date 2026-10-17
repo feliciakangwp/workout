@@ -1,15 +1,27 @@
-import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Lock, Plus, XCircle } from 'lucide-react';
+import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Lock, Play, Plus, XCircle } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { DATA_START } from '../data/mockData';
-import type { Workout, WorkoutType } from '../data/types';
+import { planKey, type DraftForm, type Workout, type WorkoutType } from '../data/types';
+import { simLabel } from '../data/stations';
 import { runs, sessionLoad } from '../lib/analytics';
 import { addDays, diffDays, fmtShort, startOfWeek, WEEKDAYS, WEEKDAYS_SHORT } from '../lib/dates';
 import { fmtDuration } from '../lib/format';
 import { TYPE_COLORS, TYPE_DESCRIPTIONS, WORKOUT_TYPES } from '../lib/theme';
 import { Card, CardHeader, Modal, TypeBadge } from './ui';
 import { WorkoutDetail } from './WorkoutDetail';
+
+/** Short description of a planned workout's contents, e.g. "5 exercises". */
+export function planSummary(f: DraftForm) {
+  if (f.type === 'HYROX') return simLabel(f.sim);
+  if (f.type === 'Running') {
+    const n = f.runRows.filter((r) => r.km.trim()).length;
+    return `${n} run${n === 1 ? '' : 's'}`;
+  }
+  const n = f.rows.filter((r) => r.name).length;
+  return `${n} exercise${n === 1 ? '' : 's'}`;
+}
 
 /** How far ahead the athlete can plan. */
 const WEEKS_AHEAD = 4;
@@ -19,7 +31,7 @@ const WEEKS_AHEAD = 4;
  * editable; past days are read-only and show what was logged.
  */
 export function WeeklyPlanner({ className = '' }: { className?: string }) {
-  const { workouts, today, plan, readOnly } = useData();
+  const { workouts, today, plan, readOnly, planDetails } = useData();
   const thisWeek = startOfWeek(today);
   const [weekStart, setWeekStart] = useState(thisWeek);
   const [selected, setSelected] = useState<string | null>(null);
@@ -90,12 +102,16 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
               <div className="min-w-0 flex-1 sm:mt-2">
                 {planned.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {planned.map((t) => (
-                      <span key={t} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">
-                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: TYPE_COLORS[t] }} />
-                        {t}
-                      </span>
-                    ))}
+                    {planned.map((t) => {
+                      const detail = planDetails[planKey(d, t)];
+                      return (
+                        <span key={t} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: TYPE_COLORS[t] }} />
+                          {t}
+                          {detail && <span className="font-normal text-slate-500">· {planSummary(detail)}</span>}
+                        </span>
+                      );
+                    })}
                   </div>
                 )}
                 {done.map((w) => (
@@ -126,8 +142,8 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
 }
 
 function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout[]; onClose: () => void }) {
-  const { plan, setDayPlan, today, readOnly } = useData();
-  const { openAddWorkout } = useUI();
+  const { plan, setDayPlan, today, readOnly, planDetails, drafts } = useData();
+  const { openAddWorkout, openPlanEditor, startPlannedWorkout } = useUI();
   const planned = plan[date] ?? [];
   const editable = !readOnly && date >= today;
   const toggle = (t: WorkoutType) => setDayPlan(date, planned.includes(t) ? planned.filter((x) => x !== t) : WORKOUT_TYPES.filter((x) => x === t || planned.includes(x)));
@@ -171,6 +187,37 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
             <p className="text-sm text-slate-500">Nothing was planned for this day.</p>
           )}
           {editable && <p className="mt-2 text-[11px] text-slate-500">Changes save straight away. Pick more than one for double sessions.</p>}
+
+          {editable && planned.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <h4 className="text-sm font-semibold text-slate-800">Plan the exercises</h4>
+              {planned.map((t) => {
+                const key = planKey(date, t);
+                const detail = planDetails[key];
+                const started = drafts.some((d) => d.fromPlan === key);
+                const done = workouts.some((w) => w.type === t);
+                return (
+                  <div key={t} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 p-3">
+                    <span className="h-2 w-2 rounded-full" style={{ background: TYPE_COLORS[t] }} />
+                    <span className="min-w-0 flex-1 text-sm font-medium text-slate-900">
+                      {t}
+                      <span className="block text-xs font-normal text-slate-500">{detail ? planSummary(detail) + ' planned' : 'No exercises planned yet'}</span>
+                    </span>
+                    <button className="btn-ghost py-1.5 text-xs" onClick={() => { onClose(); openPlanEditor(date, t); }}>
+                      <ClipboardList size={14} /> {detail ? 'Edit plan' : 'Plan exercises'}
+                    </button>
+                    {date === today && !done && !started && (
+                      <button className="btn-primary py-1.5 text-xs" onClick={() => { onClose(); startPlannedWorkout(date, t); }}>
+                        <Play size={14} /> Start workout
+                      </button>
+                    )}
+                    {started && <span className="text-xs font-medium text-blue-700">In progress</span>}
+                    {done && date === today && <span className="text-xs font-medium text-emerald-700">Done today</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <section>

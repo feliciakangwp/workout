@@ -1,8 +1,13 @@
 import { createContext, useContext, type ReactNode } from 'react';
+import type { WorkoutType } from '../data/types';
 
 interface UIContextValue {
   /** Opens a blank workout, or continues the open workout with this id. */
   openAddWorkout: (draftId?: string) => void;
+  /** Plan the exercises for a planned workout ahead of the day. */
+  openPlanEditor: (date: string, type: WorkoutType) => void;
+  /** Start today's planned workout, pre-filled with its planned exercises. */
+  startPlannedWorkout: (date: string, type: WorkoutType) => void;
   openProfile: () => void;
   notify: (message: string) => void;
 }

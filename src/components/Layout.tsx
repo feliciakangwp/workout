@@ -1,10 +1,12 @@
-import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, HeartPulse, LayoutDashboard, ListChecks, LogOut, Pencil, Plus, Trophy, Users, X } from 'lucide-react';
+import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, HeartPulse, LayoutDashboard, ListChecks, LogOut, Pencil, Play, Plus, Trophy, Users, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { DemoBadge } from './ui';
 import { fmtLong, fmtShort, diffDays } from '../lib/dates';
 import { simLabel } from '../data/stations';
 import { DEFAULT_TITLE } from './AddWorkoutModal';
+import { planSummary } from './WeeklyPlanner';
+import { planKey } from '../data/types';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
@@ -98,6 +100,39 @@ function AthleteCard() {
         <span className="mt-1 block">No upcoming race{readOnly ? '' : ' · tap to add races'}</span>
       )}
     </button>
+  );
+}
+
+/** Today's planned workouts that haven't been started or logged yet. */
+function TodayPlanBar() {
+  const { plan, planDetails, today, workouts, drafts, readOnly } = useData();
+  const { startPlannedWorkout } = useUI();
+  if (readOnly) return null;
+  const pending = (plan[today] ?? []).filter((t) => !workouts.some((w) => w.date === today && w.type === t) && !drafts.some((d) => d.fromPlan === planKey(today, t)));
+  if (!pending.length) return null;
+  return (
+    <div className="mb-3 space-y-2">
+      {pending.map((t) => {
+        const detail = planDetails[planKey(today, t)];
+        return (
+          <div key={t} className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 sm:px-4">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+              <Play size={15} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Today's plan</span>
+              <span className="block truncate text-sm font-medium text-slate-900">
+                {t}
+                <span className="font-normal text-slate-500"> · {detail ? planSummary(detail) + ' planned' : 'no exercises planned'}</span>
+              </span>
+            </span>
+            <button onClick={() => startPlannedWorkout(today, t)} className="btn-primary h-9 shrink-0 bg-emerald-600 px-3 text-xs hover:bg-emerald-700">
+              Start workout
+            </button>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -246,6 +281,7 @@ export function Layout({ page, onNavigate, children }: { page: PageId; onNavigat
         </header>
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pb-28 pt-4 sm:px-6 sm:py-6 lg:pb-6">
           {page !== 'friends' && <ViewingBanner />}
+          <TodayPlanBar />
           <OpenWorkoutsBar />
           {children}
         </main>
