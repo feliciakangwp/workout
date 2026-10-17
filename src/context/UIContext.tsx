@@ -1,8 +1,10 @@
 import { createContext, useContext, type ReactNode } from 'react';
 
 interface UIContextValue {
-  openAddWorkout: () => void;
+  /** Opens a blank workout, or continues the open workout with this id. */
+  openAddWorkout: (draftId?: string) => void;
   openProfile: () => void;
+  notify: (message: string) => void;
 }
 
 const UIContext = createContext<UIContextValue | null>(null);

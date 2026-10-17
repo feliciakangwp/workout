@@ -1,11 +1,12 @@
-import { CheckCircle2, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { EXERCISES, EXERCISE_BY_NAME } from '../data/exercises';
 import { DATA_START } from '../data/mockData';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
-import type { Division, ExerciseEntry, HyroxSplit, MuscleGroup, RunKind, SimType, StationId, StationResult, Workout, WorkoutType } from '../data/types';
+import type { Division, DraftForm, ExerciseEntry, HyroxSplit, MuscleGroup, RunKind, SimType, StationId, StationResult, Workout, WorkoutType } from '../data/types';
 import { useData } from '../context/DataContext';
+import { useUI } from '../context/UIContext';
 import { raceDivision, upcomingRaces } from '../lib/analytics';
 import { fmtTime, parseTime } from '../lib/format';
 import { WORKOUT_TYPES } from '../lib/theme';
@@ -33,7 +34,25 @@ const emptySplits = () => Object.fromEntries(STATIONS.map((s) => [s.id, { run: '
 let rowKey = 0;
 const newRow = (): ExerciseRow => ({ key: rowKey++, name: 'Squat', customName: '', customMuscles: [], sets: '3', reps: '10', weight: '' });
 
-const DEFAULT_TITLE: Record<WorkoutType, string> = {
+const blankForm = (today: string, division: Division): DraftForm => ({
+  date: today,
+  type: 'Strength',
+  title: '',
+  duration: '60',
+  intensity: 7,
+  rows: [newRow()],
+  runKind: 'Easy',
+  runKm: '',
+  runTime: '',
+  runHr: '',
+  sim: 'full',
+  division,
+  splits: emptySplits(),
+  simHr: '',
+  notes: '',
+});
+
+export const DEFAULT_TITLE: Record<WorkoutType, string> = {
   F45: 'F45 Class',
   Strength: 'Strength Session',
   HYROX: 'HYROX Session',
@@ -42,52 +61,39 @@ const DEFAULT_TITLE: Record<WorkoutType, string> = {
   Recovery: 'Recovery Session',
 };
 
-export function AddWorkoutModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { addWorkout, today, goals } = useData();
+export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClose: () => void }) {
+  const { addWorkout, today, goals, drafts, saveDraft, deleteDraft } = useData();
+  const { notify } = useUI();
   const nextRace = upcomingRaces(goals, today)[0];
   const defaultDivision: Division = nextRace ? raceDivision(nextRace, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' };
-  const [date, setDate] = useState(today);
-  const [type, setType] = useState<WorkoutType>('Strength');
-  const [title, setTitle] = useState('');
-  const [duration, setDuration] = useState('60');
-  const [intensity, setIntensity] = useState(7);
-  const [rows, setRows] = useState<ExerciseRow[]>([newRow()]);
-  const [runKind, setRunKind] = useState<RunKind>('Easy');
-  const [runKm, setRunKm] = useState('');
-  const [runTime, setRunTime] = useState('');
-  const [runHr, setRunHr] = useState('');
-  const [sim, setSim] = useState<SimType>('full');
-  const [division, setDivision] = useState<Division>(defaultDivision);
-  const [splits, setSplits] = useState<SplitInputs>(emptySplits);
-  const [simHr, setSimHr] = useState('');
-  const [notes, setNotes] = useState('');
+  const draft = drafts.find((d) => d.id === draftId);
+  // Initial values come from the open workout being continued, or a blank form.
+  const [init] = useState<DraftForm>(() => (draft ? draft.form : blankForm(today, defaultDivision)));
+  const [date, setDate] = useState(init.date);
+  const [type, setType] = useState<WorkoutType>(init.type);
+  const [title, setTitle] = useState(init.title);
+  const [duration, setDuration] = useState(init.duration);
+  const [intensity, setIntensity] = useState(init.intensity);
+  const [rows, setRows] = useState<ExerciseRow[]>(init.rows);
+  const [runKind, setRunKind] = useState<RunKind>(init.runKind);
+  const [runKm, setRunKm] = useState(init.runKm);
+  const [runTime, setRunTime] = useState(init.runTime);
+  const [runHr, setRunHr] = useState(init.runHr);
+  const [sim, setSim] = useState<SimType>(init.sim);
+  const [division, setDivision] = useState<Division>(init.division);
+  const [splits, setSplits] = useState<SplitInputs>(init.splits);
+  const [simHr, setSimHr] = useState(init.simHr);
+  const [notes, setNotes] = useState(init.notes);
   const [errors, setErrors] = useState<string[]>([]);
-  const [toast, setToast] = useState<string | null>(null);
 
-  const reset = () => {
-    setDate(today);
-    setType('Strength');
-    setTitle('');
-    setDuration('60');
-    setIntensity(7);
-    setRows([newRow()]);
-    setRunKind('Easy');
-    setRunKm('');
-    setRunTime('');
-    setRunHr('');
-    setSim('full');
-    setDivision(defaultDivision);
-    setSplits(emptySplits());
-    setSimHr('');
-    setNotes('');
-    setErrors([]);
+  const formValues = (): DraftForm => ({ date, type, title, duration, intensity, rows, runKind, runKm, runTime, runHr, sim, division, splits, simHr, notes });
+
+  /** Keeps the workout open so it can be continued later. */
+  const saveOpen = () => {
+    saveDraft({ id: draftId ?? `draft-${Date.now()}`, savedAt: new Date().toISOString(), form: formValues() });
+    notify('Workout saved — continue it any time from the open workout bar.');
+    onClose();
   };
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(null), 3500);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   const updateRow = (key: number, patch: Partial<ExerciseRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
@@ -127,8 +133,8 @@ export function AddWorkoutModal({ open, onClose }: { open: boolean; onClose: () 
 
   const finish = (w: Omit<Workout, 'id' | 'isSample'>) => {
     addWorkout(w);
-    setToast(`${w.title} added — dashboards updated.`);
-    reset();
+    if (draftId) deleteDraft(draftId);
+    notify(`${w.title} completed — added to the workout log.`);
     onClose();
   };
 
@@ -213,19 +219,25 @@ export function AddWorkoutModal({ open, onClose }: { open: boolean; onClose: () 
   return (
     <>
       <Modal
-        open={open}
+        open
         onClose={onClose}
-        title="Add workout"
+        title={draft ? 'Continue workout' : 'Add workout'}
         wide
         footer={
           <>
-            <button className="btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn-primary" onClick={submit}>Save workout</button>
+            <button className="btn-ghost mr-auto" onClick={onClose}>Close</button>
+            <button className="btn-ghost" onClick={saveOpen}>
+              <Save size={15} /> Save
+            </button>
+            <button className="btn-primary" onClick={submit}>
+              <CheckCircle2 size={15} /> Completed
+            </button>
           </>
         }
       >
         <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-          Prototype: workouts are kept in memory for this session only and immediately feed every chart and the muscle analysis. Reloading the page resets to the sample data.
+          <b className="font-semibold">Save</b> keeps this workout open so you can keep logging sets and times. Tap <b className="font-semibold">Completed</b> when you finish — only then is it added to the workout log and charts.
+          {draft && <span className="mt-1 block text-blue-700/80">Last saved {new Date(draft.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.</span>}
         </p>
         {errors.length > 0 && (
           <ul className="mb-4 list-disc space-y-0.5 rounded-lg bg-rose-50 py-2 pl-7 pr-3 text-xs text-rose-700" role="alert">
@@ -362,11 +374,6 @@ export function AddWorkoutModal({ open, onClose }: { open: boolean; onClose: () 
         </div>
       </Modal>
 
-      {toast && (
-        <div className="fixed bottom-24 left-1/2 z-[60] w-max max-w-[calc(100vw-2rem)] lg:bottom-5 flex -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg" role="status">
-          <CheckCircle2 size={16} className="text-emerald-400" /> {toast}
-        </div>
-      )}
     </>
   );
 }

@@ -1,17 +1,16 @@
-import { Activity, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Circle, Clock, Dumbbell, Footprints, HeartPulse, Lightbulb, Pencil, Sparkles, Target, TrendingUp, TriangleAlert, XCircle } from 'lucide-react';
+import { Activity, CalendarDays, Clock, Dumbbell, Footprints, HeartPulse, Lightbulb, Pencil, Sparkles, Target, TrendingUp, TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Bar, ReferenceLine, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { PageId } from '../components/Layout';
-import { Card, CardHeader, ChartTooltip, DemoBadge, Modal, PageHeader, RANGE_OPTIONS, Segmented, StatCard, TypeBadge } from '../components/ui';
-import { WorkoutDetail } from '../components/WorkoutDetail';
+import { Card, CardHeader, ChartTooltip, DemoBadge, Modal, PageHeader, RANGE_OPTIONS, Segmented, StatCard } from '../components/ui';
+import { WeeklyPlanner } from '../components/WeeklyPlanner';
 import { useUI } from '../context/UIContext';
 import { useData } from '../context/DataContext';
-import { DATA_START, WEEKLY_SCHEDULE } from '../data/mockData';
-import type { Goals, Workout } from '../data/types';
-import { type RangeKey, trainingInsights, trainingTrends, weekComparison, best5kPace, runs, predictTime, sessionLoad, raceTypeLabel, upcomingRaces } from '../lib/analytics';
-import { addDays, diffDays, fmtShort, startOfWeek, WEEKDAYS, WEEKDAYS_SHORT } from '../lib/dates';
+import type { Goals } from '../data/types';
+import { type RangeKey, trainingInsights, trainingTrends, weekComparison, best5kPace, runs, predictTime, raceTypeLabel, upcomingRaces } from '../lib/analytics';
+import { diffDays, fmtShort } from '../lib/dates';
 import { fmtDuration, fmtPace, fmtPct, fmtTime, parseTime, pctChange } from '../lib/format';
-import { AXIS, GRID, SERIES, TYPE_COLORS } from '../lib/theme';
+import { AXIS, GRID, SERIES } from '../lib/theme';
 
 export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const { workouts, recovery, today } = useData();
@@ -33,122 +32,13 @@ export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <WeeklyCalendar className="xl:col-span-2" />
+        <WeeklyPlanner className="xl:col-span-2" />
         <GoalsCard />
       </div>
 
       <TrainingTrends />
 
       <Insights onNavigate={onNavigate} />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-function WeeklyCalendar({ className = '' }: { className?: string }) {
-  const { workouts, today } = useData();
-  const [weekStart, setWeekStart] = useState(startOfWeek(today));
-  const [selected, setSelected] = useState<string | null>(null);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const byDate = useMemo(() => {
-    const m = new Map<string, Workout[]>();
-    workouts.forEach((w) => m.set(w.date, [...(m.get(w.date) ?? []), w]));
-    return m;
-  }, [workouts]);
-  const canPrev = weekStart > startOfWeek(DATA_START);
-  const canNext = weekStart < startOfWeek(today);
-  const selectedIdx = selected ? diffDays(selected, weekStart) : -1;
-  const selectedWorkouts = selected ? byDate.get(selected) ?? [] : [];
-
-  return (
-    <Card className={className}>
-      <CardHeader
-        icon={CalendarDays}
-        title="Weekly training calendar"
-        subtitle={`Week of ${fmtShort(weekStart)} – ${fmtShort(addDays(weekStart, 6))} · click a day for details`}
-        action={
-          <div className="flex items-center gap-1">
-            <button className="btn-ghost px-2 py-1.5" disabled={!canPrev} onClick={() => setWeekStart(addDays(weekStart, -7))} aria-label="Previous week"><ChevronLeft size={16} /></button>
-            <button className="btn-ghost px-2.5 py-1.5 text-xs" disabled={!canNext} onClick={() => setWeekStart(startOfWeek(today))}>This week</button>
-            <button className="btn-ghost px-2 py-1.5" disabled={!canNext} onClick={() => setWeekStart(addDays(weekStart, 7))} aria-label="Next week"><ChevronRight size={16} /></button>
-          </div>
-        }
-      />
-      <div className="-mx-px flex snap-x gap-2 overflow-x-auto p-4 sm:grid sm:grid-cols-4 sm:overflow-visible sm:p-5 lg:grid-cols-7">
-        {days.map((d, i) => {
-          const plan = WEEKLY_SCHEDULE[i];
-          const done = byDate.get(d) ?? [];
-          const future = d > today;
-          const isToday = d === today;
-          const status = done.length ? 'done' : future ? 'planned' : 'missed';
-          const color = TYPE_COLORS[done[0]?.type ?? plan.type];
-          return (
-            <button
-              key={d}
-              onClick={() => setSelected(d)}
-              className={`group flex min-h-[132px] w-[42%] shrink-0 snap-start flex-col rounded-xl border p-3 text-left sm:w-auto transition hover:-translate-y-0.5 hover:shadow-md ${isToday ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'} ${status === 'missed' ? 'bg-slate-50' : 'bg-white'}`}
-            >
-              <div className="flex w-full items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">{WEEKDAYS_SHORT[i]}</span>
-                <span className={`text-xs ${isToday ? 'font-semibold text-blue-600' : 'text-slate-400'}`}>{isToday ? 'Today' : fmtShort(d)}</span>
-              </div>
-              <span className="mt-2 h-1 w-8 rounded-full" style={{ background: color, opacity: status === 'missed' ? 0.35 : 1 }} />
-              <p className="mt-2 text-sm font-semibold leading-snug text-slate-900">{done[0]?.title.replace(/ — .*/, '') ?? plan.label}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{done.length ? `${fmtDuration(done.reduce((a, w) => a + w.durationMin, 0))}${done[0].run ? ` · ${done[0].run.distanceKm} km` : ''}` : plan.label}</p>
-              <span className="mt-auto pt-2 text-[11px] font-medium">
-                {status === 'done' && <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 size={12} /> Completed{done.length > 1 ? ` ×${done.length}` : ''}</span>}
-                {status === 'planned' && <span className="inline-flex items-center gap-1 text-blue-600"><Circle size={12} /> Planned</span>}
-                {status === 'missed' && <span className="inline-flex items-center gap-1 text-slate-500"><XCircle size={12} /> Missed</span>}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <WeekSummary workouts={days.flatMap((d) => byDate.get(d) ?? [])} plannedSoFar={days.filter((d) => d <= today).length} />
-
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={selected ? `${WEEKDAYS[selectedIdx]} · ${fmtShort(selected)}` : ''} wide={selectedWorkouts.length > 0}>
-        {selected && (
-          <div className="space-y-6">
-            <div className="rounded-xl bg-slate-50 p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Planned session</p>
-              <div className="mt-1 flex items-center gap-2">
-                <TypeBadge type={WEEKLY_SCHEDULE[selectedIdx].type} />
-                <span className="text-sm font-medium text-slate-800">{WEEKLY_SCHEDULE[selectedIdx].label}</span>
-              </div>
-              <p className="mt-1 text-sm text-slate-600">{WEEKLY_SCHEDULE[selectedIdx].description}</p>
-            </div>
-            {selectedWorkouts.length === 0 ? (
-              <p className="text-sm text-slate-500">{selected > today ? 'This session is still upcoming.' : 'No workout was logged on this day.'}</p>
-            ) : (
-              selectedWorkouts.map((w) => <WorkoutDetail key={w.id} workout={w} />)
-            )}
-          </div>
-        )}
-      </Modal>
-    </Card>
-  );
-}
-
-function WeekSummary({ workouts, plannedSoFar }: { workouts: Workout[]; plannedSoFar: number }) {
-  const { goals } = useData();
-  const trainingSessions = workouts.filter((w) => w.type !== 'Recovery').length;
-  const items = [
-    { label: 'Sessions completed', value: `${new Set(workouts.map((w) => w.date)).size}/${plannedSoFar}`, sub: 'planned days so far' },
-    { label: 'Training sessions', value: `${trainingSessions}/${goals.weeklySessionsTarget}`, sub: 'weekly target' },
-    { label: 'Total time', value: fmtDuration(workouts.reduce((a, w) => a + w.durationMin, 0)), sub: 'all sessions' },
-    { label: 'Running', value: `${runs(workouts).reduce((a, r) => a + r.distanceKm, 0).toFixed(1)} km`, sub: `target ${goals.weeklyRunKmTarget} km` },
-    { label: 'Training load', value: workouts.reduce((a, w) => a + sessionLoad(w), 0).toLocaleString(), sub: 'duration × RPE' },
-  ];
-  return (
-    <div className="mx-4 mb-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 sm:mx-5 sm:mb-5 sm:grid-cols-5">
-      {items.map((i) => (
-        <div key={i.label} className="px-1">
-          <p className="text-[11px] font-medium text-slate-500">{i.label}</p>
-          <p className="text-base font-semibold text-slate-900">{i.value}</p>
-          <p className="text-[11px] text-slate-400">{i.sub}</p>
-        </div>
-      ))}
     </div>
   );
 }
@@ -312,7 +202,7 @@ function TrainingTrends() {
             <Bar dataKey="runKm" name="Distance" fill={SERIES.violet} radius={[4, 4, 0, 0]} maxBarSize={36} />
           </BarChart>,
         )}
-        {chart('Workout consistency', `${completed}/${planned} planned days trained (${Math.round((completed / planned) * 100)}%)`,
+        {chart('Workout consistency', `${completed}/${planned} days trained (${Math.round((completed / planned) * 100)}%)`,
           weekly ? (
             <BarChart data={data} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
               <CartesianGrid {...GRID} />
@@ -328,7 +218,7 @@ function TrainingTrends() {
               <YAxis hide domain={[0, 1]} />
               <Tooltip cursor={{ fill: '#f1f5f9' }} content={<ChartTooltip labelFormatter={fmtLabel} valueFormatter={(v) => (v ? 'Yes' : 'No')} />} />
               <Bar dataKey="completed" name="Trained" stackId="a" fill={SERIES.aqua} maxBarSize={28} />
-              <Bar dataKey="missed" name="Missed" stackId="a" fill="#e2e8f0" radius={[4, 4, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="missed" name="Rest" stackId="a" fill="#e2e8f0" radius={[4, 4, 0, 0]} maxBarSize={28} />
             </BarChart>
           ),
         )}

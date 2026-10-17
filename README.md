@@ -36,6 +36,15 @@ src/
 - **Athlete & races** (sidebar card on laptop, profile icon on mobile): choose the athlete's sex and upcoming races —
   Solo, Doubles (stations shared, every run done yourself) or Relay (1 km run + only your chosen stations, open weights),
   each with Open or Pro weights. The HYROX page shows each race's segments and the muscle groups to focus on.
+- **Completed races**: races move under *Completed* once their date passes. Enter the finish time, or fill the optional
+  run / station splits plus the Roxzone time to calculate it automatically. The HYROX page compares each race with the
+  previous one (what improved, what slowed, per-segment changes).
+- **Muscle focus**: solo and doubles races focus every muscle group; while all upcoming races are relays, their primary
+  muscle groups are shown in bold on Muscle Analysis.
+- **Weekly training plan** (Overview): starts empty; plan F45, HYROX, HYROX Engine, Recovery, Running or Strength for
+  today and future days. Past days are view-only. Swipe right for earlier weeks, left for later ones.
+- **Open workouts**: *Save* keeps a workout open (shown in a bar at the top of every page) so you can keep logging;
+  only *Completed* adds it to the workout log and charts.
 - **Add workout → HYROX** records race-style splits: Half, ¾ or Full Sim, a 1 km run before every station, and station
   distances / reps scaled to the sim. Half and ¾ station times are scaled to full distance for comparison.
 

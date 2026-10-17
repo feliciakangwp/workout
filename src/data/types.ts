@@ -113,6 +113,45 @@ export interface Race {
   category: WeightCategory;
   /** Stations this athlete completes in a relay. */
   relayStations: StationId[];
+  /** Finish details, entered once the race date has passed. */
+  result?: RaceResult;
+}
+
+export interface RaceResult {
+  /** Overall finish time; derived from splits + Roxzone when those are complete. */
+  totalSec?: number;
+  /** Total time spent in the Roxzone (transitions between runs and stations). */
+  roxzoneSec?: number;
+  splits: HyroxSplit[];
+}
+
+/** Workouts planned per date on the weekly calendar. */
+export type WeekPlan = Record<string, WorkoutType[]>;
+
+/** Editable Add Workout form values, kept while a workout is still open. */
+export interface DraftForm {
+  date: string;
+  type: WorkoutType;
+  title: string;
+  duration: string;
+  intensity: number;
+  rows: { key: number; name: string; customName: string; customMuscles: MuscleGroup[]; sets: string; reps: string; weight: string }[];
+  runKind: RunKind;
+  runKm: string;
+  runTime: string;
+  runHr: string;
+  sim: SimType;
+  division: Division;
+  splits: Record<StationId, { run: string; station: string }>;
+  simHr: string;
+  notes: string;
+}
+
+export interface WorkoutDraft {
+  id: string;
+  /** ISO timestamp of the last save. */
+  savedAt: string;
+  form: DraftForm;
 }
 
 export interface Goals {

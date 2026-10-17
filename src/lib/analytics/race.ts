@@ -16,6 +16,10 @@ export function raceTypeLabel(race: Race, sex: Sex) {
 export const upcomingRaces = (goals: Goals, today: string) =>
   [...goals.races].filter((r) => r.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1));
 
+/** Races whose date has passed, most recent first. */
+export const completedRaces = (goals: Goals, today: string) =>
+  [...goals.races].filter((r) => r.date < today).sort((a, b) => (a.date < b.date ? 1 : -1));
+
 export interface RaceSegment {
   station: StationId;
   name: string;
@@ -77,6 +81,7 @@ const RUN_MUSCLES: { primary: MuscleGroup[]; secondary: MuscleGroup[] } = {
 /**
  * Relative demand each muscle group faces in this race, from the athlete's
  * runs and station share. Pro weights add extra emphasis to loaded stations.
+ * Solo and doubles races cover every station, so every muscle group is a focus.
  */
 export function raceMuscleFocus(race: Race, sex: Sex): MuscleFocus[] {
   const load = Object.fromEntries(MUSCLES.map((m) => [m.id, 0])) as Record<MuscleGroup, number>;
@@ -98,7 +103,80 @@ export function raceMuscleFocus(race: Race, sex: Sex): MuscleFocus[] {
   const max = Math.max(...Object.values(load), 1e-9);
   return MUSCLES.map((m) => {
     const score = Math.round((load[m.id] / max) * 100);
-    const level: FocusLevel = score >= 65 ? 'primary' : score >= 30 ? 'secondary' : 'low';
+    const level: FocusLevel = race.format !== 'relay' ? 'primary' : score >= 65 ? 'primary' : score >= 30 ? 'secondary' : 'low';
     return { id: m.id, label: m.label, score, level, sources: sources[m.id] };
   }).sort((a, b) => b.score - a.score);
+}
+
+/**
+ * Primary muscle groups to emphasise (bold) on Muscle Analysis: only while
+ * every upcoming race is a relay, since full races already demand every group.
+ */
+export function relayFocusMuscles(goals: Goals, today: string): Set<MuscleGroup> {
+  const races = upcomingRaces(goals, today);
+  if (!races.length || races.some((r) => r.format !== 'relay')) return new Set();
+  return new Set(races.flatMap((r) => raceMuscleFocus(r, goals.athleteSex).filter((f) => f.level === 'primary').map((f) => f.id)));
+}
+
+// ---------------------------------------------------------------------------
+// Completed race results
+// ---------------------------------------------------------------------------
+
+/** Stations whose splits apply to this race (a relay athlete's own legs only). */
+export const raceStations = (race: Race) => STATIONS.filter((s) => race.format !== 'relay' || race.relayStations.includes(s.id));
+
+export function resultTotals(race: Race) {
+  const r = race.result;
+  const stations = raceStations(race);
+  const splits = stations.map((st) => r?.splits.find((x) => x.station === st.id));
+  const filled = splits.filter((x) => x?.runSec && x?.stationSec).length;
+  const runSec = splits.reduce((a, x) => a + (x?.runSec ?? 0), 0);
+  const stationSec = splits.reduce((a, x) => a + (x?.stationSec ?? 0), 0);
+  const complete = filled === stations.length;
+  const auto = complete && !!r?.roxzoneSec;
+  return {
+    runSec,
+    stationSec,
+    roxzoneSec: r?.roxzoneSec,
+    missing: stations.length - filled,
+    hasSplits: filled > 0,
+    auto,
+    totalSec: auto ? runSec + stationSec + r!.roxzoneSec! : r?.totalSec,
+  };
+}
+
+export interface SegmentDelta {
+  key: string;
+  label: string;
+  currentSec: number;
+  previousSec: number;
+  /** Positive = slower than the previous race. */
+  deltaSec: number;
+}
+
+/** Most recent earlier completed race with a time, preferring the same format. */
+export function previousRace(race: Race, completed: Race[]) {
+  const earlier = completed.filter((r) => r.date < race.date && resultTotals(r).totalSec);
+  return earlier.find((r) => r.format === race.format) ?? earlier[0];
+}
+
+export function compareRaces(current: Race, previous: Race): { segments: SegmentDelta[]; totals: SegmentDelta[] } {
+  const a = resultTotals(current);
+  const b = resultTotals(previous);
+  const segments: SegmentDelta[] = [];
+  for (const st of raceStations(current)) {
+    const x = current.result?.splits.find((s) => s.station === st.id);
+    const y = previous.result?.splits.find((s) => s.station === st.id);
+    if (x?.runSec && y?.runSec) segments.push({ key: `run-${st.id}`, label: `Run ${st.order}`, currentSec: x.runSec, previousSec: y.runSec, deltaSec: x.runSec - y.runSec });
+    if (x?.stationSec && y?.stationSec) segments.push({ key: st.id, label: st.name, currentSec: x.stationSec, previousSec: y.stationSec, deltaSec: x.stationSec - y.stationSec });
+  }
+  const totals: SegmentDelta[] = [];
+  const add = (key: string, label: string, c?: number, p?: number) => c && p && totals.push({ key, label, currentSec: c, previousSec: p, deltaSec: c - p });
+  add('total', 'Finish time', a.totalSec, b.totalSec);
+  if (a.hasSplits && b.hasSplits) {
+    add('runs', 'All runs', a.runSec, b.runSec);
+    add('stations', 'All stations', a.stationSec, b.stationSec);
+  }
+  add('roxzone', 'Roxzone', a.roxzoneSec, b.roxzoneSec);
+  return { segments, totals };
 }

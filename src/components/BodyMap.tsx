@@ -62,8 +62,11 @@ export function BodyFigure({
   hovered,
   onSelect,
   onHover,
+  emphasis,
 }: {
   view: 'front' | 'back';
+  /** Muscles drawn with a bold outline (e.g. relay focus). */
+  emphasis?: Set<MuscleGroup>;
   colors: Record<MuscleGroup, string>;
   selected: MuscleGroup | null;
   hovered: MuscleGroup | null;
@@ -80,8 +83,8 @@ export function BodyFigure({
         d={r.d}
         transform={mirrored ? 'translate(200 0) scale(-1 1)' : undefined}
         fill={colors[r.muscle]}
-        stroke={active ? '#1d4ed8' : '#ffffff'}
-        strokeWidth={active ? 2.2 : 1.2}
+        stroke={active ? '#1d4ed8' : emphasis?.has(r.muscle) ? '#1e3a8a' : '#ffffff'}
+        strokeWidth={active ? 2.6 : emphasis?.has(r.muscle) ? 2 : 1.2}
         opacity={hovered && !hot && !active ? 0.75 : 1}
         className="cursor-pointer transition-opacity"
         onClick={() => onSelect(r.muscle)}

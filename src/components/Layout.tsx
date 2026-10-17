@@ -1,8 +1,10 @@
-import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, HeartPulse, LayoutDashboard, ListChecks, Plus, Trophy, UserRound } from 'lucide-react';
+import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, HeartPulse, LayoutDashboard, ListChecks, Plus, Trophy, UserRound, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { DemoBadge } from './ui';
-import { fmtLong, diffDays } from '../lib/dates';
+import { fmtLong, fmtShort, diffDays } from '../lib/dates';
+import { simLabel } from '../data/stations';
+import { DEFAULT_TITLE } from './AddWorkoutModal';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { raceTypeLabel, upcomingRaces } from '../lib/analytics';
@@ -82,6 +84,46 @@ function AthleteCard() {
   );
 }
 
+/** Workouts saved with "Save" but not yet marked Completed. */
+function OpenWorkoutsBar() {
+  const { drafts, deleteDraft } = useData();
+  const { openAddWorkout } = useUI();
+  if (!drafts.length) return null;
+  return (
+    <div className="mb-4 space-y-2">
+      {drafts.map((d) => {
+        const f = d.form;
+        const title = f.type === 'HYROX' ? `HYROX ${simLabel(f.sim)}` : f.title.trim() || DEFAULT_TITLE[f.type];
+        return (
+          <div key={d.id} className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 sm:px-4">
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-60" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-600" />
+            </span>
+            <button onClick={() => openAddWorkout(d.id)} className="min-w-0 flex-1 text-left">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-blue-700">Open workout</span>
+              <span className="block truncate text-sm font-medium text-slate-900">
+                {title} · {fmtShort(f.date)}
+                <span className="font-normal text-slate-500"> · saved {new Date(d.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </span>
+            </button>
+            <button onClick={() => openAddWorkout(d.id)} className="btn-primary h-9 shrink-0 px-3 text-xs">
+              Continue
+            </button>
+            <button
+              onClick={() => window.confirm(`Discard the open workout "${title}"?`) && deleteDraft(d.id)}
+              className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600"
+              aria-label={`Discard ${title}`}
+            >
+              <X size={16} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Layout({ page, onNavigate, children }: { page: PageId; onNavigate: (p: PageId) => void; children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const { today, workouts } = useData();
@@ -124,11 +166,14 @@ export function Layout({ page, onNavigate, children }: { page: PageId; onNavigat
           <button onClick={openProfile} className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 lg:hidden" aria-label="Athlete & races">
             <UserRound size={18} />
           </button>
-          <button onClick={openAddWorkout} className="btn-primary h-9 px-3 sm:px-3.5" aria-label="Add workout">
+          <button onClick={() => openAddWorkout()} className="btn-primary h-9 px-3 sm:px-3.5" aria-label="Add workout">
             <Plus size={18} /> <span className="hidden sm:inline">Add workout</span>
           </button>
         </header>
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pb-28 pt-4 sm:px-6 sm:py-6 lg:pb-6">{children}</main>
+        <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pb-28 pt-4 sm:px-6 sm:py-6 lg:pb-6">
+          <OpenWorkoutsBar />
+          {children}
+        </main>
         <footer className="hidden px-6 pb-6 text-center text-[11px] text-slate-400 lg:block">
           Prototype dashboard. All metrics are generated demonstration data — no device or service is connected.
         </footer>

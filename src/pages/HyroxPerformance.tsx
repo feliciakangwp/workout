@@ -5,6 +5,7 @@ import { Card, CardHeader, DemoBadge, EmptyState, Legend, PageHeader, StatCard, 
 import { useData } from '../context/DataContext';
 import { STATION_BY_ID, stationSpec } from '../data/stations';
 import { RacePlan } from '../components/RacePlan';
+import { RaceAnalysis } from '../components/RaceAnalysis';
 import type { StationId } from '../data/types';
 import { raceDivision, stationSummaries, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong, fmtShort } from '../lib/dates';
@@ -46,8 +47,9 @@ export function HyroxPerformance() {
     <div>
       <PageHeader title="HYROX Performance" subtitle="Station results from simulations and station practice. Half and ¾ sim times are scaled to full distance for comparison." actions={<DemoBadge />} />
 
-      <div className="mb-5">
+      <div className="mb-5 space-y-5">
         <RacePlan />
+        <RaceAnalysis />
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">

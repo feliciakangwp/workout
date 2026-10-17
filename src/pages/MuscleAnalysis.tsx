@@ -7,13 +7,13 @@ import { Card, CardHeader, ChartTooltip, DemoBadge, EmptyState, MiniStat, PageHe
 import { useData } from '../context/DataContext';
 import { MUSCLES } from '../data/muscles';
 import type { MuscleGroup } from '../data/types';
-import { COVERAGE_META, type CoverageWindow, muscleCoverage, muscleDetail } from '../lib/analytics';
+import { COVERAGE_META, type CoverageWindow, muscleCoverage, muscleDetail, relayFocusMuscles } from '../lib/analytics';
 import { diffDays, fmtShort } from '../lib/dates';
 import { fmtPct } from '../lib/format';
 import { AXIS, GRID, SERIES } from '../lib/theme';
 
 export function MuscleAnalysis() {
-  const { workouts, today } = useData();
+  const { workouts, today, goals } = useData();
   const [period, setPeriod] = useState<CoverageWindow>('4w');
   const coverage = useMemo(() => muscleCoverage(workouts, period, today), [workouts, period, today]);
   const lowest = [...coverage].sort((a, b) => a.pct - b.pct)[0]?.id ?? 'quadriceps';
@@ -21,6 +21,8 @@ export function MuscleAnalysis() {
   const [hovered, setHovered] = useState<MuscleGroup | null>(null);
   const colors = Object.fromEntries(coverage.map((c) => [c.id, COVERAGE_META[c.status].color])) as Record<MuscleGroup, string>;
   const hoveredInfo = coverage.find((c) => c.id === (hovered ?? selected));
+  // Relay-only race calendar: emphasise the muscles those legs use until the race has passed.
+  const relayFocus = useMemo(() => relayFocusMuscles(goals, today), [goals, today]);
   const counts = coverage.reduce<Record<string, number>>((acc, c) => ({ ...acc, [c.status]: (acc[c.status] ?? 0) + 1 }), {});
 
   return (
@@ -51,13 +53,14 @@ export function MuscleAnalysis() {
                 </span>
               ))}
             </div>
+            {relayFocus.size > 0 && <p className="mt-1 text-[11px] font-semibold text-blue-800">Bold = relay focus muscles for your upcoming relay.</p>}
             <p className="mt-1 text-[11px] text-slate-400">Within ≥ 80% of weekly set target · Below 50–79% · Significantly below &lt; 50%</p>
           </div>
           <div className="grid grid-cols-2 gap-2 px-3 pt-2 sm:px-8">
             {(['front', 'back'] as const).map((v) => (
               <div key={v} className="flex flex-col items-center">
                 <div className="h-[300px] w-full max-w-[170px] sm:h-[400px] sm:max-w-[180px]">
-                  <BodyFigure view={v} colors={colors} selected={selected} hovered={hovered} onSelect={setSelected} onHover={setHovered} />
+                  <BodyFigure view={v} colors={colors} selected={selected} hovered={hovered} onSelect={setSelected} onHover={setHovered} emphasis={relayFocus} />
                 </div>
                 <span className="mt-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">{v} view</span>
               </div>
@@ -66,7 +69,8 @@ export function MuscleAnalysis() {
           <div className="mx-5 mt-3 flex h-9 items-center justify-center rounded-lg bg-slate-50 text-xs text-slate-600">
             {hoveredInfo && (
               <span>
-                <b className="font-semibold text-slate-900">{hoveredInfo.label}</b> · {hoveredInfo.weeklySets} sets/week of {hoveredInfo.target} target ·{' '}
+                <b className={relayFocus.has(hoveredInfo.id) ? 'font-extrabold text-blue-800' : 'font-semibold text-slate-900'}>{hoveredInfo.label}</b>
+                {relayFocus.has(hoveredInfo.id) && <span className="font-semibold text-blue-800"> (relay focus)</span>} · {hoveredInfo.weeklySets} sets/week of {hoveredInfo.target} target ·{' '}
                 <span className={COVERAGE_META[hoveredInfo.status].text}>{COVERAGE_META[hoveredInfo.status].label}</span>
               </span>
             )}
@@ -76,7 +80,7 @@ export function MuscleAnalysis() {
               <button
                 key={c.id}
                 onClick={() => setSelected(c.id)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition ${selected === c.id ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'}`}
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-inset transition ${relayFocus.has(c.id) ? 'font-extrabold ring-2' : 'font-medium ring-1'} ${selected === c.id ? 'bg-blue-600 text-white ring-blue-600' : relayFocus.has(c.id) ? 'bg-white text-blue-900 ring-blue-600 hover:bg-blue-50' : 'bg-white text-slate-700 ring-slate-200 hover:bg-slate-50'}`}
               >
                 <span className="h-2 w-2 rounded-full ring-1 ring-white" style={{ background: COVERAGE_META[c.status].color }} />
                 {c.label}
@@ -85,7 +89,7 @@ export function MuscleAnalysis() {
           </div>
         </Card>
 
-        <MusclePanel muscle={selected} className="xl:col-span-3" />
+        <MusclePanel muscle={selected} relayFocus={relayFocus.has(selected)} className="xl:col-span-3" />
       </div>
 
       <Card className="mt-5">
@@ -95,7 +99,20 @@ export function MuscleAnalysis() {
             <BarChart data={coverage} layout="vertical" margin={{ top: 18, right: 24, left: 8, bottom: 0 }}>
               <CartesianGrid stroke="#eef2f7" horizontal={false} />
               <XAxis type="number" {...AXIS} tickFormatter={(v) => `${v}%`} domain={[0, (max: number) => Math.max(150, Math.ceil(max / 50) * 50)]} />
-              <YAxis type="category" dataKey="label" {...AXIS} width={84} tick={{ fill: '#334155', fontSize: 12 }} />
+              <YAxis
+                type="category"
+                dataKey="label"
+                {...AXIS}
+                width={92}
+                tick={(props: { x: number; y: number; payload: { value: string; index: number } }) => {
+                  const bold = relayFocus.has(coverage[props.payload.index].id);
+                  return (
+                    <text x={props.x} y={props.y} dy={4} textAnchor="end" fontSize={12} fontWeight={bold ? 800 : 400} fill={bold ? '#1e3a8a' : '#334155'}>
+                      {props.payload.value}
+                    </text>
+                  );
+                }}
+              />
               <Tooltip
                 cursor={{ fill: '#f1f5f9' }}
                 content={({ active, payload }) => {
@@ -125,7 +142,7 @@ export function MuscleAnalysis() {
   );
 }
 
-function MusclePanel({ muscle, className = '' }: { muscle: MuscleGroup; className?: string }) {
+function MusclePanel({ muscle, relayFocus, className = '' }: { muscle: MuscleGroup; relayFocus: boolean; className?: string }) {
   const { workouts, today } = useData();
   const d = useMemo(() => muscleDetail(workouts, muscle, today), [workouts, muscle, today]);
   const cov7 = muscleCoverage(workouts, '7d', today).find((c) => c.id === muscle)!;
@@ -140,7 +157,10 @@ function MusclePanel({ muscle, className = '' }: { muscle: MuscleGroup; classNam
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Selected muscle group · {view === 'both' ? 'front & back' : `${view} view`}</p>
-          <h2 className="mt-0.5 text-xl font-semibold text-slate-900">{d.label}</h2>
+          <h2 className={`mt-0.5 text-xl text-slate-900 ${relayFocus ? 'font-extrabold' : 'font-semibold'}`}>
+            {d.label}
+            {relayFocus && <span className="ml-2 rounded-full bg-blue-600 px-2 py-0.5 align-middle text-[11px] font-semibold text-white">Relay focus</span>}
+          </h2>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium" style={{ background: meta.soft }}>
           <span className="h-2 w-2 rounded-full" style={{ background: meta.color }} />

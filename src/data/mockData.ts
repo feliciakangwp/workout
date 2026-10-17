@@ -11,12 +11,17 @@
 import { addDays, dateRange, diffDays, weekdayIndex } from '../lib/dates';
 import { round } from '../lib/format';
 import { STATIONS } from './stations';
-import type { ExerciseEntry, Goals, RecoveryDay, RunData, RunKind, StationResult, Workout, WorkoutType } from './types';
+import type { ExerciseEntry, Goals, RaceResult, RecoveryDay, RunData, RunKind, StationResult, Workout } from './types';
 
 /** The prototype's fixed "today" so the demo data always lines up with the calendar. */
 export const DEMO_TODAY = '2026-10-17';
 /** First day of the 13-week demonstration block (a Monday). */
 export const DATA_START = '2026-07-20';
+
+function raceResult(runs: number[], stations: number[], roxzoneSec: number): RaceResult {
+  const splits = STATIONS.map((st, i) => ({ station: st.id, runSec: runs[i], stationSec: stations[i] }));
+  return { roxzoneSec, totalSec: runs.reduce((a, b) => a + b, 0) + stations.reduce((a, b) => a + b, 0) + roxzoneSec, splits };
+}
 
 export const DEFAULT_GOALS: Goals = {
   currentWeightKg: 64,
@@ -29,25 +34,12 @@ export const DEFAULT_GOALS: Goals = {
   races: [
     { id: 'race-1', name: 'HYROX Singapore', date: '2026-11-28', format: 'doubles', category: 'open', relayStations: [] },
     { id: 'race-2', name: 'HYROX Mixed Relay', date: '2027-01-23', format: 'relay', category: 'open', relayStations: ['skierg', 'wallBalls'] },
+    // Completed races (dates before DEMO_TODAY) with sample results.
+    { id: 'race-p1', name: 'HYROX Melbourne', date: '2026-03-14', format: 'solo', category: 'open', relayStations: [], result: raceResult([345, 362, 371, 378, 380, 385, 392, 401], [290, 220, 310, 330, 300, 130, 320, 400], 450) },
+    { id: 'race-p2', name: 'HYROX Sydney Relay', date: '2026-05-16', format: 'relay', category: 'open', relayStations: ['skierg', 'wallBalls'], result: { totalSec: 1478, splits: [] } },
+    { id: 'race-p3', name: 'HYROX Bangkok', date: '2026-07-11', format: 'solo', category: 'open', relayStations: [], result: raceResult([330, 349, 355, 362, 371, 376, 398, 410], [278, 195, 292, 338, 288, 124, 304, 412], 405) },
   ],
 };
-
-export interface PlannedSession {
-  type: WorkoutType;
-  label: string;
-  description: string;
-}
-
-/** Weekly template, Monday → Sunday. */
-export const WEEKLY_SCHEDULE: PlannedSession[] = [
-  { type: 'F45', label: 'F45', description: 'Functional HIIT class — full-body strength and conditioning.' },
-  { type: 'Recovery', label: 'Recovery / Tuina', description: 'Tuina massage, mobility and light stretching.' },
-  { type: 'Strength', label: 'Strength Training', description: 'Heavy compound lifts: squat, hinge, push, pull and carries.' },
-  { type: 'HYROX Engine', label: 'HYROX Engine', description: 'Erg intervals, sled work and wall balls with short run repeats.' },
-  { type: 'Running', label: 'Running or HYROX', description: 'Quality run (easy / tempo / intervals / 5K test) or partner station practice.' },
-  { type: 'F45', label: 'F45', description: 'Functional HIIT class — full-body strength and conditioning.' },
-  { type: 'HYROX', label: 'HYROX', description: 'HYROX simulation with compromised running and station work.' },
-];
 
 // ---------------------------------------------------------------------------
 // Seeded RNG

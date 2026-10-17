@@ -30,7 +30,17 @@ export const TYPE_BADGE: Record<WorkoutType, string> = {
   Recovery: 'bg-slate-100 text-slate-600 ring-slate-200',
 };
 
-export const WORKOUT_TYPES: WorkoutType[] = ['F45', 'Strength', 'HYROX', 'HYROX Engine', 'Running', 'Recovery'];
+/** Alphabetical, as offered in pickers. */
+export const WORKOUT_TYPES: WorkoutType[] = ['F45', 'HYROX', 'HYROX Engine', 'Recovery', 'Running', 'Strength'];
+
+export const TYPE_DESCRIPTIONS: Record<WorkoutType, string> = {
+  F45: 'Functional HIIT class — full-body strength and conditioning.',
+  HYROX: 'HYROX simulation or race-pace station work with compromised running.',
+  'HYROX Engine': 'Erg intervals, sled work and wall balls with short run repeats.',
+  Recovery: 'Tuina massage, mobility and light stretching.',
+  Running: 'Easy, tempo, interval or long run.',
+  Strength: 'Heavy compound lifts: squat, hinge, push, pull and carries.',
+};
 
 /** Shared Recharts styling. */
 export const AXIS = {

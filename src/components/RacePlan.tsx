@@ -115,6 +115,7 @@ export function RacePlan() {
 
           <div>
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Muscle groups to focus on</h4>
+            {race.format !== 'relay' && <p className="mb-2 text-xs text-slate-600">A {race.format === 'doubles' ? 'doubles' : 'solo'} race covers all 8 stations, so every muscle group is a focus.</p>}
             <Legend items={(['primary', 'secondary', 'low'] as const).map((l) => ({ label: FOCUS_META[l].label, color: FOCUS_META[l].color }))} />
             <div className="mt-2 grid grid-cols-2 gap-2">
               {(['front', 'back'] as const).map((v) => (
@@ -184,6 +185,7 @@ export function RaceFocusStrip({ onSelect }: { onSelect: (m: MuscleGroup) => voi
   const coverage = useMemo(() => muscleCoverage(workouts, '4w', today), [workouts, today]);
   if (!race) return null;
   const focus = raceMuscleFocus(race, goals.athleteSex).filter((f) => f.level !== 'low');
+  const fullBody = race.format !== 'relay';
   return (
     <Card className="mb-5 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -206,7 +208,9 @@ export function RaceFocusStrip({ onSelect }: { onSelect: (m: MuscleGroup) => voi
           );
         })}
       </div>
-      <p className="mt-2 text-[11px] text-slate-500">Dark blue = primary race demand, light blue = secondary. Red chips are race-critical muscles currently below their training target.</p>
+      <p className="mt-2 text-[11px] text-slate-500">
+        {fullBody ? 'Full race — every muscle group is a focus.' : 'Relay — focus on the muscle groups your legs use. Dark blue = primary (shown in bold below while your only upcoming races are relays), light blue = secondary.'} Red chips are below their training target.
+      </p>
     </Card>
   );
 }
