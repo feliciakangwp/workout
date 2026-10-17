@@ -35,7 +35,7 @@ function tipFor(seg: SegmentDelta, slowed: SegmentDelta[]) {
 }
 
 export function RaceAnalysis() {
-  const { goals, today } = useData();
+  const { goals, today, readOnly } = useData();
   const { openProfile } = useUI();
   const races = completedRaces(goals, today);
   const [raceId, setRaceId] = useState<string | null>(null);
@@ -43,10 +43,13 @@ export function RaceAnalysis() {
 
   return (
     <Card>
-      <CardHeader icon={Trophy} title="Completed race analysis" subtitle="What improved and what slowed compared with your previous race" action={<button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={openProfile}><Pencil size={13} /> Edit results</button>} />
+      <CardHeader icon={Trophy} title="Completed race analysis" subtitle="What improved and what slowed compared with your previous race" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={openProfile}><Pencil size={13} /> Edit results</button>} />
       <div className="space-y-5 p-4 sm:p-5">
         {!race ? (
-          <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">Completed races appear here once their date has passed.</p>
+          <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+            <p>Completed races appear here once their date has passed.</p>
+            {!readOnly && <button className="btn-ghost mt-3" onClick={openProfile}>Add a past race</button>}
+          </div>
         ) : (
           <>
             {races.length > 1 && (
@@ -67,7 +70,7 @@ export function RaceAnalysis() {
 }
 
 function RaceResultView({ race, previous }: { race: Race; previous?: Race }) {
-  const { goals } = useData();
+  const { goals, readOnly } = useData();
   const { openProfile } = useUI();
   const totals = resultTotals(race);
   const cmp = previous ? compareRaces(race, previous) : null;
@@ -93,7 +96,7 @@ function RaceResultView({ race, previous }: { race: Race; previous?: Race }) {
       {!totals.totalSec && !totals.hasSplits && (
         <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center">
           <p className="text-sm text-slate-600">No result entered for this race yet.</p>
-          <button className="btn-primary mt-3" onClick={openProfile}>Add finish time</button>
+          {!readOnly && <button className="btn-primary mt-3" onClick={openProfile}>Add finish time</button>}
         </div>
       )}
 

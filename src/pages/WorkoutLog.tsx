@@ -14,7 +14,7 @@ import { WORKOUT_TYPES } from '../lib/theme';
 const PAGE = 20;
 
 export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
-  const { workouts, today, removeWorkout } = useData();
+  const { workouts, today, removeWorkout, readOnly } = useData();
   const [type, setType] = useState<WorkoutType | 'all'>('all');
   const [from, setFrom] = useState(DATA_START);
   const [to, setTo] = useState(today);
@@ -43,7 +43,7 @@ export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
 
   return (
     <div>
-      <PageHeader title="Workout Log" subtitle={`${filtered.length} workouts · ${fmtDuration(totalMin)} total`} actions={<><DemoBadge /><button className="btn-primary" onClick={onAddWorkout}><Plus size={16} /> Add workout</button></>} />
+      <PageHeader title="Workout Log" subtitle={`${filtered.length} workouts · ${fmtDuration(totalMin)} total`} actions={<><DemoBadge />{!readOnly && <button className="btn-primary" onClick={onAddWorkout}><Plus size={16} /> Add workout</button>}</>} />
 
       <Card className="mb-4 p-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.5fr_1fr_1fr_1fr_auto]">
@@ -169,7 +169,7 @@ export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
       )}
 
       <Modal open={!!open} onClose={() => setOpenId(null)} title="Workout details" wide>
-        {open && <WorkoutDetail workout={open} onRemove={() => { removeWorkout(open.id); setOpenId(null); }} />}
+        {open && <WorkoutDetail workout={open} onRemove={readOnly ? undefined : () => { removeWorkout(open.id); setOpenId(null); }} />}
       </Modal>
     </div>
   );

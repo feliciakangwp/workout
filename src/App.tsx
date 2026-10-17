@@ -1,10 +1,12 @@
 import { CheckCircle2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Layout, NAV, type PageId } from './components/Layout';
+import { ALL_NAV, Layout, type PageId } from './components/Layout';
 import { AddWorkoutModal } from './components/AddWorkoutModal';
 import { AthleteProfileModal } from './components/AthleteProfileModal';
+import { LoginScreen } from './components/LoginScreen';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { UIProvider } from './context/UIContext';
-import { DataProvider } from './context/DataContext';
+import { DataProvider, useData } from './context/DataContext';
 import { Overview } from './pages/Overview';
 import { MuscleAnalysis } from './pages/MuscleAnalysis';
 import { StrengthProgression } from './pages/StrengthProgression';
@@ -12,13 +14,35 @@ import { RunningPerformance } from './pages/RunningPerformance';
 import { HyroxPerformance } from './pages/HyroxPerformance';
 import { Recovery } from './pages/Recovery';
 import { WorkoutLog } from './pages/WorkoutLog';
+import { Friends } from './pages/Friends';
 
 const readHash = (): PageId => {
   const id = window.location.hash.replace('#/', '') as PageId;
-  return NAV.some((n) => n.id === id) ? id : 'overview';
+  return ALL_NAV.some((n) => n.id === id) ? id : 'overview';
 };
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <Gate />
+    </AuthProvider>
+  );
+}
+
+/** Sign-in first; then the dashboard of the athlete being viewed (yourself or a friend). */
+function Gate() {
+  const { user, loading, viewing } = useAuth();
+  if (loading) return <div className="flex min-h-screen items-center justify-center text-sm text-slate-500">Loading…</div>;
+  if (!user || !viewing) return <LoginScreen />;
+  return (
+    <DataProvider key={viewing.id}>
+      <Dashboard />
+    </DataProvider>
+  );
+}
+
+function Dashboard() {
+  const { readOnly } = useData();
   const [page, setPage] = useState<PageId>(readHash);
   /** null = closed; otherwise the open workout being continued (or a blank form). */
   const [adding, setAdding] = useState<{ draftId?: string; key: number } | null>(null);
@@ -37,8 +61,9 @@ export default function App() {
     window.scrollTo({ top: 0 });
   }, []);
 
-  const openAdd = useCallback((draftId?: string) => setAdding({ draftId, key: Date.now() }), []);
-  const ui = useMemo(() => ({ openAddWorkout: openAdd, openProfile: () => setProfileOpen(true), notify: setToast }), [openAdd]);
+  // A friend's dashboard is view-only: nothing opens an editor.
+  const openAdd = useCallback((draftId?: string) => !readOnly && setAdding({ draftId, key: Date.now() }), [readOnly]);
+  const ui = useMemo(() => ({ openAddWorkout: openAdd, openProfile: () => !readOnly && setProfileOpen(true), notify: setToast }), [openAdd, readOnly]);
 
   useEffect(() => {
     if (!toast) return;
@@ -47,25 +72,24 @@ export default function App() {
   }, [toast]);
 
   return (
-    <DataProvider>
-      <UIProvider value={ui}>
-        <Layout page={page} onNavigate={navigate}>
-          {page === 'overview' && <Overview onNavigate={navigate} />}
-          {page === 'muscles' && <MuscleAnalysis />}
-          {page === 'strength' && <StrengthProgression />}
-          {page === 'running' && <RunningPerformance />}
-          {page === 'hyrox' && <HyroxPerformance />}
-          {page === 'recovery' && <Recovery />}
-          {page === 'log' && <WorkoutLog onAddWorkout={() => openAdd()} />}
-        </Layout>
-        {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} onClose={() => setAdding(null)} />}
-        <AthleteProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
-        {toast && (
-          <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg lg:bottom-5" role="status">
-            <CheckCircle2 size={16} className="shrink-0 text-emerald-400" /> {toast}
-          </div>
-        )}
-      </UIProvider>
-    </DataProvider>
+    <UIProvider value={ui}>
+      <Layout page={page} onNavigate={navigate}>
+        {page === 'overview' && <Overview onNavigate={navigate} />}
+        {page === 'muscles' && <MuscleAnalysis />}
+        {page === 'strength' && <StrengthProgression />}
+        {page === 'running' && <RunningPerformance />}
+        {page === 'hyrox' && <HyroxPerformance />}
+        {page === 'recovery' && <Recovery />}
+        {page === 'log' && <WorkoutLog onAddWorkout={() => openAdd()} />}
+        {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
+      </Layout>
+      {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} onClose={() => setAdding(null)} />}
+      <AthleteProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+      {toast && (
+        <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg lg:bottom-5" role="status">
+          <CheckCircle2 size={16} className="shrink-0 text-emerald-400" /> {toast}
+        </div>
+      )}
+    </UIProvider>
   );
 }

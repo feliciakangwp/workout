@@ -45,7 +45,7 @@ export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
 
 // ---------------------------------------------------------------------------
 function GoalsCard() {
-  const { goals, updateGoals, workouts, today } = useData();
+  const { goals, updateGoals, workouts, today, readOnly } = useData();
   const { openProfile } = useUI();
   const races = upcomingRaces(goals, today);
   const [editing, setEditing] = useState(false);
@@ -58,7 +58,7 @@ function GoalsCard() {
 
   return (
     <Card>
-      <CardHeader icon={Target} title="Goals & races" subtitle="Editable example goals — not measured values" action={<button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>} />
+      <CardHeader icon={Target} title="Goals & races" subtitle="Editable example goals — not measured values" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>} />
       <div className="space-y-4 p-5">
         <div>
           <div className="flex items-baseline justify-between text-sm">
@@ -79,9 +79,9 @@ function GoalsCard() {
         <div className="space-y-2 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming races · {goals.athleteSex === 'female' ? 'Female' : 'Male'}</p>
-            <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={openProfile}>Manage races →</button>
+            {!readOnly && <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={openProfile}>Manage races →</button>}
           </div>
-          {races.length === 0 && <button onClick={openProfile} className="w-full rounded-xl border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500 hover:bg-slate-50">Choose your upcoming races</button>}
+          {races.length === 0 && <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-500">No upcoming race planned.</p>}
           {races.map((race) => {
             const days = diffDays(race.date, today);
             return (

@@ -4,12 +4,12 @@ import { useData } from '../context/DataContext';
 import { STATIONS } from '../data/stations';
 import type { Race, RaceFormat, RaceResult, Sex, StationId, WeightCategory } from '../data/types';
 import { raceStations, raceSummary, raceTypeLabel } from '../lib/analytics';
-import { diffDays, fmtLong } from '../lib/dates';
+import { addDays, diffDays, fmtLong } from '../lib/dates';
 import { fmtTime, parseTime } from '../lib/format';
 import { Modal, Segmented } from './ui';
 
 let raceKey = 0;
-const newRace = (today: string): Race => ({ id: `race-new-${raceKey++}`, name: '', date: today, format: 'solo', category: 'open', relayStations: [] });
+const newRace = (date: string): Race => ({ id: `race-new-${raceKey++}`, name: '', date, format: 'solo', category: 'open', relayStations: [] });
 
 /** Text inputs for a completed race's result. */
 interface ResultInputs {
@@ -209,13 +209,25 @@ export function AthleteProfileModal({ open, onClose }: { open: boolean; onClose:
             <Plus size={14} /> Add race
           </button>
         </div>
-        {upcoming.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">No upcoming races — add one to see its demands and muscle focus.</p>}
+        {upcoming.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">No upcoming race — that's fine. Add one whenever you enter a race.</p>}
         <div className="space-y-3">{upcoming.map((r) => raceCard(r, races.indexOf(r), false))}</div>
       </section>
 
       <section className="mt-8">
-        <h4 className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-800"><Trophy size={15} className="text-amber-500" /> Completed races</h4>
-        <p className="mb-2 text-xs text-slate-500">Races move here automatically once their date has passed. Add your finish time to see the race analysis on the HYROX page.</p>
+        <div className="flex items-center justify-between">
+          <h4 className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-800"><Trophy size={15} className="text-amber-500" /> Completed races</h4>
+          <button
+            className="btn-ghost py-1.5 text-xs"
+            onClick={() => {
+              const race = newRace(addDays(today, -1));
+              setRaces((rs) => [...rs, race]);
+              updateResult(race.id, { open: true });
+            }}
+          >
+            <Plus size={14} /> Add past race
+          </button>
+        </div>
+        <p className="mb-2 mt-1 text-xs text-slate-500">Races move here automatically once their date has passed. Add past races with their date and finish time to see the race analysis on the HYROX page.</p>
         {completed.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">No completed races yet.</p>}
         <div className="space-y-3">{completed.map((r) => raceCard(r, races.indexOf(r), true))}</div>
       </section>

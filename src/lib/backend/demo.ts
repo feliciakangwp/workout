@@ -1,0 +1,163 @@
+import { DEFAULT_GOALS } from '../../data/mockData';
+import type { Friendship, Profile, UserData } from '../../data/types';
+import { FELICIA_DATA, hashString, newUserData } from './defaults';
+import type { AuthUser, Backend } from './types';
+
+interface DemoUser extends Profile {
+  email: string;
+}
+interface DemoLink {
+  requester: string;
+  addressee: string;
+  status: 'pending' | 'accepted';
+}
+interface DemoStore {
+  users: DemoUser[];
+  links: DemoLink[];
+  data: Record<string, UserData>;
+  session: string | null;
+}
+
+const KEY = 'hyrox-dashboard.demo.v1';
+
+function seedStore(): DemoStore {
+  const fiona: UserData = {
+    ...newUserData('demo-fiona'),
+    sample: { seed: 7331, liftScale: 1.12, paceShiftSec: -12 },
+    goals: {
+      ...DEFAULT_GOALS,
+      currentWeightKg: 61,
+      targetWeightKg: 59,
+      races: [
+        { id: 'f-1', name: 'HYROX Kuala Lumpur Relay', date: '2026-11-21', format: 'relay', category: 'open', relayStations: ['sledPush', 'sandbagLunges'] },
+        { id: 'f-2', name: 'HYROX Bangkok', date: '2026-07-11', format: 'solo', category: 'open', relayStations: [], result: { totalSec: 5380, splits: [] } },
+      ],
+    },
+  };
+  const jordan: UserData = {
+    ...newUserData('demo-jordan'),
+    sample: { seed: 4242, liftScale: 1.35, paceShiftSec: -25 },
+    goals: {
+      ...DEFAULT_GOALS,
+      athleteSex: 'male',
+      currentWeightKg: 78,
+      targetWeightKg: 76,
+      races: [{ id: 'j-1', name: 'HYROX Singapore', date: '2026-11-28', format: 'doubles', category: 'pro', relayStations: [] }],
+    },
+  };
+  return {
+    users: [
+      { id: 'demo-felicia', displayName: 'Felicia', email: 'felicia@demo.app' },
+      { id: 'demo-fiona', displayName: 'Fiona', email: 'fiona@demo.app' },
+      { id: 'demo-jordan', displayName: 'Jordan', email: 'jordan@demo.app' },
+    ],
+    // Jordan has already sent Felicia a friend request.
+    links: [{ requester: 'demo-jordan', addressee: 'demo-felicia', status: 'pending' }],
+    data: { 'demo-felicia': FELICIA_DATA, 'demo-fiona': fiona, 'demo-jordan': jordan },
+    session: null,
+  };
+}
+
+/** Demo accounts kept in this browser's storage (falls back to memory if storage is unavailable). */
+export function createDemoBackend(): Backend {
+  let memory: DemoStore | null = null;
+  const load = (): DemoStore => {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) return JSON.parse(raw) as DemoStore;
+    } catch {
+      /* storage unavailable */
+    }
+    return memory ?? (memory = seedStore());
+  };
+  const save = (s: DemoStore) => {
+    memory = s;
+    try {
+      localStorage.setItem(KEY, JSON.stringify(s));
+    } catch {
+      /* storage unavailable: keep in memory */
+    }
+  };
+  const toAuth = (u: DemoUser): AuthUser => ({ profile: { id: u.id, displayName: u.displayName }, email: u.email });
+  const me = (s: DemoStore) => {
+    if (!s.session) throw new Error('Not signed in.');
+    return s.session;
+  };
+  const between = (l: DemoLink, a: string, b: string) => (l.requester === a && l.addressee === b) || (l.requester === b && l.addressee === a);
+
+  return {
+    mode: 'demo',
+    async currentUser() {
+      const s = load();
+      const u = s.users.find((x) => x.id === s.session);
+      return u ? toAuth(u) : null;
+    },
+    async signIn(email) {
+      const s = load();
+      const u = s.users.find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
+      if (!u) throw new Error('No account with that email. Create one below.');
+      save({ ...s, session: u.id });
+      return toAuth(u);
+    },
+    async signUp(email, _password, displayName) {
+      const s = load();
+      const clean = email.trim().toLowerCase();
+      if (s.users.some((x) => x.email.toLowerCase() === clean)) throw new Error('An account with that email already exists. Sign in instead.');
+      const u: DemoUser = { id: `user-${hashString(clean + Date.now())}`, displayName: displayName.trim(), email: clean };
+      save({ ...s, users: [...s.users, u], data: { ...s.data, [u.id]: newUserData(u.id) }, session: u.id });
+      return { user: toAuth(u) };
+    },
+    async signOut() {
+      save({ ...load(), session: null });
+    },
+    async searchProfiles(query) {
+      const s = load();
+      const q = query.trim().toLowerCase();
+      if (!q) return [];
+      return s.users
+        .filter((u) => u.id !== s.session && (u.displayName.toLowerCase().includes(q) || u.email.toLowerCase() === q))
+        .map(({ id, displayName }) => ({ id, displayName }));
+    },
+    async listFriendships() {
+      const s = load();
+      const id = me(s);
+      return s.links
+        .filter((l) => l.requester === id || l.addressee === id)
+        .map((l): Friendship => {
+          const otherId = l.requester === id ? l.addressee : l.requester;
+          const other = s.users.find((u) => u.id === otherId)!;
+          return { profile: { id: other.id, displayName: other.displayName }, status: l.status === 'accepted' ? 'friends' : l.requester === id ? 'requested' : 'incoming' };
+        });
+    },
+    async requestFriend(profileId) {
+      const s = load();
+      const id = me(s);
+      const existing = s.links.find((l) => between(l, id, profileId));
+      if (existing?.requester === profileId) return this.acceptFriend(profileId);
+      if (existing) return;
+      save({ ...s, links: [...s.links, { requester: id, addressee: profileId, status: 'pending' }] });
+    },
+    async acceptFriend(profileId) {
+      const s = load();
+      const id = me(s);
+      save({ ...s, links: s.links.map((l) => (l.requester === profileId && l.addressee === id ? { ...l, status: 'accepted' } : l)) });
+    },
+    async removeFriend(profileId) {
+      const s = load();
+      const id = me(s);
+      save({ ...s, links: s.links.filter((l) => !between(l, id, profileId)) });
+    },
+    async loadUserData(userId) {
+      const s = load();
+      const id = me(s);
+      const allowed = userId === id || s.links.some((l) => l.status === 'accepted' && between(l, id, userId));
+      if (!allowed) throw new Error('You can only view friends who have accepted your request.');
+      return s.data[userId] ?? null;
+    },
+    async saveUserData(userId, data) {
+      const s = load();
+      if (userId !== me(s)) throw new Error('You can only change your own data.');
+      save({ ...s, data: { ...s.data, [userId]: data } });
+    },
+  };
+}

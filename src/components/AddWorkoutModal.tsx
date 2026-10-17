@@ -1,10 +1,10 @@
 import { CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { EXERCISES, EXERCISE_BY_NAME, exerciseMeasure } from '../data/exercises';
+import { EXERCISES, EXERCISE_BY_NAME, entryMeasure, exerciseMeasure } from '../data/exercises';
 import { DATA_START } from '../data/mockData';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
-import type { Division, DraftForm, ExerciseEntry, HyroxSplit, RunData, RunKind, SimType, StationId, StationResult, Workout, WorkoutType } from '../data/types';
+import type { CustomExercise, Division, DraftForm, ExerciseEntry, ExerciseMeasure, HyroxSplit, RunData, RunKind, SimType, StationId, StationResult, Workout, WorkoutType } from '../data/types';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { raceDivision, upcomingRaces } from '../lib/analytics';
@@ -27,7 +27,9 @@ type SplitInputs = Record<StationId, { run: string; station: string }>;
 const emptySplits = () => Object.fromEntries(STATIONS.map((s) => [s.id, { run: '', station: '' }])) as SplitInputs;
 
 let rowKey = 0;
-const newRow = (name = 'Squat'): ExerciseRow => ({ key: rowKey++, name, customName: '', customMuscles: [], sets: '3', reps: '10', weight: '', distance: '', time: '' });
+const newRow = (name = 'Squat'): ExerciseRow => ({ key: rowKey++, name, customName: '', customMuscles: [], customMeasure: 'weight', saveTo: [], sets: '3', reps: '10', weight: '', distance: '', time: '' });
+/** Workout types a custom exercise can be saved to. */
+const SAVE_TO_TYPES: WorkoutType[] = ['HYROX Engine', 'Strength'];
 const newRunRow = (): RunRow => ({ key: rowKey++, km: '', time: '' });
 
 const blankForm = (today: string, division: Division): DraftForm => ({
@@ -67,7 +69,7 @@ function bestEfforts(workouts: Workout[]): Record<string, Best> {
   const out: Record<string, Best & { score: number }> = {};
   for (const w of workouts)
     for (const e of w.exercises) {
-      const m = exerciseMeasure(e.name);
+      const m = entryMeasure(e);
       let score: number;
       let label: string;
       if (m === 'time') {
@@ -89,7 +91,10 @@ function bestEfforts(workouts: Workout[]): Record<string, Best> {
 }
 
 export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClose: () => void }) {
-  const { addWorkout, today, goals, drafts, saveDraft, deleteDraft, workouts } = useData();
+  const { addWorkout, today, goals, drafts, saveDraft, deleteDraft, workouts, customExercises, saveCustomExercises } = useData();
+  const savedCustom = (name: string) => customExercises.find((c) => c.name === name);
+  /** How a row is logged: chosen for a new custom exercise, saved for a reused one, else from the library. */
+  const rowMeasure = (r: ExerciseRow): ExerciseMeasure => (r.name === CUSTOM ? r.customMeasure : savedCustom(r.name)?.measure ?? exerciseMeasure(r.name));
   const { notify } = useUI();
   const nextRace = upcomingRaces(goals, today)[0];
   const defaultDivision: Division = nextRace ? raceDivision(nextRace, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' };
@@ -252,36 +257,42 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
     if (!isRunning && !(dur > 0 && dur <= 600)) errs.push('Duration must be between 1 and 600 minutes.');
 
     const exercises: ExerciseEntry[] = [];
+    const newCustoms: CustomExercise[] = [];
     if (!isRunning)
       rows.forEach((r, i) => {
         const isCustom = r.name === CUSTOM;
         const name = isCustom ? r.customName.trim() : r.name;
-        const measure = isCustom ? 'weight' : exerciseMeasure(r.name);
+        const measure = rowMeasure(r);
+        // Saved custom exercises carry their muscle groups on every entry.
+        const muscles = isCustom ? r.customMuscles : savedCustom(r.name)?.muscles;
         const n = `Exercise ${i + 1}${name ? ` (${name})` : ''}`;
         if (!r.reps && !r.weight && !r.distance && !r.time && !(isCustom && name)) return; // empty row
         const sets = Number(r.sets);
         if (!name) errs.push(`Exercise ${i + 1}: enter a name.`);
         if (!(sets > 0 && Number.isInteger(sets))) errs.push(`${n}: sets must be a whole number above 0.`);
         if (isCustom && r.customMuscles.length === 0) errs.push(`${n}: select at least one muscle group for a custom exercise.`);
+        if (isCustom && name && EXERCISE_BY_NAME[name]) errs.push(`${n}: "${name}" is already in the exercise list — pick it there.`);
+        if (isCustom && name && r.saveTo.length) newCustoms.push({ name, measure, muscles: r.customMuscles, types: r.saveTo });
         if (measure === 'weight') {
           const reps = Number(r.reps);
           const weight = r.weight === '' ? undefined : Number(r.weight);
           if (!(reps > 0)) errs.push(`${n}: repetitions must be above 0.`);
           if (weight !== undefined && !(weight >= 0)) errs.push(`${n}: weight must be 0 or more.`);
-          exercises.push({ name, sets, reps, weightKg: weight || undefined, customMuscles: isCustom ? r.customMuscles : undefined });
+          exercises.push({ name, sets, reps, weightKg: weight || undefined, customMuscles: muscles });
         } else {
           const sec = parseSplit(r.time);
           if (!(sec > 0 && sec < 3 * 3600)) errs.push(`${n}: enter a time as m:ss.`);
           if (measure === 'distanceTime') {
             const m = Number(r.distance);
             if (!(m > 0)) errs.push(`${n}: enter a distance in metres.`);
-            exercises.push({ name, sets, distanceM: m, durationSec: sec });
-          } else exercises.push({ name, sets, durationSec: sec });
+            exercises.push({ name, sets, distanceM: m, durationSec: sec, customMuscles: muscles });
+          } else exercises.push({ name, sets, durationSec: sec, customMuscles: muscles });
         }
       });
 
     setErrors(errs);
     if (errs.length) return;
+    if (newCustoms.length) saveCustomExercises(newCustoms);
     finish({
       date,
       type,
@@ -294,8 +305,15 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
     });
   };
 
-  /** Exercise choices; distance + time machines are left out of Strength sessions. */
-  const exerciseOptions = (current: string) => EXERCISES.filter((e) => type !== 'Strength' || e.measure !== 'distanceTime' || e.name === current);
+  /**
+   * Exercise choices in alphabetical order: the library (distance + time machines
+   * are left out of Strength) plus custom exercises saved for this workout type.
+   */
+  const exerciseOptions = (current: string) =>
+    [
+      ...EXERCISES.filter((e) => type !== 'Strength' || e.measure !== 'distanceTime' || e.name === current).map((e) => e.name),
+      ...customExercises.filter((c) => c.types.includes(type) || c.name === current).map((c) => c.name),
+    ].sort((a, b) => a.localeCompare(b));
 
   return (
     <Modal
@@ -367,7 +385,7 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
           <div className="space-y-2">
             {rows.map((r, i) => {
               const isCustom = r.name === CUSTOM;
-              const measure = isCustom ? 'weight' : exerciseMeasure(r.name);
+              const measure = rowMeasure(r);
               const best = isCustom ? undefined : bests[r.name];
               const options = exerciseOptions(r.name);
               return (
@@ -376,21 +394,12 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
                     <div className="col-span-2 sm:col-span-1">
                       <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
                       <select id={`ex-${r.key}`} className="input" value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })}>
-                        <optgroup label="Tracked lifts">
-                          {options.filter((e) => e.tracked).map((e) => <option key={e.name}>{e.name}</option>)}
-                        </optgroup>
-                        <optgroup label="Accessory">
-                          {options.filter((e) => !e.tracked && !e.measure && !e.conditioning).map((e) => <option key={e.name}>{e.name}</option>)}
-                          {options.filter((e) => e.measure === 'time').map((e) => <option key={e.name}>{e.name}</option>)}
-                        </optgroup>
-                        {options.some((e) => e.measure === 'distanceTime') && (
-                          <optgroup label="Cardio machines (distance & time)">
-                            {options.filter((e) => e.measure === 'distanceTime').map((e) => <option key={e.name}>{e.name}</option>)}
-                          </optgroup>
-                        )}
-                        <optgroup label="Conditioning & HYROX">
-                          {options.filter((e) => !e.tracked && !e.measure && e.conditioning).map((e) => <option key={e.name}>{e.name}</option>)}
-                        </optgroup>
+                        {options.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                            {savedCustom(name) ? ' (my exercise)' : ''}
+                          </option>
+                        ))}
                         <option value={CUSTOM}>Custom exercise…</option>
                       </select>
                     </div>
@@ -430,8 +439,31 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
                   </div>
                   {best && <p className="mt-1.5 text-xs text-slate-400">{best.label}</p>}
                   {isCustom && (
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
                       <input className="input" placeholder="Exercise name" value={r.customName} onChange={(e) => updateRow(r.key, { customName: e.target.value })} aria-label="Custom exercise name" />
+                      <div className="flex flex-wrap gap-x-4 gap-y-2">
+                        <div>
+                          <p className="label">Count by</p>
+                          <Segmented
+                            size="md"
+                            value={r.customMeasure === 'weight' ? 'reps' : 'time'}
+                            onChange={(v) => updateRow(r.key, { customMeasure: v === 'reps' ? 'weight' : 'time' })}
+                            options={[{ value: 'reps', label: 'Reps' }, { value: 'time', label: 'Time' }]}
+                          />
+                        </div>
+                        {r.customMeasure !== 'weight' && (
+                          <div>
+                            <p className="label">Time based on</p>
+                            <Segmented<ExerciseMeasure>
+                              size="md"
+                              value={r.customMeasure}
+                              onChange={(v) => updateRow(r.key, { customMeasure: v })}
+                              options={[{ value: 'distanceTime', label: 'Distance + time' }, { value: 'time', label: 'Time only' }]}
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <p className="label !mb-0">Muscle groups</p>
                       <div className="flex flex-wrap gap-1.5">
                         {MUSCLES.map((m) => {
                           const on = r.customMuscles.includes(m.id);
@@ -441,6 +473,18 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
                             </button>
                           );
                         })}
+                      </div>
+                      <div>
+                        <p className="label">Save to my exercises for future</p>
+                        <div className="flex flex-wrap gap-3">
+                          {SAVE_TO_TYPES.map((t) => (
+                            <label key={t} className="inline-flex items-center gap-2 text-sm text-slate-700">
+                              <input type="checkbox" className="h-4 w-4 accent-blue-600" checked={r.saveTo.includes(t)} onChange={(e) => updateRow(r.key, { saveTo: e.target.checked ? [...r.saveTo, t] : r.saveTo.filter((x) => x !== t) })} />
+                              {t}
+                            </label>
+                          ))}
+                        </div>
+                        <p className="mt-1 text-[11px] text-slate-500">Once you tap Completed it appears in the exercise list for those workout types.</p>
                       </div>
                     </div>
                   )}

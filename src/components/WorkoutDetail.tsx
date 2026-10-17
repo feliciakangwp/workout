@@ -1,5 +1,5 @@
 import { Clock, Flame, Gauge, HeartPulse, Route, Trash2 } from 'lucide-react';
-import { EXERCISE_BY_NAME, exerciseMeasure } from '../data/exercises';
+import { EXERCISE_BY_NAME, entryMeasure } from '../data/exercises';
 import { MUSCLE_BY_ID } from '../data/muscles';
 import { STATION_BY_ID, divisionLabel, simFraction, simLabel, stationSpec } from '../data/stations';
 import type { ExerciseEntry, Workout } from '../data/types';
@@ -9,7 +9,7 @@ import { fmtDuration, fmtPace, fmtTime } from '../lib/format';
 import { DemoBadge, MiniStat, TypeBadge } from './ui';
 
 export const fmtSetsReps = (e: ExerciseEntry) => {
-  const m = exerciseMeasure(e.name);
+  const m = entryMeasure(e);
   if (m === 'time') return `${e.sets} × ${e.durationSec ? fmtTime(e.durationSec) : '—'}`;
   if (m === 'distanceTime') return `${e.sets > 1 ? `${e.sets} × ` : ''}${e.distanceM ?? '—'} m${e.durationSec ? ` in ${fmtTime(e.durationSec)}` : ''}`;
   const unit = EXERCISE_BY_NAME[e.name]?.repUnit === 'm' ? ' m' : '';
@@ -18,7 +18,7 @@ export const fmtSetsReps = (e: ExerciseEntry) => {
 
 /** Load column: weight, or pace for distance + time machines. */
 const fmtLoad = (e: ExerciseEntry) => {
-  const m = exerciseMeasure(e.name);
+  const m = entryMeasure(e);
   if (m === 'distanceTime') return e.distanceM && e.durationSec ? `${fmtTime((e.durationSec / e.distanceM) * 500)} /500m` : '—';
   if (m === 'time') return '—';
   return e.weightKg ? `${e.weightKg} kg` : 'BW';

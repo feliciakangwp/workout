@@ -1,4 +1,4 @@
-import type { MuscleGroup } from './types';
+import type { ExerciseEntry, ExerciseMeasure, MuscleGroup } from './types';
 
 export interface ExerciseInfo {
   name: string;
@@ -11,10 +11,14 @@ export interface ExerciseInfo {
   /** Conditioning efforts count as half a working set for muscle coverage. */
   conditioning?: boolean;
   /** How the exercise is logged: sets × reps × weight (default), time only, or distance + time. */
-  measure?: 'weight' | 'time' | 'distanceTime';
+  measure?: ExerciseMeasure;
 }
 
-export const exerciseMeasure = (name: string) => EXERCISE_BY_NAME[name]?.measure ?? 'weight';
+export const exerciseMeasure = (name: string): ExerciseMeasure => EXERCISE_BY_NAME[name]?.measure ?? 'weight';
+
+/** Measure of a logged entry; custom exercises are inferred from the fields recorded. */
+export const entryMeasure = (e: ExerciseEntry): ExerciseMeasure =>
+  EXERCISE_BY_NAME[e.name]?.measure ?? (e.distanceM ? 'distanceTime' : e.durationSec && !e.reps ? 'time' : 'weight');
 
 /**
  * Exercise → muscle mapping. A primary muscle receives 1 set of credit per set

@@ -54,7 +54,10 @@ function mulberry32(seed: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rand = mulberry32(20261017);
+/** Generator state; reset for each athlete by generateSample(). */
+let rand = mulberry32(20261017);
+let liftScale = 1;
+let paceShiftSec = 0;
 /** Uniform noise in [-amp, amp]. */
 const noise = (amp: number) => (rand() * 2 - 1) * amp;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -124,8 +127,9 @@ function strengthSession(week: number): ExerciseEntry[] {
   const p = week / (TOTAL_WEEKS - 1);
   const dip = week === ILLNESS_WEEK + 1 ? 0.92 : 1; // first session back after illness
   const entries: ExerciseEntry[] = LIFTS.map((l) => {
-    const target = lerp(l.start, l.end, Math.pow(p, 0.85)) * dip + noise(l.step * 0.4);
-    const weightKg = Math.max(l.start, round(target, l.step));
+    const start = l.start * liftScale;
+    const target = lerp(start, l.end * liftScale, Math.pow(p, 0.85)) * dip + noise(l.step * 0.4);
+    const weightKg = Math.max(round(start, l.step), round(target, l.step));
     // Occasional rep PR when the athlete repeats a load.
     const reps = l.reps + (rand() < 0.2 ? 1 : 0);
     return { name: l.name, sets: l.sets, reps, weightKg };
@@ -204,7 +208,7 @@ function makeRun(kind: RunKind, week: number): RunData {
   return {
     kind,
     distanceKm: Math.round((lerp(pr.km[0], pr.km[1], p) + (kind === '5K Time Trial' || kind === 'Compromised' ? 0 : noise(0.5))) * 10) / 10,
-    paceSecPerKm: Math.round(lerp(pr.pace[0], pr.pace[1], p) + noise(6) + sick * 9),
+    paceSecPerKm: Math.round(lerp(pr.pace[0], pr.pace[1], p) + noise(6) + sick * 9 + paceShiftSec),
     avgHr: Math.round(lerp(pr.hr[0], pr.hr[1], p) + noise(2) + sick * 3),
   };
 }
@@ -337,7 +341,6 @@ function buildWorkouts(): Workout[] {
   return workouts;
 }
 
-export const SAMPLE_WORKOUTS: Workout[] = buildWorkouts();
 
 // ---------------------------------------------------------------------------
 // Daily Garmin-style wellness metrics (sample only — no device connection)
@@ -361,4 +364,26 @@ function buildRecovery(workouts: Workout[]): RecoveryDay[] {
   });
 }
 
-export const SAMPLE_RECOVERY: RecoveryDay[] = buildRecovery(SAMPLE_WORKOUTS);
+/** Per-athlete variation for demonstration data. */
+export interface SampleProfile {
+  seed: number;
+  /** Multiplier on all lifting loads. */
+  liftScale: number;
+  /** Seconds per km added to every run (negative = faster). */
+  paceShiftSec: number;
+}
+
+export const DEFAULT_SAMPLE: SampleProfile = { seed: 20261017, liftScale: 1, paceShiftSec: 0 };
+
+/** Generates an athlete's demonstration workouts and wellness data (deterministic per profile). */
+export function generateSample(profile: SampleProfile): { workouts: Workout[]; recovery: RecoveryDay[] } {
+  rand = mulberry32(profile.seed);
+  liftScale = profile.liftScale;
+  paceShiftSec = profile.paceShiftSec;
+  const workouts = buildWorkouts();
+  return { workouts, recovery: buildRecovery(workouts) };
+}
+
+const defaultSample = generateSample(DEFAULT_SAMPLE);
+export const SAMPLE_WORKOUTS: Workout[] = defaultSample.workouts;
+export const SAMPLE_RECOVERY: RecoveryDay[] = defaultSample.recovery;

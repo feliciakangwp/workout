@@ -142,7 +142,21 @@ export interface DraftForm {
   title: string;
   duration: string;
   intensity: number;
-  rows: { key: number; name: string; customName: string; customMuscles: MuscleGroup[]; sets: string; reps: string; weight: string; distance: string; time: string }[];
+  rows: {
+    key: number;
+    name: string;
+    customName: string;
+    customMuscles: MuscleGroup[];
+    /** How a new custom exercise is counted. */
+    customMeasure: ExerciseMeasure;
+    /** Workout types a new custom exercise is saved to for future use. */
+    saveTo: WorkoutType[];
+    sets: string;
+    reps: string;
+    weight: string;
+    distance: string;
+    time: string;
+  }[];
   runKind: RunKind;
   /** One row per run or interval. */
   runRows: { key: number; km: string; time: string }[];
@@ -170,4 +184,42 @@ export interface Goals {
   weeklyRunKmTarget: number;
   athleteSex: Sex;
   races: Race[];
+}
+
+/** sets × reps × weight, time only, or distance + time. */
+export type ExerciseMeasure = 'weight' | 'time' | 'distanceTime';
+
+/** A custom exercise the athlete saved for reuse in chosen workout types. */
+export interface CustomExercise {
+  name: string;
+  measure: ExerciseMeasure;
+  muscles: MuscleGroup[];
+  types: WorkoutType[];
+}
+
+// ---------------------------------------------------------------------------
+// Accounts
+// ---------------------------------------------------------------------------
+export interface Profile {
+  id: string;
+  displayName: string;
+}
+
+export type FriendStatus = 'requested' | 'incoming' | 'friends';
+
+export interface Friendship {
+  profile: Profile;
+  status: FriendStatus;
+}
+
+/** Everything stored for one athlete. */
+export interface UserData {
+  version: 1;
+  /** Seed for this athlete's demonstration workouts and wellness data. */
+  sample: { seed: number; liftScale: number; paceShiftSec: number };
+  added: Workout[];
+  goals: Goals;
+  plan: WeekPlan;
+  drafts: WorkoutDraft[];
+  customExercises: CustomExercise[];
 }

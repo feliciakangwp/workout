@@ -38,18 +38,19 @@ export function RaceTabs({ races, race, onChange }: { races: Race[]; race?: Race
 
 export function NoRaces() {
   const { openProfile } = useUI();
+  const { readOnly } = useData();
   return (
     <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
-      <p className="text-sm font-medium text-slate-700">No upcoming races</p>
-      <p className="mt-1 text-xs text-slate-500">Add a race to see its demands and which muscle groups to focus on.</p>
-      <button className="btn-primary mt-3" onClick={openProfile}>Add a race</button>
+      <p className="text-sm font-medium text-slate-700">No upcoming race planned</p>
+      <p className="mt-1 text-xs text-slate-500">That's fine — train as usual. If you enter a race later, its demands and muscle focus will appear here.</p>
+      {!readOnly && <button className="btn-ghost mt-3" onClick={openProfile}>Add a race</button>}
     </div>
   );
 }
 
 /** Full race plan: race demands, the athlete's share and muscle focus. */
 export function RacePlan() {
-  const { goals, workouts, today } = useData();
+  const { goals, workouts, today, readOnly } = useData();
   const { openProfile } = useUI();
   const { races, race, setRaceId } = useRaceSelection();
   const [selected, setSelected] = useState<MuscleGroup | null>(null);
@@ -76,7 +77,7 @@ export function RacePlan() {
 
   return (
     <Card>
-      <CardHeader icon={Flag} title="Race plan" subtitle="What your race demands from you, and where to focus training" action={<button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={openProfile}><Pencil size={13} /> Edit races</button>} />
+      <CardHeader icon={Flag} title="Race plan" subtitle="What your race demands from you, and where to focus training" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={openProfile}><Pencil size={13} /> Edit races</button>} />
       <div className="space-y-5 p-4 sm:p-5">
         <RaceTabs races={races} race={race} onChange={setRaceId} />
 

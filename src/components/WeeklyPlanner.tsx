@@ -19,7 +19,7 @@ const WEEKS_AHEAD = 4;
  * editable; past days are read-only and show what was logged.
  */
 export function WeeklyPlanner({ className = '' }: { className?: string }) {
-  const { workouts, today, plan } = useData();
+  const { workouts, today, plan, readOnly } = useData();
   const thisWeek = startOfWeek(today);
   const [weekStart, setWeekStart] = useState(thisWeek);
   const [selected, setSelected] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
         }
       />
       <p className="px-4 pt-1 text-[11px] text-slate-500 sm:px-5">
-        Tap a day to plan it. Past days are view-only. <span className="sm:hidden">Swipe right for last week, left for next week.</span>
+        {readOnly ? 'View only.' : 'Tap a day to plan it. Past days are view-only.'} <span className="sm:hidden">Swipe right for last week, left for next week.</span>
       </p>
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="grid grid-cols-1 gap-1.5 p-4 sm:grid-cols-4 sm:gap-2 sm:p-5 lg:grid-cols-7 xl:grid-cols-4 2xl:grid-cols-7">
         {days.map((d, i) => {
@@ -111,7 +111,7 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
                 {status === 'done' && <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 size={12} /> Done</span>}
                 {status === 'missed' && <span className="inline-flex items-center gap-1 text-slate-500"><XCircle size={12} /> Missed</span>}
                 {status === 'planned' && <span className="inline-flex items-center gap-1 text-blue-600"><Check size={12} /> Planned</span>}
-                {status === 'empty' && <span className="inline-flex items-center gap-1 text-blue-600"><Plus size={12} /> Plan</span>}
+                {status === 'empty' && !readOnly && <span className="inline-flex items-center gap-1 text-blue-600"><Plus size={12} /> Plan</span>}
               </span>
             </button>
           );
@@ -126,10 +126,10 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
 }
 
 function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout[]; onClose: () => void }) {
-  const { plan, setDayPlan, today } = useData();
+  const { plan, setDayPlan, today, readOnly } = useData();
   const { openAddWorkout } = useUI();
   const planned = plan[date] ?? [];
-  const editable = date >= today;
+  const editable = !readOnly && date >= today;
   const toggle = (t: WorkoutType) => setDayPlan(date, planned.includes(t) ? planned.filter((x) => x !== t) : WORKOUT_TYPES.filter((x) => x === t || planned.includes(x)));
   const weekday = WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7];
 
@@ -180,7 +180,7 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
           ) : (
             <div className="space-y-6">{workouts.map((w) => <WorkoutDetail key={w.id} workout={w} />)}</div>
           )}
-          {date === today && (
+          {date === today && !readOnly && (
             <button className="btn-primary mt-3" onClick={() => { onClose(); openAddWorkout(); }}>
               <Plus size={15} /> Log a workout
             </button>
