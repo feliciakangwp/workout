@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEMO_TODAY, generateSample } from '../data/mockData';
-import { planKey, type CustomExercise, type DraftForm, type Goals, type Profile, type Race, type RecoveryDay, type SharedRace, type UserData, type WeekPlan, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
+import { planKey, type CustomExercise, type DraftForm, type Goals, type Profile, type Race, type RecoveryDay, type SharedRace, type UserData, type WeekPlan, type WeighIn, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
 import { newUserData } from '../lib/backend';
+import { sampleWeighIns, sortWeighIns } from '../lib/analytics/body';
 import { useAuth } from './AuthContext';
 
 interface DataContextValue {
@@ -30,6 +31,10 @@ interface DataContextValue {
   /** Custom exercises saved for reuse. */
   customExercises: CustomExercise[];
   saveCustomExercises: (list: CustomExercise[]) => void;
+  /** Body composition weigh-ins, oldest first (demonstration ones until the athlete adds their own). */
+  weighIns: WeighIn[];
+  addWeighIn: (w: Omit<WeighIn, 'id' | 'isSample'>) => void;
+  removeWeighIn: (id: string) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -190,6 +195,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [update],
   );
 
+  const addWeighIn = useCallback(
+    (w: Omit<WeighIn, 'id' | 'isSample'>) => update((d) => ({ ...d, weighIns: [...(d.weighIns ?? []), { ...w, id: `wi-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }] })),
+    [update],
+  );
+  const removeWeighIn = useCallback((id: string) => update((d) => ({ ...d, weighIns: (d.weighIns ?? []).filter((w) => w.id !== id) })), [update]);
+
+  // Invented sample weigh-ins are shown only until the athlete uploads their own.
+  const weighIns = useMemo(() => {
+    if (!data) return [];
+    const own = data.weighIns ?? [];
+    return sortWeighIns(own.length ? own : sampleWeighIns(data.sample.seed, data.goals.currentWeightKg, data.goals.athleteSex));
+  }, [data]);
+  // The latest weigh-in is the current body weight.
+  const latestWeight = [...weighIns].reverse().find((w) => w.weightKg !== undefined)?.weightKg;
+
   const sampleKey = data ? JSON.stringify(data.sample) : '';
   const sample = useMemo(() => (sampleKey ? generateSample(JSON.parse(sampleKey)) : null), [sampleKey]);
 
@@ -201,7 +221,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             readOnly,
             workouts: [...sample.workouts, ...data.added],
             recovery: sample.recovery,
-            goals: { ...data.goals, races: [...data.goals.races, ...shared.map((x) => fromShared(x, athlete.id))] },
+            goals: { ...data.goals, currentWeightKg: latestWeight ?? data.goals.currentWeightKg, races: [...data.goals.races, ...shared.map((x) => fromShared(x, athlete.id))] },
             today: DEMO_TODAY,
             addWorkout,
             removeWorkout,
@@ -215,9 +235,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
             deleteDraft,
             customExercises: data.customExercises,
             saveCustomExercises,
+            weighIns,
+            addWeighIn,
+            removeWeighIn,
           }
         : null,
-    [data, sample, shared, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises],
+    [data, sample, shared, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, weighIns, latestWeight, addWeighIn, removeWeighIn],
   );
 
   if (!value)

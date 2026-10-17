@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Friendship, Profile, SharedRace, UserData } from '../../data/types';
+import type { BodySegment, Friendship, Profile, SegmentReading, SharedRace, UserData } from '../../data/types';
+import type { ScanResult } from '../bodyScanOcr';
 import type { AuthUser, Backend } from './types';
 
 /**
@@ -117,5 +118,39 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       const { error } = await db.rpc('leave_shared_race', { race_id: id });
       if (error) throw new Error(error.message);
     },
+    async readBodyScan(image, mediaType) {
+      const { data, error } = await db.functions.invoke('read-body-scan', { body: { image, mediaType } });
+      if (error) throw new Error(error.message);
+      if (data?.error) throw new Error(data.error);
+      return fromAiReading(data);
+    },
   };
+}
+
+type Nullable<T> = { [K in keyof T]: T[K] | null };
+type AiReading = Nullable<Pick<ScanResult, 'weightKg' | 'skeletalMuscleKg' | 'bodyFatKg' | 'bodyFatPct'>> & {
+  lean?: Partial<Record<BodySegment, Nullable<SegmentReading> | null>>;
+  fat?: Partial<Record<BodySegment, Nullable<SegmentReading> | null>>;
+};
+
+/** The edge function's JSON (nulls for values not on the scan) as a ScanResult. */
+function fromAiReading(r: AiReading): ScanResult {
+  const v = (x: number | string | null | undefined) => (x === null ? undefined : x);
+  const segs = (s: AiReading['lean']) =>
+    Object.fromEntries(
+      Object.entries(s ?? {}).map(([k, x]) => [k, { kg: v(x?.kg) as number | undefined, pct: v(x?.pct) as number | undefined, evaluation: v(x?.evaluation) as string | undefined }]),
+    ) as ScanResult['lean'];
+  const result: ScanResult = {
+    weightKg: v(r.weightKg) as number | undefined,
+    skeletalMuscleKg: v(r.skeletalMuscleKg) as number | undefined,
+    bodyFatKg: v(r.bodyFatKg) as number | undefined,
+    bodyFatPct: v(r.bodyFatPct) as number | undefined,
+    lean: segs(r.lean),
+    fat: segs(r.fat),
+    found: 0,
+  };
+  result.found =
+    [result.weightKg, result.skeletalMuscleKg, result.bodyFatKg, result.bodyFatPct].filter((x) => x !== undefined).length +
+    [...Object.values(result.lean), ...Object.values(result.fat)].filter((x) => x?.kg !== undefined).length;
+  return result;
 }

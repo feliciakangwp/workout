@@ -15,6 +15,7 @@ import { HyroxPerformance } from './pages/HyroxPerformance';
 import { Recovery } from './pages/Recovery';
 import { WorkoutLog } from './pages/WorkoutLog';
 import { Friends } from './pages/Friends';
+import { BodyComposition } from './pages/BodyComposition';
 import type { WorkoutType } from './data/types';
 
 type PlannedRef = { date: string; type: WorkoutType };
@@ -96,6 +97,7 @@ function Dashboard() {
         {page === 'hyrox' && <HyroxPerformance />}
         {page === 'recovery' && <Recovery />}
         {page === 'log' && <WorkoutLog onAddWorkout={() => openAdd()} />}
+        {page === 'body' && <BodyComposition />}
         {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
       </Layout>
       {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} plan={adding.plan} start={adding.start} onClose={() => setAdding(null)} />}

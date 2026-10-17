@@ -1,4 +1,5 @@
 import type { Friendship, Profile, SharedRace, UserData } from '../../data/types';
+import type { ScanResult } from '../bodyScanOcr';
 
 export interface AuthUser {
   profile: Profile;
@@ -40,4 +41,9 @@ export interface Backend {
   deleteSharedRace(id: string): Promise<void>;
   /** A tagged teammate removes themselves from the race. */
   leaveSharedRace(id: string): Promise<void>;
+  /**
+   * Reads a body composition scan with Claude (Supabase Edge Function
+   * `read-body-scan`). Absent in demo mode, where scans are read on-device.
+   */
+  readBodyScan?(imageBase64: string, mediaType: string): Promise<ScanResult>;
 }

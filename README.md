@@ -55,6 +55,22 @@ dashboards **read-only** from the Friends page (account menu → Friends).
 5. In GitHub: **Settings → Secrets and variables → Actions → Variables**, add `VITE_SUPABASE_URL` and
    `VITE_SUPABASE_ANON_KEY`, then re-run the *Deploy to GitHub Pages* workflow.
    For local development put the same two values in a `.env.local` file.
+6. Optional, for AI reading of body composition scans: install the [Supabase CLI](https://supabase.com/docs/guides/cli),
+   then run `supabase functions deploy read-body-scan` and
+   `supabase secrets set ANTHROPIC_API_KEY=<your key>`. The function
+   ([`supabase/functions/read-body-scan`](supabase/functions/read-body-scan/index.ts)) sends the photo to Claude and
+   returns the values. Without it (and in demo mode) scans are read on-device with Tesseract OCR, which works best on
+   clear, straight-on screenshots.
+
+### Body composition
+
+**Body Composition** (sidebar, account menu, or *Body composition →* on the Overview goals card): *Add weigh-in*,
+upload a photo of an InBody-style scan and tap *Read values from photo*. Weight, skeletal muscle, fat mass, body fat %
+and the **segmental lean and fat** (kg, % and Under / Normal / Over for each arm, trunk and leg) are filled in for you
+to check and correct before saving. Each new weigh-in is compared with the previous one (or any earlier one): what
+went up or down overall and per body part, whether fat was lost while keeping muscle, and left / right imbalance.
+The latest weigh-in sets the current body weight on the goals card. Two invented example weigh-ins are shown until
+you add your own.
 
 ### Races and HYROX simulations
 

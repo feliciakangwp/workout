@@ -1,4 +1,4 @@
-import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, HeartPulse, LayoutDashboard, ListChecks, LogOut, Pencil, Play, Plus, Trophy, Users, X } from 'lucide-react';
+import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, HeartPulse, LayoutDashboard, ListChecks, LogOut, Pencil, Play, Plus, Scale, Trophy, Users, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { DemoBadge } from './ui';
@@ -12,7 +12,7 @@ import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { raceTypeLabel, upcomingRaces } from '../lib/analytics';
 
-export type PageId = 'overview' | 'muscles' | 'strength' | 'running' | 'hyrox' | 'recovery' | 'log' | 'friends';
+export type PageId = 'overview' | 'muscles' | 'strength' | 'running' | 'hyrox' | 'recovery' | 'log' | 'body' | 'friends';
 
 export const NAV: { id: PageId; label: string; short: string; icon: LucideIcon }[] = [
   { id: 'overview', label: 'Overview', short: 'Home', icon: LayoutDashboard },
@@ -25,7 +25,10 @@ export const NAV: { id: PageId; label: string; short: string; icon: LucideIcon }
 ];
 
 /** Pages reached from the sidebar and account menu, but not the mobile tab bar. */
-export const EXTRA_NAV: typeof NAV = [{ id: 'friends', label: 'Friends', short: 'Friends', icon: Users }];
+export const EXTRA_NAV: typeof NAV = [
+  { id: 'body', label: 'Body Composition', short: 'Body', icon: Scale },
+  { id: 'friends', label: 'Friends', short: 'Friends', icon: Users },
+];
 export const ALL_NAV = [...NAV, ...EXTRA_NAV];
 
 const initials = (name: string) =>
@@ -209,6 +212,7 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
           ) : (
             <button className={item} onClick={() => { openProfile(); setOpen(false); }}><Pencil size={16} /> Athlete & races</button>
           )}
+          <button className={item} onClick={() => { onNavigate('body'); setOpen(false); }}><Scale size={16} /> Body composition</button>
           <button className={item} onClick={() => { onNavigate('friends'); setOpen(false); }}><Users size={16} /> Friends</button>
           <button className={`${item} text-rose-600 hover:bg-rose-50`} onClick={() => signOut()}><LogOut size={16} /> Sign out</button>
         </div>

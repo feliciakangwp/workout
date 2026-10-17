@@ -232,6 +232,37 @@ export interface Friendship {
   status: FriendStatus;
 }
 
+// ---------------------------------------------------------------------------
+// Body composition (e.g. InBody segmental analysis)
+// ---------------------------------------------------------------------------
+export type BodySegment = 'leftArm' | 'rightArm' | 'trunk' | 'leftLeg' | 'rightLeg';
+
+export interface SegmentReading {
+  kg?: number;
+  /** % of the ideal for height (as printed on the scan). */
+  pct?: number;
+  /** e.g. Under / Normal / Over. */
+  evaluation?: string;
+}
+
+export interface WeighIn {
+  id: string;
+  date: string;
+  weightKg?: number;
+  skeletalMuscleKg?: number;
+  bodyFatKg?: number;
+  bodyFatPct?: number;
+  /** Segmental lean (muscle) mass. */
+  lean: Partial<Record<BodySegment, SegmentReading>>;
+  /** Segmental fat mass. */
+  fat: Partial<Record<BodySegment, SegmentReading>>;
+  /** Compressed copy of the uploaded scan photo (data URL). */
+  image?: string;
+  notes?: string;
+  /** Demonstration weigh-ins are generated, not uploaded. */
+  isSample?: boolean;
+}
+
 /** Everything stored for one athlete. */
 export interface UserData {
   version: 1;
@@ -244,4 +275,6 @@ export interface UserData {
   planDetails?: Record<string, DraftForm>;
   drafts: WorkoutDraft[];
   customExercises: CustomExercise[];
+  /** Body composition weigh-ins the athlete uploaded. */
+  weighIns?: WeighIn[];
 }

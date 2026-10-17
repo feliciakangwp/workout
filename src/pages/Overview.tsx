@@ -33,7 +33,7 @@ export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
         <WeeklyPlanner className="xl:col-span-2" />
-        <GoalsCard />
+        <GoalsCard onNavigate={onNavigate} />
       </div>
 
       <TrainingTrends />
@@ -44,15 +44,17 @@ export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
 }
 
 // ---------------------------------------------------------------------------
-function GoalsCard() {
-  const { goals, updateGoals, workouts, today, readOnly } = useData();
+function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
+  const { goals, updateGoals, workouts, today, readOnly, weighIns } = useData();
   const { openProfile } = useUI();
   const races = upcomingRaces(goals, today);
   const [editing, setEditing] = useState(false);
   const best = best5kPace(runs(workouts));
   const predicted10k = best ? predictTime(best * 5, 5, goals.runGoalDistanceKm) : 0;
   const goalTime = goals.runGoalPaceSecPerKm * goals.runGoalDistanceKm;
-  const startWeight = Math.max(goals.currentWeightKg, 65);
+  // Progress counts from the first weigh-in (or 65 kg without one).
+  const startWeight = Math.max(goals.currentWeightKg, weighIns.find((w) => w.weightKg !== undefined)?.weightKg ?? 65);
+  const lastWeighIn = [...weighIns].reverse().find((w) => w.weightKg !== undefined);
   const weightPct = Math.min(100, Math.max(0, ((startWeight - goals.currentWeightKg) / (startWeight - goals.targetWeightKg || 1)) * 100));
   const runPct = predicted10k ? Math.min(100, (goalTime / predicted10k) * 100) : 0;
 
@@ -66,7 +68,10 @@ function GoalsCard() {
             <span className="text-slate-500"><b className="font-semibold text-slate-900">{goals.currentWeightKg} kg</b> → {goals.targetWeightKg} kg</span>
           </div>
           <div className="mt-2 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-blue-600" style={{ width: `${weightPct}%` }} /></div>
-          <p className="mt-1 text-xs text-slate-500">{(goals.currentWeightKg - goals.targetWeightKg).toFixed(1)} kg to go · fat loss while maintaining muscle</p>
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-500">
+            <span>{(goals.currentWeightKg - goals.targetWeightKg).toFixed(1)} kg to go{lastWeighIn ? ` · weighed in ${fmtShort(lastWeighIn.date)}` : ''}</span>
+            <button className="font-medium text-blue-600 hover:text-blue-700" onClick={() => onNavigate('body')}>Body composition →</button>
+          </div>
         </div>
         <div>
           <div className="flex items-baseline justify-between text-sm">
@@ -106,6 +111,7 @@ function GoalsCard() {
 }
 
 function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => void; onSave: (g: Goals) => void }) {
+  const { weighIns } = useData();
   const [draft, setDraft] = useState({
     current: String(goals.currentWeightKg),
     target: String(goals.targetWeightKg),
@@ -131,7 +137,7 @@ function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => 
     <Modal open onClose={onClose} title="Edit goals" footer={<><button className="btn-ghost" onClick={onClose}>Cancel</button><button className="btn-primary" onClick={save}>Save goals</button></>}>
       {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
       <div className="grid grid-cols-2 gap-3">
-        {field('current', 'Current weight (kg)')}
+        {field('current', weighIns.some((w) => !w.isSample) ? 'Current weight (kg, from latest weigh-in)' : 'Current weight (kg)')}
         {field('target', 'Target weight (kg)')}
         {field('km', 'Run goal distance (km)')}
         {field('pace', 'Run goal pace (m:ss /km)', 'text')}
