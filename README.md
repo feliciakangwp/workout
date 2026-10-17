@@ -100,6 +100,8 @@ you add your own.
 - **Race time estimate** (HYROX page): for upcoming solo and doubles races, a finish-time range from the best to the
   average of every run, station and Roxzone across your sims and races (Pro / Open weights matched when possible).
   Doubles use your doubles race splits when you have them, otherwise solo station times × 0.55.
+  With a friend tagged as your doubles partner, the range is the team average: the average of both partners' best
+  times to the average of both partners' average times (each partner's breakdown is shown too).
 - **Add workout → HYROX** records race-style splits: Half, ¾ or Full Sim, a 1 km run before every station, and station
   distances / reps scaled to the sim. Half and ¾ station times are scaled to full distance for comparison.
 

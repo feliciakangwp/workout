@@ -205,3 +205,28 @@ export function raceEstimate(race: Race, performances: Performance[]) {
   const typicalSec = sum(rows.flatMap((r) => [r.run.avg, r.station_.avg])) + roxzone.avg;
   return { format, rows, roxzone, fastSec, typicalSec, notes, basis: { sims: pool.filter((p) => p.source === 'sim').length, races: pool.filter((p) => p.source === 'race').length } };
 }
+
+export type RaceEstimate = ReturnType<typeof raceEstimate>;
+
+/**
+ * Doubles team estimate: the average of each partner's estimate, so the fast end
+ * is the average of both best times and the slow end the average of both averages.
+ */
+export function combineEstimates(list: RaceEstimate[]): RaceEstimate {
+  const avg = (xs: number[]) => Math.round(xs.reduce((a, x) => a + x, 0) / xs.length);
+  const [first] = list;
+  return {
+    ...first,
+    rows: first.rows.map((r, i) => ({
+      ...r,
+      run: { best: avg(list.map((e) => e.rows[i].run.best)), avg: avg(list.map((e) => e.rows[i].run.avg)), n: list.reduce((a, e) => a + e.rows[i].run.n, 0) },
+      station_: { best: avg(list.map((e) => e.rows[i].station_.best)), avg: avg(list.map((e) => e.rows[i].station_.avg)), n: list.reduce((a, e) => a + e.rows[i].station_.n, 0) },
+      assumed: list.every((e) => e.rows[i].assumed),
+    })),
+    roxzone: { best: avg(list.map((e) => e.roxzone.best)), avg: avg(list.map((e) => e.roxzone.avg)), n: list.reduce((a, e) => a + e.roxzone.n, 0) },
+    fastSec: avg(list.map((e) => e.fastSec)),
+    typicalSec: avg(list.map((e) => e.typicalSec)),
+    notes: [...new Set(list.flatMap((e) => e.notes))],
+    basis: { sims: list.reduce((a, e) => a + e.basis.sims, 0), races: list.reduce((a, e) => a + e.basis.races, 0) },
+  };
+}

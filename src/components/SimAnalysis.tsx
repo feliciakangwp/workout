@@ -1,9 +1,11 @@
 import { Award, Flag, Info, Timer } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { DEMO_TODAY, generateSample } from '../data/mockData';
 import { STATION_BY_ID, simLabel } from '../data/stations';
-import type { Race, Workout } from '../data/types';
-import { type Best, compareSim, completedRaces, hyroxPerformances, raceEstimate, raceTypeLabel, sortByDate, upcomingRaces } from '../lib/analytics';
+import type { Profile, Race, UserData, Workout } from '../data/types';
+import { type Best, type Performance, type RaceEstimate, combineEstimates, compareSim, completedRaces, hyroxPerformances, raceEstimate, raceTypeLabel, sortByDate, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 import { Card, CardHeader, MiniStat, TrendBadge } from './ui';
@@ -14,6 +16,64 @@ const signed = (sec: number) => `${sec > 0 ? '+' : sec < 0 ? '−' : '±'}${fmtT
 export function usePerformances() {
   const { workouts, goals, today } = useData();
   return useMemo(() => hyroxPerformances(workouts, completedRaces(goals, today)), [workouts, goals, today]);
+}
+
+/** Teammates' data, loaded once per session (friends can read each other's dashboards). */
+const teammateCache = new Map<string, Promise<UserData | null>>();
+
+/** A tagged partner's sims and completed races. */
+function partnerPerformances(data: UserData, partnerId: string, myRaces: Race[]): Performance[] {
+  const workouts = [...generateSample(data.sample).workouts, ...data.added];
+  // Their own races, plus completed shared races with them that you can see.
+  const races = [...data.goals.races, ...myRaces.filter((r) => r.shared && r.teammates?.some((t) => t.id === partnerId))].filter((r) => r.date < DEMO_TODAY);
+  return hyroxPerformances(workouts, races);
+}
+
+interface TeamEstimate {
+  /** Shown estimate: the team average for tagged doubles, otherwise your own. */
+  estimate: RaceEstimate;
+  mine: RaceEstimate;
+  partners: { profile: Profile; estimate?: RaceEstimate; error?: string }[];
+}
+
+/** Race estimate; for doubles with a tagged partner, the average of both athletes' estimates. */
+export function useRaceEstimate(race: Race): TeamEstimate | null {
+  const { backend } = useAuth();
+  const { goals, athlete } = useData();
+  const performances = usePerformances();
+  const partners = race.format === 'doubles' ? (race.teammates ?? []).filter((t) => t.id !== athlete.id) : [];
+  const key = partners.map((p) => p.id).join(',');
+  const [loaded, setLoaded] = useState<Record<string, UserData | null | 'error'>>({});
+  useEffect(() => {
+    let live = true;
+    for (const p of partners) {
+      if (!teammateCache.has(p.id)) teammateCache.set(p.id, backend.loadUserData(p.id).catch(() => { teammateCache.delete(p.id); return Promise.reject(); }));
+      teammateCache.get(p.id)!.then(
+        (d) => live && setLoaded((x) => ({ ...x, [p.id]: d })),
+        () => live && setLoaded((x) => ({ ...x, [p.id]: 'error' })),
+      );
+    }
+    return () => {
+      live = false;
+    };
+  }, [backend, key]);
+  return useMemo(() => {
+    if (race.format === 'relay') return null;
+    const mine = raceEstimate(race, performances);
+    const team = partners.map((profile) => {
+      const d = loaded[profile.id];
+      if (d === undefined) return { profile };
+      if (d === 'error' || d === null) return { profile, error: `${profile.displayName}'s results aren't available, so this uses yours only.` };
+      return { profile, estimate: raceEstimate(race, partnerPerformances(d, profile.id, goals.races)) };
+    });
+    const ready = team.filter((t) => t.estimate).map((t) => t.estimate!);
+    if (!ready.length) return { estimate: mine, mine, partners: team };
+    // Notes say whose data they are about.
+    const notes = [mine, ...team.filter((t) => t.estimate).map((t) => t.estimate!)].flatMap((e, i) =>
+      e.notes.map((n) => (i === 0 ? `You: ${n}` : `${team.filter((t) => t.estimate)[i - 1].profile.displayName}: ${n.replace(/\byour\b/g, 'their')}`)),
+    );
+    return { estimate: { ...combineEstimates([mine, ...ready]), notes }, mine, partners: team };
+  }, [race, performances, loaded, key, goals.races]);
 }
 
 function Split({ label, sec, raw, best }: { label: string; sec?: number; raw?: string; best?: Best }) {
@@ -140,21 +200,37 @@ export function RaceEstimateCard() {
 }
 
 function Estimate({ race }: { race: Race }) {
-  const { goals, today } = useData();
-  const performances = usePerformances();
-  const e = useMemo(() => raceEstimate(race, performances), [race, performances]);
+  const { goals, today, athlete } = useData();
+  const team = useRaceEstimate(race)!;
+  const e = team.estimate;
+  const combined = team.partners.some((p) => p.estimate);
   return (
     <div className="space-y-4">
       <div className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-white">
         <p className="text-xs text-blue-100">{raceTypeLabel(race, goals.athleteSex)} · {fmtLong(race.date)} · {diffDays(race.date, today)} days to go</p>
         <p className="mt-1 text-2xl font-semibold tracking-tight">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</p>
-        <p className="text-xs text-blue-100">best splits → average splits · from {e.basis.sims} sim{e.basis.sims === 1 ? '' : 's'} and {e.basis.races} race{e.basis.races === 1 ? '' : 's'}</p>
+        <p className="text-xs text-blue-100">
+          {combined
+            ? `Team estimate: average of both best times → average of both average times`
+            : `best splits → average splits · from ${e.basis.sims} sim${e.basis.sims === 1 ? '' : 's'} and ${e.basis.races} race${e.basis.races === 1 ? '' : 's'}`}
+        </p>
       </div>
+      {team.partners.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {[{ profile: athlete, estimate: team.mine, error: undefined as string | undefined }, ...team.partners].map((p, i) => (
+            <div key={p.profile.id} className="rounded-xl bg-slate-50 px-3 py-2.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{i === 0 ? `${p.profile.displayName} (you)` : p.profile.displayName}</p>
+              <p className="mt-0.5 text-base font-semibold text-slate-900">{p.estimate ? `${fmtTime(p.estimate.fastSec)} – ${fmtTime(p.estimate.typicalSec)}` : p.error ? '—' : 'Loading…'}</p>
+              <p className="text-xs text-slate-500">{p.estimate ? `best → average · ${p.estimate.basis.sims} sim${p.estimate.basis.sims === 1 ? '' : 's'}, ${p.estimate.basis.races} race${p.estimate.basis.races === 1 ? '' : 's'}` : p.error}</p>
+            </div>
+          ))}
+        </div>
+      )}
       <div>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
-              <th className="py-1.5 pr-2 font-medium">Station</th>
+              <th className="py-1.5 pr-2 font-medium">{combined ? 'Team average' : 'Station'}</th>
               <th className="px-2 py-1.5 text-right font-medium">Run before</th>
               <th className="py-1.5 pl-2 text-right font-medium">Station</th>
             </tr>
@@ -192,13 +268,14 @@ function Estimate({ race }: { race: Race }) {
 
 /** One-line estimated finish range for the race plan summary (solo and doubles only). */
 export function EstimateLine({ race }: { race: Race }) {
-  const performances = usePerformances();
-  const e = useMemo(() => (race.format === 'relay' ? null : raceEstimate(race, performances)), [race, performances]);
-  if (!e) return null;
+  const team = useRaceEstimate(race);
+  if (!team) return null;
+  const e = team.estimate;
+  const combined = team.partners.some((p) => p.estimate);
   return (
     <a href="#race-estimate" onClick={(ev) => { ev.preventDefault(); document.getElementById('race-estimate')?.scrollIntoView({ behavior: 'smooth' }); }} className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-sm text-blue-800 hover:bg-blue-100">
       <Timer size={14} className="shrink-0" />
-      Estimated finish <b className="font-semibold">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</b>
+      {combined ? 'Team estimate' : 'Estimated finish'} <b className="font-semibold">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</b>
     </a>
   );
 }
