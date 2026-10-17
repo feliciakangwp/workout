@@ -10,7 +10,7 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
 
 export function CardHeader({ title, subtitle, action, icon: Icon }: { title: string; subtitle?: string; action?: ReactNode; icon?: LucideIcon }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
+    <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5 sm:pt-5">
       <div className="flex min-w-0 items-start gap-2.5">
         {Icon && (
           <span className="mt-0.5 rounded-lg bg-blue-50 p-1.5 text-blue-600">
@@ -73,15 +73,15 @@ export function StatCard({
     sky: 'bg-sky-50 text-sky-600',
   };
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between">
+    <Card className="p-3.5 sm:p-4">
+      <div className="flex items-center justify-between gap-1">
         <span className={`rounded-xl p-2 ${accents[accent]}`}>
           <Icon size={18} />
         </span>
         {delta !== undefined && deltaLabel && <TrendBadge delta={delta} label={deltaLabel} good={good} />}
       </div>
       <p className="mt-3 text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-0.5 text-2xl font-semibold tracking-tight text-slate-900">
+      <p className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
         {value}
         {unit && <span className="ml-1 text-sm font-medium text-slate-500">{unit}</span>}
       </p>
@@ -150,8 +150,8 @@ export function Modal({ open, onClose, title, children, wide = false, footer }: 
             <X size={18} />
           </button>
         </div>
-        <div className="overflow-y-auto px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">{footer}</div>}
+        <div className="overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">{children}</div>
+        {footer && <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">{footer}</div>}
       </div>
     </div>
   );
@@ -209,10 +209,10 @@ export function ChartTooltip({ active, payload, label, labelFormatter, valueForm
 
 export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-4 flex flex-wrap items-end justify-between gap-3 sm:mb-5">
       <div>
         <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        {subtitle && <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

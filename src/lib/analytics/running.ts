@@ -25,9 +25,11 @@ export const avgPace = (rs: RunRecord[]) => {
   return km ? rs.reduce((a, r) => a + r.durationSec, 0) / km : 0;
 };
 
+/** Distance-weighted average heart rate over runs that recorded one. */
 export const avgHr = (rs: RunRecord[]) => {
-  const km = rs.reduce((a, r) => a + r.distanceKm, 0);
-  return km ? Math.round(rs.reduce((a, r) => a + r.avgHr * r.distanceKm, 0) / km) : 0;
+  const withHr = rs.filter((r) => r.avgHr);
+  const km = withHr.reduce((a, r) => a + r.distanceKm, 0);
+  return km ? Math.round(withHr.reduce((a, r) => a + r.avgHr! * r.distanceKm, 0) / km) : 0;
 };
 
 /** Best average pace over a run of at least 5 km (standalone runs only). */

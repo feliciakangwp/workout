@@ -5,7 +5,11 @@ import { sortByDate } from './common';
 export interface StationAttempt {
   date: string;
   workoutId: string;
+  /** Full-distance time; scaled up from half / ¾ sims. */
   timeSec: number;
+  /** Time actually recorded. */
+  rawSec: number;
+  fraction: number;
   score: number;
 }
 
@@ -17,7 +21,11 @@ export function stationHistory(workouts: Workout[], id: StationId): StationAttem
   const out: StationAttempt[] = [];
   for (const w of workouts)
     for (const s of w.stations ?? [])
-      if (s.station === id) out.push({ date: w.date, workoutId: w.id, timeSec: s.timeSec, score: stationScore(id, s.timeSec) });
+      if (s.station === id) {
+        const fraction = s.fraction ?? 1;
+        const timeSec = Math.round(s.timeSec / fraction);
+        out.push({ date: w.date, workoutId: w.id, timeSec, rawSec: s.timeSec, fraction, score: stationScore(id, timeSec) });
+      }
   return sortByDate(out);
 }
 

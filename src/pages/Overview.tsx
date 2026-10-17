@@ -4,10 +4,11 @@ import { Bar, ReferenceLine, BarChart, CartesianGrid, Line, LineChart, Responsiv
 import type { PageId } from '../components/Layout';
 import { Card, CardHeader, ChartTooltip, DemoBadge, Modal, PageHeader, RANGE_OPTIONS, Segmented, StatCard, TypeBadge } from '../components/ui';
 import { WorkoutDetail } from '../components/WorkoutDetail';
+import { useUI } from '../context/UIContext';
 import { useData } from '../context/DataContext';
 import { DATA_START, WEEKLY_SCHEDULE } from '../data/mockData';
 import type { Goals, Workout } from '../data/types';
-import { type RangeKey, trainingInsights, trainingTrends, weekComparison, best5kPace, runs, predictTime, sessionLoad } from '../lib/analytics';
+import { type RangeKey, trainingInsights, trainingTrends, weekComparison, best5kPace, runs, predictTime, sessionLoad, raceTypeLabel, upcomingRaces } from '../lib/analytics';
 import { addDays, diffDays, fmtShort, startOfWeek, WEEKDAYS, WEEKDAYS_SHORT } from '../lib/dates';
 import { fmtDuration, fmtPace, fmtPct, fmtTime, parseTime, pctChange } from '../lib/format';
 import { AXIS, GRID, SERIES, TYPE_COLORS } from '../lib/theme';
@@ -73,7 +74,7 @@ function WeeklyCalendar({ className = '' }: { className?: string }) {
           </div>
         }
       />
-      <div className="grid grid-cols-2 gap-2 p-5 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="-mx-px flex snap-x gap-2 overflow-x-auto p-4 sm:grid sm:grid-cols-4 sm:overflow-visible sm:p-5 lg:grid-cols-7">
         {days.map((d, i) => {
           const plan = WEEKLY_SCHEDULE[i];
           const done = byDate.get(d) ?? [];
@@ -85,7 +86,7 @@ function WeeklyCalendar({ className = '' }: { className?: string }) {
             <button
               key={d}
               onClick={() => setSelected(d)}
-              className={`group flex min-h-[132px] flex-col rounded-xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-md ${isToday ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'} ${status === 'missed' ? 'bg-slate-50' : 'bg-white'}`}
+              className={`group flex min-h-[132px] w-[42%] shrink-0 snap-start flex-col rounded-xl border p-3 text-left sm:w-auto transition hover:-translate-y-0.5 hover:shadow-md ${isToday ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'} ${status === 'missed' ? 'bg-slate-50' : 'bg-white'}`}
             >
               <div className="flex w-full items-center justify-between">
                 <span className="text-xs font-semibold text-slate-500">{WEEKDAYS_SHORT[i]}</span>
@@ -140,7 +141,7 @@ function WeekSummary({ workouts, plannedSoFar }: { workouts: Workout[]; plannedS
     { label: 'Training load', value: workouts.reduce((a, w) => a + sessionLoad(w), 0).toLocaleString(), sub: 'duration × RPE' },
   ];
   return (
-    <div className="mx-5 mb-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 sm:grid-cols-5">
+    <div className="mx-4 mb-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 sm:mx-5 sm:mb-5 sm:grid-cols-5">
       {items.map((i) => (
         <div key={i.label} className="px-1">
           <p className="text-[11px] font-medium text-slate-500">{i.label}</p>
@@ -155,6 +156,8 @@ function WeekSummary({ workouts, plannedSoFar }: { workouts: Workout[]; plannedS
 // ---------------------------------------------------------------------------
 function GoalsCard() {
   const { goals, updateGoals, workouts, today } = useData();
+  const { openProfile } = useUI();
+  const races = upcomingRaces(goals, today);
   const [editing, setEditing] = useState(false);
   const best = best5kPace(runs(workouts));
   const predicted10k = best ? predictTime(best * 5, 5, goals.runGoalDistanceKm) : 0;
@@ -165,7 +168,7 @@ function GoalsCard() {
 
   return (
     <Card>
-      <CardHeader icon={Target} title="Goals & competitions" subtitle="Editable example goals — not measured values" action={<button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>} />
+      <CardHeader icon={Target} title="Goals & races" subtitle="Editable example goals — not measured values" action={<button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>} />
       <div className="space-y-4 p-5">
         <div>
           <div className="flex items-baseline justify-between text-sm">
@@ -184,19 +187,24 @@ function GoalsCard() {
           <p className="mt-1 text-xs text-slate-500">{predicted10k ? `Predicted from best 5 km+ pace: ${fmtTime(predicted10k)} (${fmtPace(predicted10k / goals.runGoalDistanceKm)}/km)` : 'Log a 5 km run to see a prediction'}</p>
         </div>
         <div className="space-y-2 border-t border-slate-100 pt-4">
-          {goals.competitions.map((comp) => {
-            const days = diffDays(comp.date, today);
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming races · {goals.athleteSex === 'female' ? 'Female' : 'Male'}</p>
+            <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={openProfile}>Manage races →</button>
+          </div>
+          {races.length === 0 && <button onClick={openProfile} className="w-full rounded-xl border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500 hover:bg-slate-50">Choose your upcoming races</button>}
+          {races.map((race) => {
+            const days = diffDays(race.date, today);
             return (
-              <div key={comp.name} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{comp.name}</p>
-                  <p className="text-xs text-slate-500">{fmtShort(comp.date)} {comp.date.slice(0, 4)} · example date</p>
+              <button key={race.id} onClick={openProfile} className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 text-left hover:bg-blue-50">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-800">{race.name}</p>
+                  <p className="truncate text-xs text-slate-500">{raceTypeLabel(race, goals.athleteSex)} · {fmtShort(race.date)} {race.date.slice(0, 4)}</p>
                 </div>
                 <span className="text-right">
                   <span className="block text-lg font-semibold leading-none text-blue-700">{days >= 0 ? days : '—'}</span>
                   <span className="text-[11px] text-slate-500">{days >= 0 ? 'days to go' : 'completed'}</span>
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -214,15 +222,13 @@ function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => 
     pace: fmtPace(goals.runGoalPaceSecPerKm),
     sessions: String(goals.weeklySessionsTarget),
     runKm: String(goals.weeklyRunKmTarget),
-    comps: goals.competitions.map((c) => ({ ...c })),
   });
   const [error, setError] = useState('');
   const save = () => {
     const pace = parseTime(draft.pace);
     const nums = [draft.current, draft.target, draft.km, draft.sessions, draft.runKm].map(Number);
     if (nums.some((n) => !(n > 0)) || !(pace > 120 && pace < 900)) return setError('Enter positive numbers and a pace as m:ss.');
-    if (draft.comps.some((c) => !c.name.trim() || !c.date)) return setError('Each competition needs a name and a date.');
-    onSave({ currentWeightKg: nums[0], targetWeightKg: nums[1], runGoalDistanceKm: nums[2], runGoalPaceSecPerKm: pace, weeklySessionsTarget: nums[3], weeklyRunKmTarget: nums[4], competitions: draft.comps });
+    onSave({ ...goals, currentWeightKg: nums[0], targetWeightKg: nums[1], runGoalDistanceKm: nums[2], runGoalPaceSecPerKm: pace, weeklySessionsTarget: nums[3], weeklyRunKmTarget: nums[4] });
   };
   const field = (key: keyof typeof draft, label: string, type = 'number') => (
     <div>
@@ -241,15 +247,7 @@ function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => 
         {field('sessions', 'Weekly sessions target')}
         {field('runKm', 'Weekly running target (km)')}
       </div>
-      <h4 className="mb-2 mt-5 text-sm font-semibold text-slate-800">Competitions</h4>
-      <div className="space-y-2">
-        {draft.comps.map((c, i) => (
-          <div key={i} className="grid grid-cols-[1fr_auto] gap-2">
-            <input className="input" aria-label="Competition name" value={c.name} onChange={(e) => setDraft({ ...draft, comps: draft.comps.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
-            <input className="input" type="date" aria-label="Competition date" value={c.date} onChange={(e) => setDraft({ ...draft, comps: draft.comps.map((x, j) => (j === i ? { ...x, date: e.target.value } : x)) })} />
-          </div>
-        ))}
-      </div>
+      <p className="mt-4 text-xs text-slate-500">Races are managed under Athlete &amp; races.</p>
     </Modal>
   );
 }
@@ -271,7 +269,7 @@ function TrainingTrends() {
   const interval = range === '30d' ? 4 : 0;
 
   const chart = (title: string, summary: string, body: JSX.Element) => (
-    <div className="rounded-xl border border-slate-100 p-4">
+    <div className="rounded-xl border border-slate-100 p-3 sm:p-4">
       <div className="mb-3 flex items-baseline justify-between gap-2">
         <h4 className="text-sm font-semibold text-slate-800">{title}</h4>
         <span className="text-xs text-slate-500">{summary}</span>
@@ -285,7 +283,7 @@ function TrainingTrends() {
   return (
     <Card className="mt-5">
       <CardHeader icon={TrendingUp} title="Training trends" subtitle={weekly ? 'Weekly totals' : 'Daily values'} action={<Segmented value={range} onChange={setRange} options={RANGE_OPTIONS} />} />
-      <div className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 p-4 sm:p-5 lg:grid-cols-2">
         {chart('Training duration', `${fmtDuration(totalMin)} total`,
           <BarChart data={data} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
             <CartesianGrid {...GRID} />

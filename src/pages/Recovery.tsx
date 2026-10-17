@@ -76,7 +76,7 @@ export function Recovery() {
       <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
           <CardHeader icon={Waves} title="Recovery trends" subtitle="Overnight HRV and resting heart rate" action={<Legend items={[{ label: 'HRV (ms)', color: SERIES.aqua }, { label: 'Resting HR (bpm)', color: SERIES.red }]} />} />
-          <div className="grid grid-cols-1 gap-2 p-5">
+          <div className="grid grid-cols-1 gap-2 p-3 sm:p-5">
             {([['hrv', 'HRV', SERIES.aqua, 'ms'], ['restingHr', 'Resting HR', SERIES.red, 'bpm']] as const).map(([key, name, color, unit]) => (
               <div key={key} className="h-32">
                 <ResponsiveContainer width="100%" height="100%">
@@ -95,7 +95,7 @@ export function Recovery() {
 
         <Card>
           <CardHeader icon={Moon} title="Sleep" subtitle="Nightly duration (bars) · sleep score shown in tooltip" />
-          <div className="h-72 p-5">
+          <div className="h-60 p-3 sm:h-72 sm:p-5">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
                 <CartesianGrid {...GRID} />
@@ -128,7 +128,7 @@ export function Recovery() {
 
         <Card>
           <CardHeader icon={Flame} title="Training load" subtitle="Daily session load (duration × RPE) and 7-day acute load" action={<Legend items={[{ label: 'Daily load', color: SERIES.orange }, { label: 'Acute (7d) ÷ 7', color: SERIES.blue }]} />} />
-          <div className="h-72 p-5">
+          <div className="h-60 p-3 sm:h-72 sm:p-5">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={data.map((d) => ({ ...d, acuteAvg: Math.round(d.acuteLoad / 7), chronicAvg: Math.round(d.chronicLoad / 7) }))} margin={{ top: 6, right: 8, left: -12, bottom: 0 }}>
                 <CartesianGrid {...GRID} />
@@ -144,7 +144,7 @@ export function Recovery() {
 
         <Card>
           <CardHeader icon={Activity} title="Recent workout intensity" subtitle="Last 14 sessions · session RPE" action={<Legend items={(['F45', 'Strength', 'HYROX Engine', 'HYROX', 'Running', 'Recovery'] as const).map((t) => ({ label: t, color: TYPE_COLORS[t] }))} />} />
-          <div className="h-72 p-5">
+          <div className="h-60 p-3 sm:h-72 sm:p-5">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={recent.map((w) => ({ ...w, load: sessionLoad(w) }))} margin={{ top: 6, right: 8, left: -24, bottom: 0 }}>
                 <CartesianGrid {...GRID} />

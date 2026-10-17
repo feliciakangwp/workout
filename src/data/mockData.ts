@@ -25,9 +25,10 @@ export const DEFAULT_GOALS: Goals = {
   runGoalPaceSecPerKm: 300,
   weeklySessionsTarget: 6,
   weeklyRunKmTarget: 18,
-  competitions: [
-    { name: "HYROX Women's Doubles", date: '2026-11-28' },
-    { name: 'HYROX Mixed Relay', date: '2027-01-23' },
+  athleteSex: 'female',
+  races: [
+    { id: 'race-1', name: 'HYROX Singapore', date: '2026-11-28', format: 'doubles', category: 'open', relayStations: [] },
+    { id: 'race-2', name: 'HYROX Mixed Relay', date: '2027-01-23', format: 'relay', category: 'open', relayStations: ['skierg', 'wallBalls'] },
   ],
 };
 
@@ -300,15 +301,34 @@ function buildWorkouts(): Workout[] {
         const second = ['rowing', 'farmersCarry', 'sandbagLunges', 'wallBalls'];
         const ids = full ? [...first, ...second] : week % 2 === 0 ? first : second;
         const run = makeRun('Compromised', week);
-        if (full) run.distanceKm = 8;
+        const stations = stationResults(week, ids);
+        if (full) {
+          // Race-style full simulation: 8 × (1 km run + station) at women's open weights.
+          run.distanceKm = 8;
+          const splits = stations.map((st, i) => ({ station: st.station, runSec: Math.round(run.paceSecPerKm + (i === 0 ? -12 : i * 2) + noise(8)), stationSec: st.timeSec }));
+          run.paceSecPerKm = Math.round(splits.reduce((a, x) => a + x.runSec, 0) / 8);
+          const total = splits.reduce((a, x) => a + x.runSec + x.stationSec, 0);
+          workouts.push({
+            ...base,
+            type: 'HYROX',
+            title: 'HYROX Full Sim',
+            durationMin: Math.ceil(total / 60),
+            intensity: 9,
+            exercises: stations.map((st) => ({ ...STATION_EXERCISE[st.station], sets: 1, reps: STATION_EXERCISE[st.station].reps * 2, creditSets: 4 })),
+            stations,
+            hyrox: { sim: 'full', division: { sex: 'female', category: 'open' }, splits },
+            run,
+          });
+          break;
+        }
         workouts.push({
           ...base,
           type: 'HYROX',
-          title: full ? 'HYROX Full Simulation' : `HYROX Half Simulation (Stations ${week % 2 === 0 ? '1–4' : '5–8'})`,
-          durationMin: full ? 95 : 75,
-          intensity: full ? 9 : 8,
+          title: `HYROX Station Practice (Stations ${week % 2 === 0 ? '1–4' : '5–8'})`,
+          durationMin: 75,
+          intensity: 8,
           exercises: ids.map((id) => STATION_EXERCISE[id]),
-          stations: stationResults(week, ids),
+          stations,
           run,
         });
         break;

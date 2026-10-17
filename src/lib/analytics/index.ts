@@ -5,3 +5,4 @@ export * from './running';
 export * from './hyrox';
 export * from './recovery';
 export * from './overview';
+export * from './race';

@@ -27,8 +27,9 @@ export function setCredits(workouts: Workout[]): Record<MuscleGroup, number> {
   for (const w of workouts)
     for (const e of w.exercises) {
       const { primary, secondary, factor } = exerciseMuscles(e);
-      primary.forEach((m) => (out[m] += e.sets * factor));
-      secondary.forEach((m) => (out[m] += e.sets * factor * 0.5));
+      const sets = e.creditSets ?? e.sets;
+      primary.forEach((m) => (out[m] += sets * factor));
+      secondary.forEach((m) => (out[m] += sets * factor * 0.5));
     }
   return out;
 }
@@ -109,7 +110,7 @@ export function muscleDetail(workouts: Workout[], muscle: MuscleGroup, today = D
       const isPrimary = primary.includes(muscle);
       if (!isPrimary && !secondary.includes(muscle)) continue;
       const cur = exMap.get(e.name) ?? { name: e.name, sets: 0, lastDate: w.date, primary: isPrimary };
-      cur.sets += e.sets;
+      cur.sets += e.creditSets ?? e.sets;
       if (w.date > cur.lastDate) cur.lastDate = w.date;
       exMap.set(e.name, cur);
     }

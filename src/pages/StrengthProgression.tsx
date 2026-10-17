@@ -70,7 +70,7 @@ export function StrengthProgression() {
                 subtitle={`${history.length} sessions recorded`}
                 action={<Segmented value={metric} onChange={setMetric} options={[{ value: 'weight', label: 'Weight' }, { value: 'strength', label: carry ? 'Load' : 'Est. 1RM' }, { value: 'volume', label: 'Volume' }]} />}
               />
-              <div className="h-80 p-5">
+              <div className="h-64 p-3 sm:h-80 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   {metric === 'volume' ? (
                     <BarChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
@@ -133,8 +133,24 @@ export function StrengthProgression() {
       )}
 
       <Card className="mt-5 overflow-hidden">
-        <CardHeader icon={Dumbbell} title="All tracked exercises" subtitle="Click a row to analyse that exercise" />
-        <div className="mt-4 overflow-x-auto">
+        <CardHeader icon={Dumbbell} title="All tracked exercises" subtitle="Tap an exercise to analyse it" />
+        <ul className="mt-3 divide-y divide-slate-100 md:hidden">
+          {summaries.map((x) => (
+            <li key={x.name}>
+              <button onClick={() => { setExercise(x.name); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`flex w-full items-center gap-3 px-4 py-3 text-left ${x.name === exercise ? 'bg-blue-50/70' : ''}`}>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-slate-800">{x.name}</span>
+                  <span className="block text-xs text-slate-500">
+                    {x.latest ? `${x.latest.weightKg} kg · ${repLabel(x.name, x.latest)}` : 'No data'}
+                    {x.pr ? ` · PR ${x.pr.weightKg} kg` : ''}
+                  </span>
+                </span>
+                <TrendBadge delta={x.changeSinceStartPct} label={fmtPct(x.changeSinceStartPct)} />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 hidden overflow-x-auto md:block">
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500">
               <tr>

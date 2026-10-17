@@ -1,7 +1,7 @@
 import { Clock, Flame, Gauge, HeartPulse, Route, Trash2 } from 'lucide-react';
 import { EXERCISE_BY_NAME } from '../data/exercises';
 import { MUSCLE_BY_ID } from '../data/muscles';
-import { STATION_BY_ID } from '../data/stations';
+import { STATION_BY_ID, divisionLabel, simFraction, simLabel, stationSpec } from '../data/stations';
 import type { ExerciseEntry, Workout } from '../data/types';
 import { sessionLoad, workoutMuscles } from '../lib/analytics';
 import { fmtLong } from '../lib/dates';
@@ -45,18 +45,20 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
         <MiniStat label="Training load" value={<span className="inline-flex items-center gap-1.5"><Flame size={14} className="text-slate-400" />{sessionLoad(workout)}</span>} sub="duration × RPE" />
       </div>
 
-      {workout.run && (
+      {workout.hyrox && <HyroxSplits workout={workout} />}
+
+      {workout.run && !workout.hyrox && (
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Running · {workout.run.kind}</h4>
           <div className="grid grid-cols-3 gap-2">
             <MiniStat label="Distance" value={<span className="inline-flex items-center gap-1.5"><Route size={14} className="text-slate-400" />{workout.run.distanceKm} km</span>} />
             <MiniStat label="Avg pace" value={<span className="inline-flex items-center gap-1.5"><Gauge size={14} className="text-slate-400" />{fmtPace(workout.run.paceSecPerKm)}/km</span>} />
-            <MiniStat label="Avg HR" value={<span className="inline-flex items-center gap-1.5"><HeartPulse size={14} className="text-slate-400" />{workout.run.avgHr} bpm</span>} />
+            <MiniStat label="Avg HR" value={<span className="inline-flex items-center gap-1.5"><HeartPulse size={14} className="text-slate-400" />{workout.run.avgHr ? `${workout.run.avgHr} bpm` : '—'}</span>} />
           </div>
         </div>
       )}
 
-      {workout.exercises.length > 0 && (
+      {workout.exercises.length > 0 && !workout.hyrox && (
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Exercises</h4>
           <div className="overflow-hidden rounded-xl border border-slate-200">
@@ -82,12 +84,12 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
         </div>
       )}
 
-      {workout.stations && workout.stations.length > 0 && (
+      {workout.stations && workout.stations.length > 0 && !workout.hyrox && (
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">HYROX station times</h4>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {workout.stations.map((s) => (
-              <MiniStat key={s.station} label={STATION_BY_ID[s.station].name} value={fmtTime(s.timeSec)} sub={STATION_BY_ID[s.station].spec} />
+              <MiniStat key={s.station} label={STATION_BY_ID[s.station].name} value={fmtTime(s.timeSec)} sub={stationSpec(s.station, { sex: 'female', category: 'open' }, s.fraction)} />
             ))}
           </div>
         </div>
@@ -118,6 +120,47 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
           <Trash2 size={15} /> Remove this workout
         </button>
       )}
+    </div>
+  );
+}
+
+function HyroxSplits({ workout }: { workout: Workout }) {
+  const h = workout.hyrox!;
+  const fraction = simFraction(h.sim);
+  const total = h.splits.reduce((a, s) => a + (s.runSec ?? 0) + (s.stationSec ?? 0), 0);
+  const runTotal = h.splits.reduce((a, s) => a + (s.runSec ?? 0), 0);
+  return (
+    <div>
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {simLabel(h.sim)} · {divisionLabel(h.division)} weights
+      </h4>
+      <div className="mb-2 grid grid-cols-3 gap-2">
+        <MiniStat label="Total" value={fmtTime(total)} />
+        <MiniStat label="Running" value={fmtTime(runTotal)} sub={workout.run ? `${fmtPace(workout.run.paceSecPerKm)}/km avg` : undefined} />
+        <MiniStat label="Avg HR" value={workout.run?.avgHr ? `${workout.run.avgHr} bpm` : '—'} />
+      </div>
+      <ol className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 text-sm">
+        {h.splits.map((s) => {
+          const st = STATION_BY_ID[s.station];
+          return (
+            <li key={s.station} className="flex items-center gap-3 px-3 py-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">{st.order}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-slate-800">{st.name}</span>
+                <span className="block text-xs text-slate-500">{stationSpec(s.station, h.division, fraction)}</span>
+              </span>
+              <span className="w-14 shrink-0 text-right text-xs text-slate-500">
+                <span className="block text-[10px] uppercase tracking-wide">Run</span>
+                {s.runSec ? fmtTime(s.runSec) : '—'}
+              </span>
+              <span className="w-14 shrink-0 text-right font-medium text-slate-900">
+                <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500">Station</span>
+                {s.stationSec ? fmtTime(s.stationSec) : '—'}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

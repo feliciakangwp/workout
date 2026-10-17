@@ -2,6 +2,7 @@ import { Activity, BarChart3, CalendarClock, Dumbbell, Repeat, Target, TrendingU
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { BodyFigure } from '../components/BodyMap';
+import { RaceFocusStrip } from '../components/RacePlan';
 import { Card, CardHeader, ChartTooltip, DemoBadge, EmptyState, MiniStat, PageHeader, Segmented } from '../components/ui';
 import { useData } from '../context/DataContext';
 import { MUSCLES } from '../data/muscles';
@@ -35,6 +36,8 @@ export function MuscleAnalysis() {
         }
       />
 
+      <RaceFocusStrip onSelect={setSelected} />
+
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
         <Card className="xl:col-span-2">
           <CardHeader icon={Activity} title="Muscle coverage map" subtitle="Click a muscle group to see its details" />
@@ -53,7 +56,7 @@ export function MuscleAnalysis() {
           <div className="grid grid-cols-2 gap-2 px-3 pt-2 sm:px-8">
             {(['front', 'back'] as const).map((v) => (
               <div key={v} className="flex flex-col items-center">
-                <div className="h-[340px] w-full max-w-[180px] sm:h-[400px]">
+                <div className="h-[300px] w-full max-w-[170px] sm:h-[400px] sm:max-w-[180px]">
                   <BodyFigure view={v} colors={colors} selected={selected} hovered={hovered} onSelect={setSelected} onHover={setHovered} />
                 </div>
                 <span className="mt-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600">{v} view</span>
@@ -87,7 +90,7 @@ export function MuscleAnalysis() {
 
       <Card className="mt-5">
         <CardHeader icon={BarChart3} title="Training exposure by muscle group" subtitle={`${period === '7d' ? 'Sets in the last 7 days' : 'Average weekly sets over the last 4 weeks'} as % of each muscle's weekly target · click a bar to select`} />
-        <div className="h-[360px] p-5">
+        <div className="h-[340px] p-3 sm:h-[360px] sm:p-5">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={coverage} layout="vertical" margin={{ top: 18, right: 24, left: 8, bottom: 0 }}>
               <CartesianGrid stroke="#eef2f7" horizontal={false} />

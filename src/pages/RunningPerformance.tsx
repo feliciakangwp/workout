@@ -56,7 +56,7 @@ export function RunningPerformance() {
       <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
         <p className="font-medium text-slate-900">{fmtLong(r.date)}</p>
         <p className="text-slate-600">{r.source === 'Running' ? `${r.kind} run` : `${r.source} · ${r.kind}`}</p>
-        <p className="mt-1 text-slate-700">{r.distanceKm} km · {fmtPace(r.paceSecPerKm)}/km · {r.avgHr} bpm</p>
+        <p className="mt-1 text-slate-700">{r.distanceKm} km · {fmtPace(r.paceSecPerKm)}/km{r.avgHr ? ` · ${r.avgHr} bpm` : ''}</p>
       </div>
     );
   };
@@ -81,7 +81,7 @@ export function RunningPerformance() {
           <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Card>
               <CardHeader icon={Gauge} title="Running pace progression" subtitle="Average pace per run · lower is faster" action={<Legend items={GROUPS.map((g) => ({ label: g.label, color: g.color }))} />} />
-              <div className="h-72 p-5">
+              <div className="h-60 p-3 sm:h-72 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart margin={{ top: 8, right: 12, left: -4, bottom: 0 }}>
                     <CartesianGrid {...GRID} />
@@ -99,7 +99,7 @@ export function RunningPerformance() {
 
             <Card>
               <CardHeader icon={Route} title={range === '7d' ? 'Daily distance' : 'Weekly distance'} subtitle={`${totalKm(cur).toFixed(1)} km in period · weekly target ${goals.weeklyRunKmTarget} km`} />
-              <div className="h-72 p-5">
+              <div className="h-60 p-3 sm:h-72 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={distData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                     <CartesianGrid {...GRID} />
@@ -114,7 +114,7 @@ export function RunningPerformance() {
 
             <Card>
               <CardHeader icon={HeartPulse} title="Average heart rate" subtitle="Per run, by run type" action={<Legend items={GROUPS.map((g) => ({ label: g.label, color: g.color }))} />} />
-              <div className="h-72 p-5">
+              <div className="h-60 p-3 sm:h-72 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
                     <CartesianGrid {...GRID} />
@@ -122,7 +122,7 @@ export function RunningPerformance() {
                     <YAxis {...AXIS} domain={['dataMin - 5', 'dataMax + 5']} unit="" />
                     <Tooltip content={runTooltip} />
                     {GROUPS.map((g) => (
-                      <Line key={g.id} data={cur.filter((r) => groupOf(r).id === g.id).map((r) => ({ ...r, t: new Date(r.date).getTime() }))} dataKey="avgHr" name={g.label} stroke={g.color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                      <Line key={g.id} data={cur.filter((r) => groupOf(r).id === g.id && r.avgHr).map((r) => ({ ...r, t: new Date(r.date).getTime() }))} dataKey="avgHr" name={g.label} stroke={g.color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
@@ -131,7 +131,7 @@ export function RunningPerformance() {
 
             <Card>
               <CardHeader icon={Activity} title="Pace vs heart rate" subtitle="Down-and-right over time = faster at lower effort" action={<Legend items={GROUPS.map((g) => ({ label: g.label, color: g.color }))} />} />
-              <div className="h-72 p-5">
+              <div className="h-60 p-3 sm:h-72 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart margin={{ top: 8, right: 12, left: -4, bottom: 14 }}>
                     <CartesianGrid stroke="#eef2f7" />
@@ -140,7 +140,7 @@ export function RunningPerformance() {
                     <ZAxis range={[60, 60]} />
                     <Tooltip content={runTooltip} cursor={{ strokeDasharray: '3 3' }} />
                     {GROUPS.map((g) => (
-                      <Scatter key={g.id} name={g.label} data={cur.filter((r) => groupOf(r).id === g.id)} fill={g.color} stroke="#fff" strokeWidth={1.5} />
+                      <Scatter key={g.id} name={g.label} data={cur.filter((r) => groupOf(r).id === g.id && r.avgHr)} fill={g.color} stroke="#fff" strokeWidth={1.5} />
                     ))}
                   </ScatterChart>
                 </ResponsiveContainer>
@@ -176,7 +176,21 @@ export function RunningPerformance() {
 
         <Card className="xl:col-span-2 overflow-hidden">
           <CardHeader icon={Footprints} title="Recent runs" subtitle="Most recent first" />
-          <div className="mt-3 overflow-x-auto">
+          <ul className="mt-3 divide-y divide-slate-100 md:hidden">
+            {[...cur].reverse().slice(0, 8).map((r) => (
+              <li key={r.workoutId} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2"><TypeBadge type={r.source} /><span className="text-xs text-slate-500">{fmtShort(r.date)}</span></span>
+                  <span className="mt-0.5 block text-sm text-slate-700">{r.kind} · {r.distanceKm} km</span>
+                </span>
+                <span className="text-right">
+                  <span className="block text-sm font-semibold text-slate-900">{fmtPace(r.paceSecPerKm)}/km</span>
+                  <span className="text-xs text-slate-500">{r.avgHr ? `${r.avgHr} bpm` : '—'}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[560px] text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
@@ -196,7 +210,7 @@ export function RunningPerformance() {
                     <td className="px-3 py-2.5 text-slate-700">{r.kind}</td>
                     <td className="px-3 py-2.5 text-right text-slate-700">{r.distanceKm} km</td>
                     <td className="px-3 py-2.5 text-right font-medium text-slate-900">{fmtPace(r.paceSecPerKm)}/km</td>
-                    <td className="px-5 py-2.5 text-right text-slate-700">{r.avgHr} bpm</td>
+                    <td className="px-5 py-2.5 text-right text-slate-700">{r.avgHr ? `${r.avgHr} bpm` : '—'}</td>
                   </tr>
                 ))}
               </tbody>

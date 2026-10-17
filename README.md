@@ -31,6 +31,14 @@ src/
   pages/           Overview, Muscle Analysis, Strength, Running, HYROX, Recovery, Workout Log
 ```
 
+### Races and HYROX simulations
+
+- **Athlete & races** (sidebar card on laptop, profile icon on mobile): choose the athlete's sex and upcoming races —
+  Solo, Doubles (stations shared, every run done yourself) or Relay (1 km run + only your chosen stations, open weights),
+  each with Open or Pro weights. The HYROX page shows each race's segments and the muscle groups to focus on.
+- **Add workout → HYROX** records race-style splits: Half, ¾ or Full Sim, a 1 km run before every station, and station
+  distances / reps scaled to the sim. Half and ¾ station times are scaled to full distance for comparison.
+
 Every chart is computed from the same workout list, so workouts added through **Add workout** immediately update
 all pages (muscle coverage, strength progression, running, HYROX stations, training load and soreness).
 Added workouts live in React state only and reset on reload.

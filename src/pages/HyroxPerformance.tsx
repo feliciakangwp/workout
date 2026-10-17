@@ -3,12 +3,25 @@ import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHeader, DemoBadge, EmptyState, Legend, PageHeader, StatCard, TrendBadge } from '../components/ui';
 import { useData } from '../context/DataContext';
-import { STATION_BY_ID } from '../data/stations';
+import { STATION_BY_ID, stationSpec } from '../data/stations';
+import { RacePlan } from '../components/RacePlan';
 import type { StationId } from '../data/types';
-import { stationSummaries } from '../lib/analytics';
+import { raceDivision, stationSummaries, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong, fmtShort } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 import { AXIS, GRID, SERIES } from '../lib/theme';
+
+/** Short station names so radar labels fit narrow cards. */
+const RADAR_LABEL: Record<StationId, string> = {
+  skierg: 'SkiErg',
+  sledPush: 'Sled Push',
+  sledPull: 'Sled Pull',
+  burpeeBroadJump: 'Burpees',
+  rowing: 'Row',
+  farmersCarry: 'Farmers',
+  sandbagLunges: 'Lunges',
+  wallBalls: 'Wall Balls',
+};
 
 export function HyroxPerformance() {
   const { workouts, goals, today } = useData();
@@ -23,19 +36,25 @@ export function HyroxPerformance() {
   const totalFirst = withData.reduce((a, s) => a + s.first!.timeSec, 0);
   const totalTarget = withData.reduce((a, s) => a + STATION_BY_ID[s.id].targetSec, 0);
   const onTarget = withData.filter((s) => s.latest!.score >= 95).length;
-  const nextComp = goals.competitions.filter((c) => c.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1))[0];
+  const nextComp = upcomingRaces(goals, today)[0];
+  const division = nextComp ? raceDivision(nextComp, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' as const };
 
-  const radarData = summaries.map((s) => ({ id: s.id, station: s.name, latest: s.latest?.score ?? 0, baseline: s.first?.score ?? 0 }));
+  const narrow = window.innerWidth < 640;
+  const radarData = summaries.map((s) => ({ id: s.id, station: RADAR_LABEL[s.id], latest: s.latest?.score ?? 0, baseline: s.first?.score ?? 0 }));
 
   return (
     <div>
-      <PageHeader title="HYROX Performance" subtitle="Station results recorded in HYROX simulations and partner practice sessions." actions={<DemoBadge />} />
+      <PageHeader title="HYROX Performance" subtitle="Station results from simulations and station practice. Half and ¾ sim times are scaled to full distance for comparison." actions={<DemoBadge />} />
+
+      <div className="mb-5">
+        <RacePlan />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard icon={Timer} label="Total station time (latest)" value={fmtTime(totalLatest)} comparison={`${fmtTime(totalFirst)} at block start · target ${fmtTime(totalTarget)}`} delta={totalFirst - totalLatest} deltaLabel={`−${fmtTime(Math.max(0, totalFirst - totalLatest))}`} />
         <StatCard icon={Zap} label="Average improvement" value={`${(withData.reduce((a, s) => a + s.improvementPct, 0) / (withData.length || 1)).toFixed(1)}%`} comparison="faster than first recorded attempt" accent="emerald" />
         <StatCard icon={Award} label="Stations near target" value={`${onTarget}/8`} comparison="scoring ≥ 95 (100 = example target)" accent="amber" />
-        <StatCard icon={CalendarClock} label={nextComp ? nextComp.name : 'Next competition'} value={nextComp ? String(diffDays(nextComp.date, today)) : '—'} unit="days" comparison={nextComp ? `${fmtLong(nextComp.date)} · example date` : 'Add one on Overview'} accent="violet" />
+        <StatCard icon={CalendarClock} label={nextComp ? nextComp.name : 'Next competition'} value={nextComp ? String(diffDays(nextComp.date, today)) : '—'} unit="days" comparison={nextComp ? fmtLong(nextComp.date) : 'Add one under Athlete & races'} accent="violet" />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-5">
@@ -44,9 +63,9 @@ export function HyroxPerformance() {
           <div className="px-5 pt-3">
             <Legend items={[{ label: 'Latest', color: SERIES.blue }, { label: 'Block start', color: '#94a3b8' }]} />
           </div>
-          <div className="h-[360px] px-2 pb-4">
+          <div className="h-[300px] px-1 pb-4 sm:h-[360px] sm:px-2">
             <ResponsiveContainer width="100%" height="100%">
-              <RadarChart data={radarData} outerRadius="70%" margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
+              <RadarChart data={radarData} outerRadius={narrow ? '62%' : '70%'} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
                 <PolarGrid stroke="#e2e8f0" />
                 <PolarAngleAxis
                   dataKey="station"
@@ -54,7 +73,7 @@ export function HyroxPerformance() {
                     const d = radarData[props.payload.index];
                     const active = d.id === selected;
                     return (
-                      <text x={props.x} y={props.y} textAnchor={props.textAnchor} dominantBaseline="central" className="cursor-pointer" fontSize={11} fontWeight={active ? 700 : 500} fill={active ? '#1d4ed8' : '#475569'} onClick={() => setSelected(d.id)}>
+                      <text x={props.x} y={props.y} textAnchor={props.textAnchor} dominantBaseline="central" className="cursor-pointer" fontSize={narrow ? 9.5 : 11} fontWeight={active ? 700 : 500} fill={active ? '#1d4ed8' : '#475569'} onClick={() => setSelected(d.id)}>
                         {props.payload.value}
                       </text>
                     );
@@ -69,7 +88,7 @@ export function HyroxPerformance() {
                     if (!active || !d) return null;
                     return (
                       <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-                        <p className="font-medium text-slate-900">{d.station}</p>
+                        <p className="font-medium text-slate-900">{STATION_BY_ID[d.id].name}</p>
                         <p className="text-slate-600">Latest score {d.latest} · start {d.baseline}</p>
                       </div>
                     );
@@ -84,14 +103,14 @@ export function HyroxPerformance() {
           <CardHeader
             icon={History}
             title={`${info.name} · performance history`}
-            subtitle={`${info.spec} · example target ${fmtTime(info.targetSec)} · ${sel.history.length} attempts`}
+            subtitle={`${stationSpec(selected, division)} · example target ${fmtTime(info.targetSec)} · ${sel.history.length} attempts`}
             action={sel.best && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">PB {fmtTime(sel.best.timeSec)}</span>}
           />
           {sel.history.length === 0 ? (
             <div className="p-5"><EmptyState title="No attempts recorded" text="Add a HYROX workout with station times." /></div>
           ) : (
             <>
-              <div className="h-64 p-5">
+              <div className="h-56 p-3 sm:h-64 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={sel.history} margin={{ top: 8, right: 16, left: -4, bottom: 0 }}>
                     <CartesianGrid {...GRID} />
@@ -105,6 +124,7 @@ export function HyroxPerformance() {
                           <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
                             <p className="font-medium text-slate-900">{fmtLong(d.date)}</p>
                             <p className="text-slate-700">{fmtTime(d.timeSec)}{info.derived ? ` · ${info.derived.compute(d.timeSec)}` : ''}</p>
+                            {d.fraction < 1 && <p className="text-amber-700">Est. full distance from {fmtTime(d.rawSec)} at {d.fraction === 0.5 ? 'half' : '¾'} distance</p>}
                             <p className="text-slate-500">Score {d.score}</p>
                           </div>
                         );
@@ -138,7 +158,7 @@ export function HyroxPerformance() {
                 <div>
                   <p className="text-[11px] font-semibold text-slate-400">STATION {st.order}</p>
                   <p className="text-sm font-semibold text-slate-900">{s.name}</p>
-                  <p className="text-xs text-slate-500">{st.spec}</p>
+                  <p className="text-xs text-slate-500">{stationSpec(s.id, division)}</p>
                 </div>
                 {s.latest && s.previous ? (
                   <TrendBadge delta={s.changeVsPreviousSec} label={`${s.changeVsPreviousSec >= 0 ? '−' : '+'}${Math.abs(s.changeVsPreviousSec)}s`} />
