@@ -1,8 +1,9 @@
-import { ChevronDown, Flag, Plus, Trash2, Trophy } from 'lucide-react';
+import { ChevronDown, Flag, LogOut, Plus, Trash2, Trophy, UserPlus, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { STATIONS } from '../data/stations';
-import type { Race, RaceFormat, RaceResult, Sex, StationId, WeightCategory } from '../data/types';
+import type { Profile, Race, RaceFormat, RaceResult, Sex, StationId, WeightCategory } from '../data/types';
+import { useAuth } from '../context/AuthContext';
 import { raceStations, raceSummary, raceTypeLabel } from '../lib/analytics';
 import { addDays, diffDays, fmtLong } from '../lib/dates';
 import { fmtTime, parseTime } from '../lib/format';
@@ -54,7 +55,13 @@ function liveTotals(race: Race, inp: ResultInputs) {
 }
 
 export function AthleteProfileModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { goals, updateGoals, today } = useData();
+  const { goals, updateGoals, today, athlete } = useData();
+  const { backend } = useAuth();
+  const [friends, setFriends] = useState<Profile[]>([]);
+  useEffect(() => {
+    if (open) backend.listFriendships().then((l) => setFriends(l.filter((f) => f.status === 'friends').map((f) => f.profile))).catch(() => setFriends([]));
+  }, [open, backend]);
+  const isOwner = (r: Race) => !r.shared || r.shared.ownerId === athlete.id;
   const [sex, setSex] = useState<Sex>(goals.athleteSex);
   const [races, setRaces] = useState<Race[]>(goals.races);
   const [results, setResults] = useState<Record<string, ResultInputs>>({});
@@ -82,6 +89,9 @@ export function AthleteProfileModal({ open, onClose }: { open: boolean; onClose:
       if (!r.name.trim()) errs.push(`Race ${i + 1}: enter a race name.`);
       if (!r.date) errs.push(`${n}: choose a date.`);
       if (r.format === 'relay' && r.relayStations.length === 0) errs.push(`${n}: pick at least one relay station.`);
+      const team = r.teammates?.length ?? 0;
+      if (r.format === 'doubles' && team > 1) errs.push(`${n}: a doubles race has one partner — remove the extra teammate.`);
+      if (r.format === 'relay' && team > 3) errs.push(`${n}: a relay team has up to 3 teammates besides you.`);
       const race: Race = { ...r, name: r.name.trim(), result: undefined };
       const inp = results[r.id];
       if (r.date >= today || !inp) return race;
@@ -124,16 +134,34 @@ export function AthleteProfileModal({ open, onClose }: { open: boolean; onClose:
             <input id={`rd-${r.id}`} type="date" className="input" value={r.date} onChange={(e) => update(r.id, { date: e.target.value })} />
           </div>
           <div className="flex items-end">
-            <button className="btn-ghost w-full justify-center text-rose-600 hover:bg-rose-50 sm:w-auto" onClick={() => setRaces((rs) => rs.filter((x) => x.id !== r.id))} aria-label={`Remove race ${i + 1}`}>
-              <Trash2 size={15} /> <span className="sm:hidden">Remove race</span>
-            </button>
+            {isOwner(r) ? (
+              <button
+                className="btn-ghost w-full justify-center text-rose-600 hover:bg-rose-50 sm:w-auto"
+                onClick={() => (!r.shared || window.confirm(`Delete ${r.name || 'this race'} for everyone tagged in it?`)) && setRaces((rs) => rs.filter((x) => x.id !== r.id))}
+                aria-label={`Remove race ${i + 1}`}
+              >
+                <Trash2 size={15} /> <span className="sm:hidden">Remove race</span>
+              </button>
+            ) : (
+              <button
+                className="btn-ghost w-full justify-center text-rose-600 hover:bg-rose-50 sm:w-auto"
+                onClick={() => window.confirm(`Leave ${r.name || 'this race'}? It will be removed from your races; ${r.shared?.ownerName} keeps it.`) && setRaces((rs) => rs.filter((x) => x.id !== r.id))}
+              >
+                <LogOut size={15} /> Leave race
+              </button>
+            )}
           </div>
         </div>
 
         <div className="mt-3 flex flex-wrap items-end gap-x-5 gap-y-3">
           <div>
             <p className="label">Format</p>
-            <Segmented<RaceFormat> size="md" value={r.format} onChange={(format) => update(r.id, { format })} options={[{ value: 'solo', label: 'Solo' }, { value: 'doubles', label: 'Doubles' }, { value: 'relay', label: 'Relay' }]} />
+            <Segmented<RaceFormat>
+              size="md"
+              value={r.format}
+              onChange={(format) => update(r.id, { format })}
+              options={[...(isOwner(r) ? [{ value: 'solo' as const, label: 'Solo' }] : []), { value: 'doubles', label: 'Doubles' }, { value: 'relay', label: 'Relay' }]}
+            />
           </div>
           <div>
             <p className="label">Weights</p>
@@ -165,6 +193,9 @@ export function AthleteProfileModal({ open, onClose }: { open: boolean; onClose:
             <p className="mt-1 text-[11px] text-slate-500">In a 4-person relay each athlete usually takes two run + station legs.</p>
           </div>
         )}
+
+        {r.format !== 'solo' && <TeamFields race={r} friends={friends} owner={isOwner(r)} onChange={(teammates) => update(r.id, { teammates })} />}
+        {r.format === 'solo' && (r.teammates?.length ?? 0) > 0 && <p className="mt-3 text-xs text-amber-700">Solo races have no teammates — your tagged friends will be removed when you save.</p>}
 
         <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
           <b className="font-semibold">{raceTypeLabel(r, sex)}</b> · {summary.runKm} km running · {summary.stations} station{summary.stations === 1 ? '' : 's'}
@@ -296,6 +327,59 @@ function ResultFields({ race, inputs, onChange }: { race: Race; inputs: ResultIn
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Tag friends as doubles partner / relay teammates. Only the race's creator changes the team. */
+function TeamFields({ race, friends, owner, onChange }: { race: Race; friends: Profile[]; owner: boolean; onChange: (t: Profile[]) => void }) {
+  const team = race.teammates ?? [];
+  const max = race.format === 'doubles' ? 1 : 3;
+  const available = friends.filter((f) => !team.some((t) => t.id === f.id));
+  return (
+    <div className="mt-3 rounded-xl bg-violet-50 p-3">
+      <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-900">
+        <Users size={14} /> {race.format === 'doubles' ? 'Doubles partner' : 'Relay teammates'}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {team.length === 0 && <span className="text-xs text-violet-800/80">No one tagged yet.</span>}
+        {team.map((t) => (
+          <span key={t.id} className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-violet-900 ring-1 ring-inset ring-violet-200">
+            {t.displayName}
+            {race.shared?.ownerId === t.id && <span className="text-violet-500">· created</span>}
+            {owner && (
+              <button onClick={() => onChange(team.filter((x) => x.id !== t.id))} className="ml-0.5 rounded-full p-0.5 text-violet-400 hover:bg-violet-100 hover:text-violet-700" aria-label={`Untag ${t.displayName}`}>
+                <X size={12} />
+              </button>
+            )}
+          </span>
+        ))}
+        {owner && team.length < max && (
+          available.length ? (
+            <select
+              className="input h-8 w-auto py-0 text-xs"
+              value=""
+              aria-label="Tag a friend"
+              onChange={(e) => {
+                const f = friends.find((x) => x.id === e.target.value);
+                if (f) onChange([...team, f]);
+              }}
+            >
+              <option value="">+ Tag a friend…</option>
+              {available.map((f) => (
+                <option key={f.id} value={f.id}>{f.displayName}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-violet-800/80"><UserPlus size={12} /> Add friends on the Friends page to tag them.</span>
+          )
+        )}
+      </div>
+      <p className="mt-2 text-[11px] text-violet-800/80">
+        {owner
+          ? 'Tagged friends see this race in their own races and can edit it too (each picks their own relay legs). Only you can change who is tagged.'
+          : `Shared by ${race.shared?.ownerName}. You can edit this race; ${race.shared?.ownerName} manages who is tagged.`}
+      </p>
     </div>
   );
 }

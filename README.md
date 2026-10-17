@@ -36,6 +36,9 @@ src/
 Each athlete signs in and sees only their own dashboard. Friends (after a request is accepted) can open each other's
 dashboards **read-only** from the Friends page (account menu → Friends).
 
+- **Teammates**: in a Doubles or Relay race you can tag friends (1 partner / up to 3 relay teammates). The race then
+  appears in their races too and any teammate can edit it; each relay member picks their own legs. Only the person who
+  created the race changes who is tagged; a tagged teammate can leave the race.
 - **Demo mode** (default): accounts live in this browser only, no password. Demo athletes: Felicia, Fiona and Jordan
   (Jordan has sent Felicia a friend request). Data is kept in browser storage between visits.
 - **Supabase mode**: real email + password sign-in, with data stored in Supabase. Enabled when
@@ -45,7 +48,7 @@ dashboards **read-only** from the Friends page (account menu → Friends).
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. In **SQL Editor**, run [`supabase/schema.sql`](supabase/schema.sql). It creates `profiles`, `friendships` and
-   `user_data` with row-level security: only you can change your data; only accepted friends can read it; emails are
+   `user_data` (plus `shared_races` for tagged teammates) with row-level security: only you can change your data; only accepted friends can read it; emails are
    never exposed (search matches names, or an exact email address).
 3. In **Authentication → URL Configuration**, set the Site URL to `https://<user>.github.io/workout/`.
 4. From **Project Settings → API**, copy the Project URL and the `anon` public key.

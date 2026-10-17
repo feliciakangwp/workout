@@ -1,5 +1,5 @@
 import { DEFAULT_GOALS } from '../../data/mockData';
-import type { Friendship, Profile, UserData } from '../../data/types';
+import type { Friendship, Profile, SharedRace, UserData } from '../../data/types';
 import { FELICIA_DATA, hashString, newUserData } from './defaults';
 import type { AuthUser, Backend } from './types';
 
@@ -15,6 +15,7 @@ interface DemoStore {
   users: DemoUser[];
   links: DemoLink[];
   data: Record<string, UserData>;
+  sharedRaces: SharedRace[];
   session: string | null;
 }
 
@@ -54,6 +55,7 @@ function seedStore(): DemoStore {
     // Jordan has already sent Felicia a friend request.
     links: [{ requester: 'demo-jordan', addressee: 'demo-felicia', status: 'pending' }],
     data: { 'demo-felicia': FELICIA_DATA, 'demo-fiona': fiona, 'demo-jordan': jordan },
+    sharedRaces: [],
     session: null,
   };
 }
@@ -64,7 +66,10 @@ export function createDemoBackend(): Backend {
   const load = (): DemoStore => {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) return JSON.parse(raw) as DemoStore;
+      if (raw) {
+        const stored = JSON.parse(raw) as DemoStore;
+        return { ...stored, sharedRaces: stored.sharedRaces ?? [] };
+      }
     } catch {
       /* storage unavailable */
     }
@@ -158,6 +163,43 @@ export function createDemoBackend(): Backend {
       const s = load();
       if (userId !== me(s)) throw new Error('You can only change your own data.');
       save({ ...s, data: { ...s.data, [userId]: data } });
+    },
+    async listSharedRaces() {
+      const s = load();
+      const id = me(s);
+      return s.sharedRaces.filter((r) => r.members.some((m) => m.id === id));
+    },
+    async saveSharedRace(race) {
+      const s = load();
+      const id = me(s);
+      const prev = s.sharedRaces.find((r) => r.id === race.id);
+      if (prev && !prev.members.some((m) => m.id === id)) throw new Error('You are not in this race.');
+      const owner = prev?.ownerId ?? id;
+      if (race.ownerId !== owner) throw new Error('The race owner cannot be changed.');
+      const ids = (rs: SharedRace) => rs.members.map((m) => m.id).sort().join();
+      if (prev && ids(prev) !== ids(race) && id !== owner) throw new Error(`Only the person who created the race can change teammates.`);
+      const notFriend = race.members.find((m) => m.id !== owner && !s.links.some((l) => l.status === 'accepted' && between(l, owner, m.id)));
+      if (notFriend) throw new Error(`${notFriend.displayName} must be a friend to be tagged.`);
+      save({ ...s, sharedRaces: prev ? s.sharedRaces.map((r) => (r.id === race.id ? race : r)) : [...s.sharedRaces, race] });
+    },
+    async deleteSharedRace(raceId) {
+      const s = load();
+      const id = me(s);
+      const prev = s.sharedRaces.find((r) => r.id === raceId);
+      if (prev && prev.ownerId !== id) throw new Error('Only the person who created the race can delete it.');
+      save({ ...s, sharedRaces: s.sharedRaces.filter((r) => r.id !== raceId) });
+    },
+    async leaveSharedRace(raceId) {
+      const s = load();
+      const id = me(s);
+      save({
+        ...s,
+        sharedRaces: s.sharedRaces.map((r) => {
+          if (r.id !== raceId) return r;
+          const { [id]: _, ...memberStations } = r.memberStations;
+          return { ...r, members: r.members.filter((m) => m.id !== id), memberStations };
+        }),
+      });
     },
   };
 }

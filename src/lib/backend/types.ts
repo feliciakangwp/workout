@@ -1,4 +1,4 @@
-import type { Friendship, Profile, UserData } from '../../data/types';
+import type { Friendship, Profile, SharedRace, UserData } from '../../data/types';
 
 export interface AuthUser {
   profile: Profile;
@@ -29,4 +29,15 @@ export interface Backend {
   /** Own data, or an accepted friend's data (read-only). */
   loadUserData(userId: string): Promise<UserData | null>;
   saveUserData(userId: string, data: UserData): Promise<void>;
+  /** Shared races the signed-in athlete is a member of. */
+  listSharedRaces(): Promise<SharedRace[]>;
+  /**
+   * Creates or updates a shared race. Members must be the owner's friends;
+   * only the owner can change who is in it.
+   */
+  saveSharedRace(race: SharedRace): Promise<void>;
+  /** Owner only. */
+  deleteSharedRace(id: string): Promise<void>;
+  /** A tagged teammate removes themselves from the race. */
+  leaveSharedRace(id: string): Promise<void>;
 }

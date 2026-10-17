@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { STATION_BY_ID } from '../data/stations';
 import type { Race } from '../data/types';
-import { compareRaces, completedRaces, previousRace, raceStations, raceTypeLabel, resultTotals, type SegmentDelta } from '../lib/analytics';
+import { compareRaces, completedRaces, previousRace, raceStations, raceTypeLabel, resultTotals, teamLabel, type SegmentDelta } from '../lib/analytics';
 import { fmtLong } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 import { AXIS } from '../lib/theme';
@@ -84,6 +84,7 @@ function RaceResultView({ race, previous }: { race: Race; previous?: Race }) {
         <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
           <p className="text-base font-semibold text-slate-900">{race.name}</p>
           <p className="text-sm text-slate-600">{raceTypeLabel(race, goals.athleteSex)}</p>
+          {teamLabel(race) && <p className="text-sm font-medium text-violet-700">{teamLabel(race)}</p>}
           <p className="text-xs text-slate-500">{fmtLong(race.date)}</p>
         </div>
         <div className="text-left sm:text-right">

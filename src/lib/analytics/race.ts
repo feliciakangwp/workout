@@ -13,6 +13,9 @@ export function raceTypeLabel(race: Race, sex: Sex) {
   return race.format === 'doubles' ? `${who} Doubles ${cat}` : `${who} ${cat} (Solo)`;
 }
 
+/** "with Fiona" / "with Fiona, Jordan" for races with tagged teammates. */
+export const teamLabel = (race: Race) => (race.teammates?.length ? `with ${race.teammates.map((t) => t.displayName).join(', ')}` : '');
+
 export const upcomingRaces = (goals: Goals, today: string) =>
   [...goals.races].filter((r) => r.date >= today).sort((a, b) => (a.date < b.date ? -1 : 1));
 

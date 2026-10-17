@@ -7,7 +7,7 @@ import { WeeklyPlanner } from '../components/WeeklyPlanner';
 import { useUI } from '../context/UIContext';
 import { useData } from '../context/DataContext';
 import type { Goals } from '../data/types';
-import { type RangeKey, trainingInsights, trainingTrends, weekComparison, best5kPace, runs, predictTime, raceTypeLabel, upcomingRaces } from '../lib/analytics';
+import { type RangeKey, trainingInsights, trainingTrends, weekComparison, best5kPace, runs, predictTime, raceTypeLabel, teamLabel, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtShort } from '../lib/dates';
 import { fmtDuration, fmtPace, fmtPct, fmtTime, parseTime, pctChange } from '../lib/format';
 import { AXIS, GRID, SERIES } from '../lib/theme';
@@ -89,6 +89,7 @@ function GoalsCard() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-slate-800">{race.name}</p>
                   <p className="truncate text-xs text-slate-500">{raceTypeLabel(race, goals.athleteSex)} · {fmtShort(race.date)} {race.date.slice(0, 4)}</p>
+                  {teamLabel(race) && <p className="truncate text-xs font-medium text-violet-700">{teamLabel(race)}</p>}
                 </div>
                 <span className="text-right">
                   <span className="block text-lg font-semibold leading-none text-blue-700">{days >= 0 ? days : '—'}</span>

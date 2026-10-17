@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEMO_TODAY, generateSample } from '../data/mockData';
-import type { CustomExercise, Goals, Profile, RecoveryDay, UserData, WeekPlan, Workout, WorkoutDraft, WorkoutType } from '../data/types';
+import type { CustomExercise, Goals, Profile, Race, RecoveryDay, SharedRace, UserData, WeekPlan, Workout, WorkoutDraft, WorkoutType } from '../data/types';
 import { newUserData } from '../lib/backend';
 import { useAuth } from './AuthContext';
 
@@ -31,6 +31,32 @@ interface DataContextValue {
 
 const DataContext = createContext<DataContextValue | null>(null);
 
+/** A shared race as seen by one member: their own relay legs, everyone else as teammates. */
+function fromShared(s: SharedRace, viewerId: string): Race {
+  return {
+    id: s.id,
+    ...s.race,
+    relayStations: s.memberStations[viewerId] ?? [],
+    teammates: s.members.filter((m) => m.id !== viewerId),
+    shared: { ownerId: s.ownerId, ownerName: s.members.find((m) => m.id === s.ownerId)?.displayName ?? 'Teammate' },
+  };
+}
+
+/** Builds the shared record for a race edited by `me`; only the owner's edits change the members. */
+function toShared(r: Race, me: Profile, existing?: SharedRace): SharedRace {
+  const isOwner = !existing || existing.ownerId === me.id;
+  const members = isOwner ? [me, ...(r.teammates ?? []).filter((t) => t.id !== me.id)] : existing.members;
+  const ids = new Set(members.map((m) => m.id));
+  const memberStations = Object.fromEntries(Object.entries({ ...existing?.memberStations, [me.id]: r.relayStations }).filter(([id]) => ids.has(id)));
+  return {
+    id: existing?.id ?? `sr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    ownerId: existing?.ownerId ?? me.id,
+    members,
+    race: { name: r.name, date: r.date, format: r.format, category: r.category, result: r.result },
+    memberStations,
+  };
+}
+
 /** Loads the viewed athlete's data and saves changes (own data only). */
 export function DataProvider({ children }: { children: ReactNode }) {
   const { backend, user, viewing, viewFriend } = useAuth();
@@ -38,7 +64,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const readOnly = athlete.id !== user?.profile.id;
   const [data, setData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [shared, setShared] = useState<SharedRace[]>([]);
   const loaded = useRef(false);
+
+  // Shared doubles / relay races this athlete is in (only ones you are also in when viewing a friend).
+  const loadShared = useCallback(
+    () =>
+      backend
+        .listSharedRaces()
+        .then((list) => setShared(list.filter((r) => r.members.some((m) => m.id === athlete.id))))
+        .catch(() => setShared([])),
+    [backend, athlete.id],
+  );
+  useEffect(() => {
+    loadShared();
+  }, [loadShared]);
 
   useEffect(() => {
     let live = true;
@@ -82,7 +122,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [update],
   );
   const removeWorkout = useCallback((id: string) => update((d) => ({ ...d, added: d.added.filter((w) => w.id !== id) })), [update]);
-  const updateGoals = useCallback((g: Goals) => update((d) => ({ ...d, goals: g })), [update]);
+  /**
+   * Saves goals and races. Doubles / relay races with tagged teammates are
+   * stored as shared races; the rest stay in the athlete's own data.
+   */
+  const updateGoals = useCallback(
+    (g: Goals) => {
+      if (readOnly) return;
+      const personal: Race[] = [];
+      const nextShared: SharedRace[] = [];
+      for (const r of g.races) {
+        const existing = r.shared ? shared.find((x) => x.id === r.id) : undefined;
+        const hasTeam = r.format !== 'solo' && (r.teammates?.length ?? 0) > 0;
+        // A teammate's copy always stays shared; the owner's becomes personal again once untagged.
+        if (hasTeam || (existing && existing.ownerId !== athlete.id)) nextShared.push(toShared(r, athlete, existing));
+        else personal.push({ ...r, teammates: undefined, shared: undefined });
+      }
+      const ops: Promise<void>[] = [];
+      for (const old of shared)
+        if (!nextShared.some((x) => x.id === old.id)) ops.push(old.ownerId === athlete.id ? backend.deleteSharedRace(old.id) : backend.leaveSharedRace(old.id));
+      nextShared.forEach((x) => ops.push(backend.saveSharedRace(x)));
+      setShared(nextShared);
+      Promise.all(ops)
+        .catch((e: Error) => setError(`Couldn't update shared race: ${e.message}`))
+        .finally(loadShared);
+      update((d) => ({ ...d, goals: { ...g, races: personal } }));
+    },
+    [update, readOnly, shared, athlete, backend, loadShared],
+  );
   const setDayPlan = useCallback((date: string, types: WorkoutType[]) => update((d) => ({ ...d, plan: { ...d.plan, [date]: types } })), [update]);
   const saveDraft = useCallback(
     (draft: WorkoutDraft) => update((d) => ({ ...d, drafts: d.drafts.some((x) => x.id === draft.id) ? d.drafts.map((x) => (x.id === draft.id ? draft : x)) : [...d.drafts, draft] })),
@@ -113,7 +180,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             readOnly,
             workouts: [...sample.workouts, ...data.added],
             recovery: sample.recovery,
-            goals: data.goals,
+            goals: { ...data.goals, races: [...data.goals.races, ...shared.map((x) => fromShared(x, athlete.id))] },
             today: DEMO_TODAY,
             addWorkout,
             removeWorkout,
@@ -127,7 +194,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             saveCustomExercises,
           }
         : null,
-    [data, sample, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, saveDraft, deleteDraft, saveCustomExercises],
+    [data, sample, shared, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, saveDraft, deleteDraft, saveCustomExercises],
   );
 
   if (!value)

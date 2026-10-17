@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import type { MuscleGroup, Race } from '../data/types';
-import { COVERAGE_META, type FocusLevel, muscleCoverage, raceMuscleFocus, raceSegments, raceSummary, raceTypeLabel, upcomingRaces } from '../lib/analytics';
+import { COVERAGE_META, type FocusLevel, muscleCoverage, raceMuscleFocus, raceSegments, raceSummary, raceTypeLabel, teamLabel, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong } from '../lib/dates';
 import { BodyFigure } from './BodyMap';
 import { Card, CardHeader, Legend } from './ui';
@@ -85,6 +85,7 @@ export function RacePlan() {
           <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
             <p className="text-base font-semibold text-slate-900">{race.name}</p>
             <p className="text-sm text-slate-600">{raceTypeLabel(race, sex)}</p>
+            {teamLabel(race) && <p className="text-sm font-medium text-violet-700">{teamLabel(race)}</p>}
             <p className="mt-0.5 text-xs text-slate-500">{fmtLong(race.date)}</p>
           </div>
           <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">

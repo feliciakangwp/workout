@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Friendship, Profile, UserData } from '../../data/types';
+import type { Friendship, Profile, SharedRace, UserData } from '../../data/types';
 import type { AuthUser, Backend } from './types';
 
 /**
  * Supabase backend: email + password auth, a public `profiles` table,
- * `friendships` (pending / accepted) and one JSON document per athlete in
- * `user_data`. Row-level security in supabase/schema.sql makes data readable
+ * `friendships` (pending / accepted), one JSON document per athlete in
+ * `user_data`, and `shared_races` for doubles / relay teammates. Row-level security in supabase/schema.sql makes data readable
  * only by its owner and accepted friends, and writable only by its owner.
  */
 export function createSupabaseBackend(url: string, anonKey: string): Backend {
@@ -97,6 +97,24 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     },
     async saveUserData(id, data) {
       const { error } = await db.from('user_data').upsert({ user_id: id, data, updated_at: new Date().toISOString() });
+      if (error) throw new Error(error.message);
+    },
+    async listSharedRaces() {
+      const { data, error } = await db.from('shared_races').select('id, owner, data');
+      if (error) throw new Error(error.message);
+      return (data as { id: string; owner: string; data: Omit<SharedRace, 'id' | 'ownerId'> }[]).map((r) => ({ id: r.id, ownerId: r.owner, ...r.data }));
+    },
+    async saveSharedRace(race) {
+      const { id, ownerId, ...data } = race;
+      const { error } = await db.from('shared_races').upsert({ id, owner: ownerId, members: race.members.map((m) => m.id), data, updated_at: new Date().toISOString() });
+      if (error) throw new Error(error.message);
+    },
+    async deleteSharedRace(id) {
+      const { error } = await db.from('shared_races').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+    },
+    async leaveSharedRace(id) {
+      const { error } = await db.rpc('leave_shared_race', { race_id: id });
       if (error) throw new Error(error.message);
     },
   };

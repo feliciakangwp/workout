@@ -103,3 +103,74 @@ revoke all on function public.search_profiles(text) from public, anon;
 grant execute on function public.search_profiles(text) to authenticated;
 revoke all on function public.is_friend(uuid) from public, anon;
 grant execute on function public.is_friend(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Shared doubles / relay races. Every member can read and edit the race;
+-- only the owner (creator) can change members or delete it; tagged members
+-- must be the owner's accepted friends; a member can leave.
+-- ---------------------------------------------------------------------------
+create table if not exists public.shared_races (
+  id text primary key,
+  owner uuid not null references auth.users (id) on delete cascade,
+  members uuid[] not null,
+  data jsonb not null,
+  updated_at timestamptz not null default now(),
+  check (owner = any (members)),
+  check (cardinality(members) between 1 and 4)
+);
+alter table public.shared_races enable row level security;
+
+drop policy if exists "shared_races: members read" on public.shared_races;
+create policy "shared_races: members read" on public.shared_races for select to authenticated
+  using (auth.uid() = any (members));
+drop policy if exists "shared_races: owner creates" on public.shared_races;
+create policy "shared_races: owner creates" on public.shared_races for insert to authenticated
+  with check (owner = auth.uid());
+drop policy if exists "shared_races: members edit" on public.shared_races;
+create policy "shared_races: members edit" on public.shared_races for update to authenticated
+  using (auth.uid() = any (members)) with check (auth.uid() = any (members));
+drop policy if exists "shared_races: owner deletes" on public.shared_races;
+create policy "shared_races: owner deletes" on public.shared_races for delete to authenticated
+  using (owner = auth.uid());
+
+create or replace function public.check_shared_race()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare m uuid;
+begin
+  if tg_op = 'UPDATE' then
+    if new.owner <> old.owner then raise exception 'The race owner cannot be changed'; end if;
+    -- Members may only change by the owner, or by someone removing themselves.
+    if new.members is distinct from old.members and auth.uid() <> old.owner
+       and new.members is distinct from array_remove(old.members, auth.uid()) then
+      raise exception 'Only the person who created the race can change teammates';
+    end if;
+  end if;
+  foreach m in array new.members loop
+    if m <> new.owner and not exists (
+      select 1 from public.friendships f
+      where f.status = 'accepted'
+        and ((f.requester = new.owner and f.addressee = m) or (f.requester = m and f.addressee = new.owner))
+    ) then
+      raise exception 'Only friends can be tagged in a race';
+    end if;
+  end loop;
+  return new;
+end;
+$$;
+drop trigger if exists shared_races_check on public.shared_races;
+create trigger shared_races_check before insert or update on public.shared_races
+  for each row execute function public.check_shared_race();
+
+-- A tagged member removes themselves (and their relay legs) from a race.
+create or replace function public.leave_shared_race(race_id text)
+returns void language sql security definer set search_path = public as $$
+  update public.shared_races
+  set members = array_remove(members, auth.uid()),
+      data = jsonb_set(
+        jsonb_set(data, '{members}', coalesce((select jsonb_agg(x) from jsonb_array_elements(data -> 'members') x where x ->> 'id' <> auth.uid()::text), '[]'::jsonb)),
+        '{memberStations}', coalesce(data -> 'memberStations', '{}'::jsonb) - auth.uid()::text),
+      updated_at = now()
+  where id = race_id and auth.uid() = any (members) and owner <> auth.uid();
+$$;
+revoke all on function public.leave_shared_race(text) from public, anon;
+grant execute on function public.leave_shared_race(text) to authenticated;

@@ -122,6 +122,21 @@ export interface Race {
   relayStations: StationId[];
   /** Finish details, entered once the race date has passed. */
   result?: RaceResult;
+  /** Friends tagged as teammates (doubles partner or relay team). */
+  teammates?: Profile[];
+  /** Set when the race is shared with teammates: who created it (and manages teammates). */
+  shared?: { ownerId: string; ownerName: string };
+}
+
+/** A doubles or relay race shared between teammates; every member can edit it. */
+export interface SharedRace {
+  id: string;
+  ownerId: string;
+  /** Everyone in the race, including the owner. */
+  members: Profile[];
+  race: { name: string; date: string; format: RaceFormat; category: WeightCategory; result?: RaceResult };
+  /** Each member's own relay legs. */
+  memberStations: Record<string, StationId[]>;
 }
 
 export interface RaceResult {
