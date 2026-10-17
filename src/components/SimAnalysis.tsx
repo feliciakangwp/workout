@@ -11,7 +11,7 @@ import { Card, CardHeader, MiniStat, TrendBadge } from './ui';
 const signed = (sec: number) => `${sec > 0 ? '+' : sec < 0 ? '−' : '±'}${fmtTime(Math.abs(sec))}`;
 
 /** All sims and completed races, as full-distance equivalents. */
-function usePerformances() {
+export function usePerformances() {
   const { workouts, goals, today } = useData();
   return useMemo(() => hyroxPerformances(workouts, completedRaces(goals, today)), [workouts, goals, today]);
 }
@@ -115,7 +115,7 @@ export function RaceEstimateCard() {
   const [id, setId] = useState<string | null>(null);
   const race = races.find((r) => r.id === id) ?? races[0];
   return (
-    <Card>
+    <Card className="scroll-mt-20" id="race-estimate">
       <CardHeader icon={Flag} title="Race time estimate" subtitle="From your HYROX sims and races: average to best time for every run and station" />
       <div className="space-y-4 p-4 sm:p-5">
         {!race ? (
@@ -187,5 +187,18 @@ function Estimate({ race }: { race: Race }) {
       )}
       <p className="text-[11px] text-slate-500">Times are best – average. Half and ¾ sims count as full-distance estimates. Station bests use your sims, solo races and relay legs{e.format === 'doubles' ? ', or your doubles race splits when you have them' : ''}.</p>
     </div>
+  );
+}
+
+/** One-line estimated finish range for the race plan summary (solo and doubles only). */
+export function EstimateLine({ race }: { race: Race }) {
+  const performances = usePerformances();
+  const e = useMemo(() => (race.format === 'relay' ? null : raceEstimate(race, performances)), [race, performances]);
+  if (!e) return null;
+  return (
+    <a href="#race-estimate" onClick={(ev) => { ev.preventDefault(); document.getElementById('race-estimate')?.scrollIntoView({ behavior: 'smooth' }); }} className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-sm text-blue-800 hover:bg-blue-100">
+      <Timer size={14} className="shrink-0" />
+      Estimated finish <b className="font-semibold">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</b>
+    </a>
   );
 }

@@ -50,9 +50,9 @@ export function HyroxPerformance() {
 
       <div className="mb-5 space-y-5">
         <RacePlan />
-        <RaceAnalysis />
         <SimAnalysisCard />
         <RaceEstimateCard />
+        <RaceAnalysis />
       </div>
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">

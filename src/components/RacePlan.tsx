@@ -7,6 +7,7 @@ import { COVERAGE_META, type FocusLevel, muscleCoverage, raceMuscleFocus, raceSe
 import { diffDays, fmtLong } from '../lib/dates';
 import { BodyFigure } from './BodyMap';
 import { Card, CardHeader, Legend } from './ui';
+import { EstimateLine } from './SimAnalysis';
 
 export const FOCUS_META: Record<FocusLevel, { label: string; color: string }> = {
   primary: { label: 'Primary focus', color: '#1c5cab' },
@@ -87,6 +88,7 @@ export function RacePlan() {
             <p className="text-sm text-slate-600">{raceTypeLabel(race, sex)}</p>
             {teamLabel(race) && <p className="text-sm font-medium text-violet-700">{teamLabel(race)}</p>}
             <p className="mt-0.5 text-xs text-slate-500">{fmtLong(race.date)}</p>
+            <EstimateLine race={race} />
           </div>
           <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
             <Pill icon={CalendarClock} value={String(Math.max(0, days))} label="days to go" />

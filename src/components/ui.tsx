@@ -4,8 +4,8 @@ import type { LucideIcon } from 'lucide-react';
 import type { WorkoutType } from '../data/types';
 import { TYPE_BADGE } from '../lib/theme';
 
-export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`card ${className}`}>{children}</div>;
+export function Card({ children, className = '', id }: { children: ReactNode; className?: string; id?: string }) {
+  return <div id={id} className={`card ${className}`}>{children}</div>;
 }
 
 export function CardHeader({ title, subtitle, action, icon: Icon }: { title: string; subtitle?: string; action?: ReactNode; icon?: LucideIcon }) {
