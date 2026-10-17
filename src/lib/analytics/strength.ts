@@ -28,9 +28,9 @@ export function liftHistory(workouts: Workout[], name: string): LiftSession[] {
         workoutId: w.id,
         weightKg: e.weightKg,
         sets: e.sets,
-        reps: e.reps,
-        volume: e.sets * e.reps * e.weightKg,
-        e1rm: Math.round(e1rm(e.weightKg, e.reps) * 10) / 10,
+        reps: e.reps ?? 0,
+        volume: e.sets * (e.reps ?? 0) * e.weightKg,
+        e1rm: Math.round(e1rm(e.weightKg, e.reps ?? 0) * 10) / 10,
       };
       const prev = byDate.get(w.date);
       if (!prev || s.weightKg > prev.weightKg) byDate.set(w.date, prev ? { ...s, volume: s.volume + prev.volume } : s);

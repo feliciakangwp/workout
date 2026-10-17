@@ -1,38 +1,34 @@
 import { CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { EXERCISES, EXERCISE_BY_NAME } from '../data/exercises';
+import { EXERCISES, EXERCISE_BY_NAME, exerciseMeasure } from '../data/exercises';
 import { DATA_START } from '../data/mockData';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
-import type { Division, DraftForm, ExerciseEntry, HyroxSplit, MuscleGroup, RunKind, SimType, StationId, StationResult, Workout, WorkoutType } from '../data/types';
+import type { Division, DraftForm, ExerciseEntry, HyroxSplit, RunData, RunKind, SimType, StationId, StationResult, Workout, WorkoutType } from '../data/types';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { raceDivision, upcomingRaces } from '../lib/analytics';
-import { fmtTime, parseTime } from '../lib/format';
+import { fmtShort } from '../lib/dates';
+import { fmtPace, fmtTime, parseTime } from '../lib/format';
 import { WORKOUT_TYPES } from '../lib/theme';
 import { Modal, Segmented } from './ui';
 
-interface ExerciseRow {
-  key: number;
-  name: string;
-  customName: string;
-  customMuscles: MuscleGroup[];
-  sets: string;
-  reps: string;
-  weight: string;
-}
+type ExerciseRow = DraftForm['rows'][number];
+type RunRow = DraftForm['runRows'][number];
 
 const CUSTOM = '__custom__';
-const RUN_KINDS: RunKind[] = ['Easy', 'Tempo', 'Intervals', '5K Time Trial', 'Long', 'Compromised'];
+/** Run types for pure running sessions. */
+const RUN_KINDS: RunKind[] = ['Easy', 'Long', 'Tempo', 'Intervals', '5K Time Trial'];
 const hasRun = (t: WorkoutType) => t === 'Running' || t === 'HYROX Engine';
 /** Accepts "4:30" or "4.30" (easier on a phone number pad). */
-const parseSplit = (text: string) => parseTime(text.replace('.', ':'));
+const parseSplit = (text: string) => parseTime(text.trim().replace(/\./g, ':'));
 
 type SplitInputs = Record<StationId, { run: string; station: string }>;
 const emptySplits = () => Object.fromEntries(STATIONS.map((s) => [s.id, { run: '', station: '' }])) as SplitInputs;
 
 let rowKey = 0;
-const newRow = (): ExerciseRow => ({ key: rowKey++, name: 'Squat', customName: '', customMuscles: [], sets: '3', reps: '10', weight: '' });
+const newRow = (name = 'Squat'): ExerciseRow => ({ key: rowKey++, name, customName: '', customMuscles: [], sets: '3', reps: '10', weight: '', distance: '', time: '' });
+const newRunRow = (): RunRow => ({ key: rowKey++, km: '', time: '' });
 
 const blankForm = (today: string, division: Division): DraftForm => ({
   date: today,
@@ -42,8 +38,7 @@ const blankForm = (today: string, division: Division): DraftForm => ({
   intensity: 7,
   rows: [newRow()],
   runKind: 'Easy',
-  runKm: '',
-  runTime: '',
+  runRows: [newRunRow()],
   runHr: '',
   sim: 'full',
   division,
@@ -61,8 +56,40 @@ export const DEFAULT_TITLE: Record<WorkoutType, string> = {
   Recovery: 'Recovery Session',
 };
 
+/** Best previous effort per exercise, shown in grey while logging. */
+interface Best {
+  label: string;
+  /** Heaviest load, used as the weight field's placeholder. */
+  weightKg?: number;
+}
+
+function bestEfforts(workouts: Workout[]): Record<string, Best> {
+  const out: Record<string, Best & { score: number }> = {};
+  for (const w of workouts)
+    for (const e of w.exercises) {
+      const m = exerciseMeasure(e.name);
+      let score: number;
+      let label: string;
+      if (m === 'time') {
+        if (!e.durationSec) continue;
+        score = e.durationSec;
+        label = `Best: ${fmtTime(e.durationSec)} hold`;
+      } else if (m === 'distanceTime') {
+        if (!e.distanceM || !e.durationSec) continue;
+        score = -e.durationSec / e.distanceM; // faster pace is better
+        label = `Best: ${e.distanceM} m in ${fmtTime(e.durationSec)} (${fmtTime((e.durationSec / e.distanceM) * 500)} /500m)`;
+      } else {
+        if (!e.weightKg) continue;
+        score = e.weightKg * 1000 + (e.reps ?? 0);
+        label = `Best: ${e.weightKg} kg × ${e.reps ?? '–'}`;
+      }
+      if (!out[e.name] || score > out[e.name].score) out[e.name] = { score, label: `${label} · ${fmtShort(w.date)}`, weightKg: m === 'weight' ? e.weightKg : undefined };
+    }
+  return out;
+}
+
 export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClose: () => void }) {
-  const { addWorkout, today, goals, drafts, saveDraft, deleteDraft } = useData();
+  const { addWorkout, today, goals, drafts, saveDraft, deleteDraft, workouts } = useData();
   const { notify } = useUI();
   const nextRace = upcomingRaces(goals, today)[0];
   const defaultDivision: Division = nextRace ? raceDivision(nextRace, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' };
@@ -76,8 +103,7 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
   const [intensity, setIntensity] = useState(init.intensity);
   const [rows, setRows] = useState<ExerciseRow[]>(init.rows);
   const [runKind, setRunKind] = useState<RunKind>(init.runKind);
-  const [runKm, setRunKm] = useState(init.runKm);
-  const [runTime, setRunTime] = useState(init.runTime);
+  const [runRows, setRunRows] = useState<RunRow[]>(init.runRows);
   const [runHr, setRunHr] = useState(init.runHr);
   const [sim, setSim] = useState<SimType>(init.sim);
   const [division, setDivision] = useState<Division>(init.division);
@@ -85,8 +111,9 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
   const [simHr, setSimHr] = useState(init.simHr);
   const [notes, setNotes] = useState(init.notes);
   const [errors, setErrors] = useState<string[]>([]);
+  const bests = useMemo(() => bestEfforts(workouts), [workouts]);
 
-  const formValues = (): DraftForm => ({ date, type, title, duration, intensity, rows, runKind, runKm, runTime, runHr, sim, division, splits, simHr, notes });
+  const formValues = (): DraftForm => ({ date, type, title, duration, intensity, rows, runKind, runRows, runHr, sim, division, splits, simHr, notes });
 
   /** Keeps the workout open so it can be continued later. */
   const saveOpen = () => {
@@ -96,12 +123,21 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
   };
 
   const updateRow = (key: number, patch: Partial<ExerciseRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const updateRun = (key: number, patch: Partial<RunRow>) => setRunRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
-  const pace = useMemo(() => {
-    const km = Number(runKm);
-    const t = parseTime(runTime);
-    return km > 0 && t > 0 ? t / km : NaN;
-  }, [runKm, runTime]);
+  const runTotals = useMemo(() => {
+    let km = 0;
+    let sec = 0;
+    for (const r of runRows) {
+      const d = Number(r.km);
+      const t = parseSplit(r.time);
+      if (d > 0 && t > 0) {
+        km += d;
+        sec += t;
+      }
+    }
+    return { km: Math.round(km * 100) / 100, sec, pace: km ? sec / km : 0 };
+  }, [runRows]);
 
   const simTotals = useMemo(() => {
     let run = 0;
@@ -156,7 +192,11 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
       if (runSec) runTimes.push(runSec);
       if (stationSec) {
         stations.push({ station: s.id, timeSec: stationSec, fraction });
-        exercises.push({ name: s.exercise, sets: 1, reps: s.amount * fraction, weightKg: stationWeight(s.id, division), creditSets: 4 * fraction });
+        exercises.push(
+          exerciseMeasure(s.exercise) === 'distanceTime'
+            ? { name: s.exercise, sets: 1, distanceM: s.amount * fraction, durationSec: stationSec, creditSets: 4 * fraction }
+            : { name: s.exercise, sets: 1, reps: s.amount * fraction, weightKg: stationWeight(s.id, division), creditSets: 4 * fraction },
+        );
       }
     }
     if (!runTimes.length && !stations.length) errs.push('Enter at least one run or station time.');
@@ -175,206 +215,313 @@ export function AddWorkoutModal({ draftId, onClose }: { draftId?: string; onClos
       exercises,
       stations: stations.length ? stations : undefined,
       hyrox: { sim, division, splits: hyroxSplits },
-      run: runTimes.length ? { kind: 'Compromised', distanceKm: runTimes.length, paceSecPerKm: Math.round(runTimes.reduce((a, b) => a + b, 0) / runTimes.length), avgHr: hr } : undefined,
+      run: runTimes.length
+        ? { kind: 'Compromised', distanceKm: runTimes.length, paceSecPerKm: Math.round(runTimes.reduce((a, b) => a + b, 0) / runTimes.length), avgHr: hr, segments: runTimes.map((t) => ({ distanceKm: 1, timeSec: t })) }
+        : undefined,
       notes: notes.trim() || undefined,
     });
   };
 
+  /** Builds the run (one or more runs / intervals) for Running and HYROX Engine. */
+  const buildRun = (errs: string[]): RunData | undefined => {
+    const segments: { distanceKm: number; timeSec: number }[] = [];
+    runRows.forEach((r, i) => {
+      if (!r.km.trim() && !r.time.trim()) return; // empty row
+      const km = Number(r.km);
+      const sec = parseSplit(r.time);
+      if (!(km > 0 && km <= 100)) errs.push(`Run ${i + 1}: enter a distance in km.`);
+      else if (!(sec > 0 && sec / km >= 120 && sec / km <= 900)) errs.push(`Run ${i + 1}: enter a time as m:ss (or h:mm:ss) giving a realistic pace.`);
+      else segments.push({ distanceKm: km, timeSec: sec });
+    });
+    const hr = runHr.trim() ? Number(runHr) : undefined;
+    if (hr !== undefined && !(hr >= 80 && hr <= 220)) errs.push('Average heart rate should be between 80 and 220 bpm.');
+    if (!segments.length) return undefined;
+    const km = segments.reduce((a, x) => a + x.distanceKm, 0);
+    const sec = segments.reduce((a, x) => a + x.timeSec, 0);
+    const kind: RunKind = type === 'Running' ? runKind : segments.length > 1 ? 'Intervals' : 'Compromised';
+    return { kind, distanceKm: Math.round(km * 100) / 100, paceSecPerKm: Math.round(sec / km), avgHr: hr, segments };
+  };
+
   const submitGeneral = () => {
     const errs: string[] = [];
-    const dur = Number(duration);
     checkDate(errs);
-    if (!(dur > 0 && dur <= 600)) errs.push('Duration must be between 1 and 600 minutes.');
+    const run = hasRun(type) ? buildRun(errs) : undefined;
+    const isRunning = type === 'Running';
+    if (isRunning && !run && !errs.length) errs.push('Add at least one run with a distance and time.');
+    const dur = isRunning ? Math.ceil(runTotals.sec / 60) : Number(duration);
+    if (!isRunning && !(dur > 0 && dur <= 600)) errs.push('Duration must be between 1 and 600 minutes.');
 
     const exercises: ExerciseEntry[] = [];
-    rows.forEach((r, i) => {
-      const isCustom = r.name === CUSTOM;
-      const name = isCustom ? r.customName.trim() : r.name;
-      const sets = Number(r.sets);
-      const reps = Number(r.reps);
-      const weight = r.weight === '' ? undefined : Number(r.weight);
-      if (!name && !r.sets && !r.reps) return; // empty row
-      if (!name) errs.push(`Exercise ${i + 1}: enter a name.`);
-      if (!(sets > 0 && Number.isInteger(sets))) errs.push(`Exercise ${i + 1}: sets must be a whole number above 0.`);
-      if (!(reps > 0)) errs.push(`Exercise ${i + 1}: repetitions must be above 0.`);
-      if (weight !== undefined && !(weight >= 0)) errs.push(`Exercise ${i + 1}: weight must be 0 or more.`);
-      if (isCustom && r.customMuscles.length === 0) errs.push(`Exercise ${i + 1}: select at least one muscle group for a custom exercise.`);
-      exercises.push({ name, sets, reps, weightKg: weight || undefined, customMuscles: isCustom ? r.customMuscles : undefined });
-    });
-
-    let run: Workout['run'];
-    if (hasRun(type) && (runKm || runTime || runHr)) {
-      const hr = Number(runHr);
-      if (!(Number(runKm) > 0)) errs.push('Run: distance must be above 0 km.');
-      if (!(pace > 120 && pace < 900)) errs.push('Run: enter a time as mm:ss (or h:mm:ss) giving a realistic pace.');
-      if (!(hr >= 80 && hr <= 220)) errs.push('Run: average heart rate should be between 80 and 220 bpm.');
-      run = { kind: runKind, distanceKm: Number(runKm), paceSecPerKm: Math.round(pace), avgHr: hr };
-    }
+    if (!isRunning)
+      rows.forEach((r, i) => {
+        const isCustom = r.name === CUSTOM;
+        const name = isCustom ? r.customName.trim() : r.name;
+        const measure = isCustom ? 'weight' : exerciseMeasure(r.name);
+        const n = `Exercise ${i + 1}${name ? ` (${name})` : ''}`;
+        if (!r.reps && !r.weight && !r.distance && !r.time && !(isCustom && name)) return; // empty row
+        const sets = Number(r.sets);
+        if (!name) errs.push(`Exercise ${i + 1}: enter a name.`);
+        if (!(sets > 0 && Number.isInteger(sets))) errs.push(`${n}: sets must be a whole number above 0.`);
+        if (isCustom && r.customMuscles.length === 0) errs.push(`${n}: select at least one muscle group for a custom exercise.`);
+        if (measure === 'weight') {
+          const reps = Number(r.reps);
+          const weight = r.weight === '' ? undefined : Number(r.weight);
+          if (!(reps > 0)) errs.push(`${n}: repetitions must be above 0.`);
+          if (weight !== undefined && !(weight >= 0)) errs.push(`${n}: weight must be 0 or more.`);
+          exercises.push({ name, sets, reps, weightKg: weight || undefined, customMuscles: isCustom ? r.customMuscles : undefined });
+        } else {
+          const sec = parseSplit(r.time);
+          if (!(sec > 0 && sec < 3 * 3600)) errs.push(`${n}: enter a time as m:ss.`);
+          if (measure === 'distanceTime') {
+            const m = Number(r.distance);
+            if (!(m > 0)) errs.push(`${n}: enter a distance in metres.`);
+            exercises.push({ name, sets, distanceM: m, durationSec: sec });
+          } else exercises.push({ name, sets, durationSec: sec });
+        }
+      });
 
     setErrors(errs);
     if (errs.length) return;
-    finish({ date, type, title: title.trim() || DEFAULT_TITLE[type], durationMin: dur, intensity, exercises, run, notes: notes.trim() || undefined });
+    finish({
+      date,
+      type,
+      title: isRunning ? `${runKind} Run` : title.trim() || DEFAULT_TITLE[type],
+      durationMin: Math.max(1, dur),
+      intensity,
+      exercises,
+      run,
+      notes: notes.trim() || undefined,
+    });
   };
 
-  return (
-    <>
-      <Modal
-        open
-        onClose={onClose}
-        title={draft ? 'Continue workout' : 'Add workout'}
-        wide
-        footer={
-          <>
-            <button className="btn-ghost mr-auto" onClick={onClose}>Close</button>
-            <button className="btn-ghost" onClick={saveOpen}>
-              <Save size={15} /> Save
-            </button>
-            <button className="btn-primary" onClick={submit}>
-              <CheckCircle2 size={15} /> Completed
-            </button>
-          </>
-        }
-      >
-        <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-          <b className="font-semibold">Save</b> keeps this workout open so you can keep logging sets and times. Tap <b className="font-semibold">Completed</b> when you finish — only then is it added to the workout log and charts.
-          {draft && <span className="mt-1 block text-blue-700/80">Last saved {new Date(draft.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.</span>}
-        </p>
-        {errors.length > 0 && (
-          <ul className="mb-4 list-disc space-y-0.5 rounded-lg bg-rose-50 py-2 pl-7 pr-3 text-xs text-rose-700" role="alert">
-            {errors.map((e) => <li key={e}>{e}</li>)}
-          </ul>
-        )}
+  /** Exercise choices; distance + time machines are left out of Strength sessions. */
+  const exerciseOptions = (current: string) => EXERCISES.filter((e) => type !== 'Strength' || e.measure !== 'distanceTime' || e.name === current);
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div>
-            <label className="label" htmlFor="aw-date">Workout date</label>
-            <input id="aw-date" type="date" className="input" value={date} min={DATA_START} max={today} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div>
-            <label className="label" htmlFor="aw-type">Workout type</label>
-            <select id="aw-type" className="input" value={type} onChange={(e) => chooseType(e.target.value as WorkoutType)}>
-              {WORKOUT_TYPES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </div>
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={draft ? 'Continue workout' : 'Add workout'}
+      wide
+      footer={
+        <>
+          <button className="btn-ghost mr-auto" onClick={onClose}>Close</button>
+          <button className="btn-ghost" onClick={saveOpen}>
+            <Save size={15} /> Save
+          </button>
+          <button className="btn-primary" onClick={submit}>
+            <CheckCircle2 size={15} /> Completed
+          </button>
+        </>
+      }
+    >
+      <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+        <b className="font-semibold">Save</b> keeps this workout open so you can keep logging sets and times. Tap <b className="font-semibold">Completed</b> when you finish — only then is it added to the workout log and charts.
+        {draft && <span className="mt-1 block text-blue-700/80">Last saved {new Date(draft.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.</span>}
+      </p>
+      {errors.length > 0 && (
+        <ul className="mb-4 list-disc space-y-0.5 rounded-lg bg-rose-50 py-2 pl-7 pr-3 text-xs text-rose-700" role="alert">
+          {errors.map((e) => <li key={e}>{e}</li>)}
+        </ul>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div>
+          <label className="label" htmlFor="aw-date">Workout date</label>
+          <input id="aw-date" type="date" className="input" value={date} min={DATA_START} max={today} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="aw-type">Workout type</label>
+          <select id="aw-type" className="input" value={type} onChange={(e) => chooseType(e.target.value as WorkoutType)}>
+            {WORKOUT_TYPES.map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        {type !== 'Running' && (
           <div>
             <label className="label" htmlFor="aw-dur">Duration (min)</label>
             <input id="aw-dur" type="number" inputMode="numeric" min={1} className="input" value={duration} placeholder={type === 'HYROX' ? `auto ${Math.max(1, Math.ceil(simTotals.total / 60))}` : undefined} onChange={(e) => setDuration(e.target.value)} />
           </div>
-          <div>
-            <label className="label" htmlFor="aw-rpe">Intensity (RPE {intensity}/10)</label>
-            <input id="aw-rpe" type="range" min={1} max={10} value={intensity} onChange={(e) => setIntensity(Number(e.target.value))} className="mt-2 w-full accent-blue-600" />
-          </div>
-          {type !== 'HYROX' && (
-            <div className="col-span-2 sm:col-span-4">
-              <label className="label" htmlFor="aw-title">Title (optional)</label>
-              <input id="aw-title" className="input" placeholder={DEFAULT_TITLE[type]} value={title} onChange={(e) => setTitle(e.target.value)} />
-            </div>
-          )}
+        )}
+        <div>
+          <label className="label" htmlFor="aw-rpe">Intensity (RPE {intensity}/10)</label>
+          <input id="aw-rpe" type="range" min={1} max={10} value={intensity} onChange={(e) => setIntensity(Number(e.target.value))} className="mt-2 w-full accent-blue-600" />
         </div>
+        {type !== 'HYROX' && type !== 'Running' && (
+          <div className="col-span-2 sm:col-span-4">
+            <label className="label" htmlFor="aw-title">Title (optional)</label>
+            <input id="aw-title" className="input" placeholder={DEFAULT_TITLE[type]} value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+        )}
+      </div>
 
-        {type === 'HYROX' ? (
-          <HyroxSimFields sim={sim} onSim={setSim} division={division} onDivision={setDivision} splits={splits} onSplits={setSplits} hr={simHr} onHr={setSimHr} totals={simTotals} />
-        ) : (
-          <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-800">Exercises</h4>
-              <button className="btn-ghost py-1.5 text-xs" onClick={() => setRows((rs) => [...rs, newRow()])}>
-                <Plus size={14} /> Add exercise
-              </button>
-            </div>
-            <div className="space-y-2">
-              {rows.map((r, i) => {
-                const unit = EXERCISE_BY_NAME[r.name]?.repUnit === 'm' ? 'Distance (m)' : 'Reps';
-                return (
-                  <div key={r.key} className="rounded-xl border border-slate-200 p-3">
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-                      <div className="col-span-2 sm:col-span-1">
-                        <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
-                        <select id={`ex-${r.key}`} className="input" value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })}>
-                          <optgroup label="Tracked lifts">
-                            {EXERCISES.filter((e) => e.tracked).map((e) => <option key={e.name}>{e.name}</option>)}
+      {type === 'HYROX' && <HyroxSimFields sim={sim} onSim={setSim} division={division} onDivision={setDivision} splits={splits} onSplits={setSplits} hr={simHr} onHr={setSimHr} totals={simTotals} />}
+
+      {type !== 'HYROX' && type !== 'Running' && (
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-slate-800">Exercises</h4>
+            <button className="btn-ghost py-1.5 text-xs" onClick={() => setRows((rs) => [...rs, newRow()])}>
+              <Plus size={14} /> Add exercise
+            </button>
+          </div>
+          <div className="space-y-2">
+            {rows.map((r, i) => {
+              const isCustom = r.name === CUSTOM;
+              const measure = isCustom ? 'weight' : exerciseMeasure(r.name);
+              const best = isCustom ? undefined : bests[r.name];
+              const options = exerciseOptions(r.name);
+              return (
+                <div key={r.key} className="rounded-xl border border-slate-200 p-3">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
+                      <select id={`ex-${r.key}`} className="input" value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })}>
+                        <optgroup label="Tracked lifts">
+                          {options.filter((e) => e.tracked).map((e) => <option key={e.name}>{e.name}</option>)}
+                        </optgroup>
+                        <optgroup label="Accessory">
+                          {options.filter((e) => !e.tracked && !e.measure && !e.conditioning).map((e) => <option key={e.name}>{e.name}</option>)}
+                          {options.filter((e) => e.measure === 'time').map((e) => <option key={e.name}>{e.name}</option>)}
+                        </optgroup>
+                        {options.some((e) => e.measure === 'distanceTime') && (
+                          <optgroup label="Cardio machines (distance & time)">
+                            {options.filter((e) => e.measure === 'distanceTime').map((e) => <option key={e.name}>{e.name}</option>)}
                           </optgroup>
-                          <optgroup label="Accessory & HYROX">
-                            {EXERCISES.filter((e) => !e.tracked).map((e) => <option key={e.name}>{e.name}</option>)}
-                          </optgroup>
-                          <option value={CUSTOM}>Custom exercise…</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label" htmlFor={`sets-${r.key}`}>Sets</label>
-                        <input id={`sets-${r.key}`} type="number" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label" htmlFor={`reps-${r.key}`}>{unit}</label>
-                        <input id={`reps-${r.key}`} type="number" min={1} className="input" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
-                      </div>
-                      <div>
-                        <label className="label" htmlFor={`w-${r.key}`}>Weight (kg)</label>
-                        <input id={`w-${r.key}`} type="number" min={0} step={0.5} className="input" placeholder="BW" value={r.weight} onChange={(e) => updateRow(r.key, { weight: e.target.value })} />
-                      </div>
-                      <div className="flex items-end">
-                        <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove exercise ${i + 1}`}>
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                        )}
+                        <optgroup label="Conditioning & HYROX">
+                          {options.filter((e) => !e.tracked && !e.measure && e.conditioning).map((e) => <option key={e.name}>{e.name}</option>)}
+                        </optgroup>
+                        <option value={CUSTOM}>Custom exercise…</option>
+                      </select>
                     </div>
-                    {r.name === CUSTOM && (
-                      <div className="mt-2 space-y-2">
-                        <input className="input" placeholder="Exercise name" value={r.customName} onChange={(e) => updateRow(r.key, { customName: e.target.value })} aria-label="Custom exercise name" />
-                        <div className="flex flex-wrap gap-1.5">
-                          {MUSCLES.map((m) => {
-                            const on = r.customMuscles.includes(m.id);
-                            return (
-                              <button key={m.id} onClick={() => updateRow(r.key, { customMuscles: on ? r.customMuscles.filter((x) => x !== m.id) : [...r.customMuscles, m.id] })} className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${on ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}>
-                                {m.label}
-                              </button>
-                            );
-                          })}
+                    <div>
+                      <label className="label" htmlFor={`sets-${r.key}`}>{measure === 'distanceTime' ? 'Rounds' : 'Sets'}</label>
+                      <input id={`sets-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
+                    </div>
+                    {measure === 'weight' && (
+                      <>
+                        <div>
+                          <label className="label" htmlFor={`reps-${r.key}`}>{EXERCISE_BY_NAME[r.name]?.repUnit === 'm' ? 'Distance (m)' : 'Reps'}</label>
+                          <input id={`reps-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
                         </div>
+                        <div>
+                          <label className="label" htmlFor={`w-${r.key}`}>Weight (kg)</label>
+                          <input id={`w-${r.key}`} type="number" inputMode="decimal" min={0} step={0.5} className="input placeholder:text-slate-400" placeholder={best?.weightKg ? `Best ${best.weightKg}` : 'BW'} value={r.weight} onChange={(e) => updateRow(r.key, { weight: e.target.value })} />
+                        </div>
+                      </>
+                    )}
+                    {measure === 'distanceTime' && (
+                      <div>
+                        <label className="label" htmlFor={`dist-${r.key}`}>Distance (m)</label>
+                        <input id={`dist-${r.key}`} type="number" inputMode="numeric" min={1} className="input" placeholder="500" value={r.distance} onChange={(e) => updateRow(r.key, { distance: e.target.value })} />
                       </div>
                     )}
+                    {measure !== 'weight' && (
+                      <div className={measure === 'time' ? 'sm:col-span-2' : ''}>
+                        <label className="label" htmlFor={`time-${r.key}`}>{measure === 'time' ? 'Time per set (m:ss)' : 'Time (m:ss)'}</label>
+                        <input id={`time-${r.key}`} inputMode="decimal" className="input" placeholder={measure === 'time' ? '0:45' : '1:50'} value={r.time} onChange={(e) => updateRow(r.key, { time: e.target.value })} />
+                      </div>
+                    )}
+                    <div className="flex items-end">
+                      <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove exercise ${i + 1}`}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-            <p className="mt-1.5 text-[11px] text-slate-500">Leave a row's sets and reps empty to skip it. Weight is per hand for dumbbells and carries.</p>
+                  {best && <p className="mt-1.5 text-xs text-slate-400">{best.label}</p>}
+                  {isCustom && (
+                    <div className="mt-2 space-y-2">
+                      <input className="input" placeholder="Exercise name" value={r.customName} onChange={(e) => updateRow(r.key, { customName: e.target.value })} aria-label="Custom exercise name" />
+                      <div className="flex flex-wrap gap-1.5">
+                        {MUSCLES.map((m) => {
+                          const on = r.customMuscles.includes(m.id);
+                          return (
+                            <button key={m.id} onClick={() => updateRow(r.key, { customMuscles: on ? r.customMuscles.filter((x) => x !== m.id) : [...r.customMuscles, m.id] })} className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${on ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}>
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        )}
-
-        {hasRun(type) && (
-          <div className="mt-5">
-            <h4 className="mb-2 text-sm font-semibold text-slate-800">Running (optional)</h4>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <div>
-                <label className="label" htmlFor="run-kind">Run type</label>
-                <select id="run-kind" className="input" value={runKind} onChange={(e) => setRunKind(e.target.value as RunKind)}>
-                  {RUN_KINDS.map((k) => <option key={k}>{k}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label" htmlFor="run-km">Distance (km)</label>
-                <input id="run-km" type="number" min={0} step={0.1} className="input" value={runKm} onChange={(e) => setRunKm(e.target.value)} />
-              </div>
-              <div>
-                <label className="label" htmlFor="run-time">Time (mm:ss)</label>
-                <input id="run-time" className="input" placeholder="32:30" value={runTime} onChange={(e) => setRunTime(e.target.value)} />
-              </div>
-              <div>
-                <label className="label" htmlFor="run-hr">Avg HR (bpm)</label>
-                <input id="run-hr" type="number" className="input" value={runHr} onChange={(e) => setRunHr(e.target.value)} />
-              </div>
-            </div>
-            {isFinite(pace) && <p className="mt-1.5 text-xs text-slate-500">Pace: {Math.floor(pace / 60)}:{String(Math.round(pace % 60)).padStart(2, '0')} /km</p>}
-          </div>
-        )}
-
-        <div className="mt-5">
-          <label className="label" htmlFor="aw-notes">Notes</label>
-          <textarea id="aw-notes" rows={3} className="input" placeholder="How did it feel?" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <p className="mt-1.5 text-[11px] text-slate-500">
+            Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.
+            {type === 'Strength' && ' Cardio machines (distance & time) are logged under HYROX Engine or F45.'}
+          </p>
         </div>
-      </Modal>
+      )}
 
-    </>
+      {hasRun(type) && (
+        <div className="mt-5">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-slate-800">{type === 'Running' ? 'Running' : 'Hyrox Run'}</h4>
+            <button className="btn-ghost py-1.5 text-xs" onClick={() => setRunRows((rs) => [...rs, newRunRow()])}>
+              <Plus size={14} /> Add run
+            </button>
+          </div>
+          {type === 'Running' && (
+            <div className="mb-2 max-w-[220px]">
+              <label className="label" htmlFor="run-kind">Run type</label>
+              <select id="run-kind" className="input" value={runKind} onChange={(e) => setRunKind(e.target.value as RunKind)}>
+                {RUN_KINDS.map((k) => <option key={k}>{k}</option>)}
+              </select>
+            </div>
+          )}
+          <ol className="space-y-2">
+            {runRows.map((r, i) => {
+              const km = Number(r.km);
+              const sec = parseSplit(r.time);
+              return (
+                <li key={r.key} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-xl border border-slate-200 p-3">
+                  <div>
+                    <label className="label" htmlFor={`rkm-${r.key}`}>Run {i + 1} · distance (km)</label>
+                    <input id={`rkm-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className="input" placeholder="1" value={r.km} onChange={(e) => updateRun(r.key, { km: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor={`rt-${r.key}`}>Time (m:ss)</label>
+                    <input id={`rt-${r.key}`} inputMode="decimal" className="input" placeholder="5:15" value={r.time} onChange={(e) => updateRun(r.key, { time: e.target.value })} />
+                  </div>
+                  <button className="mb-0.5 rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={runRows.length === 1} onClick={() => setRunRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove run ${i + 1}`}>
+                    <Trash2 size={16} />
+                  </button>
+                  {km > 0 && sec > 0 && <p className="col-span-3 -mt-1 text-xs text-slate-500">Pace {fmtPace(sec / km)} /km</p>}
+                </li>
+              );
+            })}
+          </ol>
+          <div className="mt-2 grid grid-cols-3 items-end gap-2">
+            <div className="rounded-xl bg-blue-50 px-3 py-2 text-center">
+              <p className="text-[11px] text-blue-700">Distance</p>
+              <p className="text-sm font-semibold text-slate-900">{runTotals.km} km</p>
+            </div>
+            <div className="rounded-xl bg-blue-50 px-3 py-2 text-center">
+              <p className="text-[11px] text-blue-700">{type === 'Running' ? 'Time (duration)' : 'Run time'}</p>
+              <p className="text-sm font-semibold text-slate-900">{fmtTime(runTotals.sec)}</p>
+            </div>
+            <div className="rounded-xl bg-blue-50 px-3 py-2 text-center">
+              <p className="text-[11px] text-blue-700">Avg pace</p>
+              <p className="text-sm font-semibold text-slate-900">{runTotals.pace ? `${fmtPace(runTotals.pace)}/km` : '—'}</p>
+            </div>
+          </div>
+          <div className="mt-2 max-w-[200px]">
+            <label className="label" htmlFor="run-hr">Average HR (optional)</label>
+            <input id="run-hr" type="number" inputMode="numeric" className="input" placeholder="bpm" value={runHr} onChange={(e) => setRunHr(e.target.value)} />
+          </div>
+          <p className="mt-1.5 text-[11px] text-slate-500">
+            {type === 'Running' ? 'Add a row for each run or interval with its own distance and time.' : 'Runs in HYROX Engine sessions are recorded as Hyrox Run on the Running page.'}
+          </p>
+        </div>
+      )}
+
+      <div className="mt-5">
+        <label className="label" htmlFor="aw-notes">Notes</label>
+        <textarea id="aw-notes" rows={3} className="input" placeholder="How did it feel?" value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+    </Modal>
   );
 }
 

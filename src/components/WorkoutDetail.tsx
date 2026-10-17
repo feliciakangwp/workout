@@ -1,5 +1,5 @@
 import { Clock, Flame, Gauge, HeartPulse, Route, Trash2 } from 'lucide-react';
-import { EXERCISE_BY_NAME } from '../data/exercises';
+import { EXERCISE_BY_NAME, exerciseMeasure } from '../data/exercises';
 import { MUSCLE_BY_ID } from '../data/muscles';
 import { STATION_BY_ID, divisionLabel, simFraction, simLabel, stationSpec } from '../data/stations';
 import type { ExerciseEntry, Workout } from '../data/types';
@@ -9,10 +9,23 @@ import { fmtDuration, fmtPace, fmtTime } from '../lib/format';
 import { DemoBadge, MiniStat, TypeBadge } from './ui';
 
 export const fmtSetsReps = (e: ExerciseEntry) => {
+  const m = exerciseMeasure(e.name);
+  if (m === 'time') return `${e.sets} × ${e.durationSec ? fmtTime(e.durationSec) : '—'}`;
+  if (m === 'distanceTime') return `${e.sets > 1 ? `${e.sets} × ` : ''}${e.distanceM ?? '—'} m${e.durationSec ? ` in ${fmtTime(e.durationSec)}` : ''}`;
   const unit = EXERCISE_BY_NAME[e.name]?.repUnit === 'm' ? ' m' : '';
-  if (e.name === 'Plank') return `${e.sets} × 45 s`;
-  return `${e.sets} × ${e.reps}${unit}`;
+  return `${e.sets} × ${e.reps ?? '—'}${unit}`;
 };
+
+/** Load column: weight, or pace for distance + time machines. */
+const fmtLoad = (e: ExerciseEntry) => {
+  const m = exerciseMeasure(e.name);
+  if (m === 'distanceTime') return e.distanceM && e.durationSec ? `${fmtTime((e.durationSec / e.distanceM) * 500)} /500m` : '—';
+  if (m === 'time') return '—';
+  return e.weightKg ? `${e.weightKg} kg` : 'BW';
+};
+
+/** "Running" for pure runs; runs inside HYROX sessions are "Hyrox Run". */
+export const runCategory = (w: Workout) => (w.type === 'Running' ? 'Running' : 'Hyrox Run');
 
 export function IntensityBar({ value }: { value: number }) {
   const tone = value >= 8 ? 'bg-rose-500' : value >= 6 ? 'bg-amber-400' : value >= 4 ? 'bg-blue-500' : 'bg-emerald-500';
@@ -49,12 +62,27 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
 
       {workout.run && !workout.hyrox && (
         <div>
-          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Running · {workout.run.kind}</h4>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {runCategory(workout)}
+            {workout.type === 'Running' && ` · ${workout.run.kind}`}
+          </h4>
           <div className="grid grid-cols-3 gap-2">
             <MiniStat label="Distance" value={<span className="inline-flex items-center gap-1.5"><Route size={14} className="text-slate-400" />{workout.run.distanceKm} km</span>} />
             <MiniStat label="Avg pace" value={<span className="inline-flex items-center gap-1.5"><Gauge size={14} className="text-slate-400" />{fmtPace(workout.run.paceSecPerKm)}/km</span>} />
             <MiniStat label="Avg HR" value={<span className="inline-flex items-center gap-1.5"><HeartPulse size={14} className="text-slate-400" />{workout.run.avgHr ? `${workout.run.avgHr} bpm` : '—'}</span>} />
           </div>
+          {workout.run.segments && workout.run.segments.length > 1 && (
+            <ol className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 text-sm">
+              {workout.run.segments.map((seg, i) => (
+                <li key={i} className="flex items-center justify-between px-3 py-2">
+                  <span className="text-slate-600">Run {i + 1} · {seg.distanceKm} km</span>
+                  <span className="font-medium text-slate-900">
+                    {fmtTime(seg.timeSec)} <span className="font-normal text-slate-500">· {fmtPace(seg.timeSec / seg.distanceKm)}/km</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
 
@@ -66,8 +94,8 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
                   <th className="px-3 py-2 font-medium">Exercise</th>
-                  <th className="px-3 py-2 font-medium">Sets × reps</th>
-                  <th className="px-3 py-2 text-right font-medium">Weight</th>
+                  <th className="px-3 py-2 font-medium">Sets / distance / time</th>
+                  <th className="px-3 py-2 text-right font-medium">Load / pace</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -75,7 +103,7 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
                   <tr key={`${e.name}-${i}`}>
                     <td className="px-3 py-2 text-slate-800">{e.name}</td>
                     <td className="px-3 py-2 text-slate-600">{fmtSetsReps(e)}</td>
-                    <td className="px-3 py-2 text-right text-slate-600">{e.weightKg ? `${e.weightKg} kg` : 'BW'}</td>
+                    <td className="px-3 py-2 text-right text-slate-600">{fmtLoad(e)}</td>
                   </tr>
                 ))}
               </tbody>

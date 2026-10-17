@@ -21,11 +21,11 @@ const pacePer500 = (meters: number) => (t: number) => {
 };
 
 export const STATIONS: StationInfo[] = [
-  { id: 'skierg', order: 1, name: 'SkiErg', amount: 1000, unit: 'm', exercise: 'SkiErg Intervals', targetSec: 270, derived: { label: 'Pace', compute: pacePer500(1000) } },
+  { id: 'skierg', order: 1, name: 'SkiErg', amount: 1000, unit: 'm', exercise: 'SkiErg', targetSec: 270, derived: { label: 'Pace', compute: pacePer500(1000) } },
   { id: 'sledPush', order: 2, name: 'Sled Push', amount: 50, unit: 'm', exercise: 'Sled Push', targetSec: 165 },
   { id: 'sledPull', order: 3, name: 'Sled Pull', amount: 50, unit: 'm', exercise: 'Sled Pull', targetSec: 240 },
   { id: 'burpeeBroadJump', order: 4, name: 'Burpee Broad Jump', amount: 80, unit: 'm', exercise: 'Burpee Broad Jump', targetSec: 270, derived: { label: 'Rate', compute: (t) => `${((80 / t) * 60).toFixed(1)} m/min` } },
-  { id: 'rowing', order: 5, name: 'Rowing', amount: 1000, unit: 'm', exercise: 'Row Intervals', targetSec: 270, derived: { label: 'Pace', compute: pacePer500(1000) } },
+  { id: 'rowing', order: 5, name: 'Rowing', amount: 1000, unit: 'm', exercise: 'Row Erg', targetSec: 270, derived: { label: 'Pace', compute: pacePer500(1000) } },
   { id: 'farmersCarry', order: 6, name: "Farmer's Carry", amount: 200, unit: 'm', exercise: "Farmer's Carry (HYROX)", targetSec: 110 },
   { id: 'sandbagLunges', order: 7, name: 'Sandbag Lunges', amount: 100, unit: 'm', exercise: 'Sandbag Lunges', targetSec: 270 },
   { id: 'wallBalls', order: 8, name: 'Wall Balls', amount: 100, unit: 'reps', exercise: 'Wall Balls', targetSec: 300, derived: { label: 'Rate', compute: (t) => `${((100 / t) * 60).toFixed(1)} reps/min` } },

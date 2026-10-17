@@ -10,7 +10,11 @@ export interface ExerciseInfo {
   repUnit?: 'reps' | 'm';
   /** Conditioning efforts count as half a working set for muscle coverage. */
   conditioning?: boolean;
+  /** How the exercise is logged: sets × reps × weight (default), time only, or distance + time. */
+  measure?: 'weight' | 'time' | 'distanceTime';
 }
+
+export const exerciseMeasure = (name: string) => EXERCISE_BY_NAME[name]?.measure ?? 'weight';
 
 /**
  * Exercise → muscle mapping. A primary muscle receives 1 set of credit per set
@@ -36,15 +40,19 @@ export const EXERCISES: ExerciseInfo[] = [
   { name: 'Bicep Curl', primary: ['biceps'], secondary: [] },
   { name: 'Tricep Dip', primary: ['triceps'], secondary: ['chest'] },
   { name: 'Calf Raise', primary: ['calves'], secondary: [] },
-  { name: 'Plank', primary: ['core'], secondary: [] },
+  { name: 'Plank', primary: ['core'], secondary: [], measure: 'time' },
   { name: 'Russian Twist', primary: ['core'], secondary: [] },
   { name: 'Box Jump', primary: ['quadriceps'], secondary: ['glutes', 'calves'], conditioning: true },
   { name: 'Thruster', primary: ['quadriceps', 'shoulders'], secondary: ['glutes', 'triceps'], conditioning: true },
   { name: 'Renegade Row', primary: ['back', 'core'], secondary: ['biceps'] },
   { name: 'Burpee', primary: ['chest', 'quadriceps'], secondary: ['core', 'shoulders'], conditioning: true },
   // HYROX-specific work (sets = rounds/efforts)
-  { name: 'SkiErg Intervals', primary: ['back', 'triceps'], secondary: ['core', 'shoulders'], repUnit: 'm', conditioning: true },
-  { name: 'Row Intervals', primary: ['back', 'quadriceps'], secondary: ['biceps', 'hamstrings'], repUnit: 'm', conditioning: true },
+  // Cardio machines: logged by distance and time
+  { name: 'SkiErg', primary: ['back', 'triceps'], secondary: ['core', 'shoulders'], conditioning: true, measure: 'distanceTime' },
+  { name: 'Row Erg', primary: ['back', 'quadriceps'], secondary: ['biceps', 'hamstrings'], conditioning: true, measure: 'distanceTime' },
+  { name: 'Assault Bike', primary: ['quadriceps', 'glutes'], secondary: ['shoulders', 'back', 'hamstrings'], conditioning: true, measure: 'distanceTime' },
+  { name: 'Bike Erg', primary: ['quadriceps'], secondary: ['glutes', 'hamstrings', 'calves'], conditioning: true, measure: 'distanceTime' },
+  // HYROX stations
   { name: 'Sled Push', primary: ['quadriceps', 'calves'], secondary: ['glutes', 'shoulders'], repUnit: 'm', conditioning: true },
   { name: 'Sled Pull', primary: ['back', 'hamstrings'], secondary: ['biceps', 'glutes'], repUnit: 'm', conditioning: true },
   { name: 'Burpee Broad Jump', primary: ['quadriceps', 'chest'], secondary: ['glutes', 'calves'], repUnit: 'm', conditioning: true },

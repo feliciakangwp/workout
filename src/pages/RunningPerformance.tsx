@@ -1,7 +1,7 @@
 import { Activity, Footprints, Gauge, HeartPulse, Medal, Repeat, Route, Target } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts';
-import { Card, CardHeader, ChartTooltip, DemoBadge, EmptyState, Legend, PageHeader, RANGE_OPTIONS, Segmented, StatCard, TypeBadge } from '../components/ui';
+import { Card, CardHeader, ChartTooltip, DemoBadge, EmptyState, Legend, PageHeader, RANGE_OPTIONS, Segmented, StatCard } from '../components/ui';
 import { useData } from '../context/DataContext';
 import { type RangeKey, RANGE_DAYS, avgHr, avgPace, best5kPace, buildBuckets, predictTime, rangeStart, runs, totalKm, type RunRecord } from '../lib/analytics';
 import { addDays, fmtLong, fmtShort } from '../lib/dates';
@@ -11,18 +11,36 @@ import { AXIS, GRID, SERIES } from '../lib/theme';
 const GROUPS = [
   { id: 'easy', label: 'Easy / long', color: SERIES.blue, kinds: ['Easy', 'Long'] },
   { id: 'quality', label: 'Tempo / intervals / 5K', color: SERIES.orange, kinds: ['Tempo', 'Intervals', '5K Time Trial'] },
-  { id: 'hyrox', label: 'Compromised (HYROX)', color: SERIES.aqua, kinds: ['Compromised'] },
+  { id: 'hyrox', label: 'Hyrox Run', color: SERIES.aqua, kinds: [] },
 ] as const;
-const groupOf = (r: RunRecord) => (r.source !== 'Running' ? GROUPS[2] : GROUPS.find((g) => (g.kinds as readonly string[]).includes(r.kind)) ?? GROUPS[0]);
+
+/** Pure runs are "Running"; runs inside HYROX and HYROX Engine sessions are "Hyrox Run". */
+type RunCategory = 'Running' | 'Hyrox Run';
+const categoryOf = (r: RunRecord): RunCategory => (r.source === 'Running' ? 'Running' : 'Hyrox Run');
+const groupOf = (r: RunRecord) => (categoryOf(r) === 'Hyrox Run' ? GROUPS[2] : GROUPS.find((g) => (g.kinds as readonly string[]).includes(r.kind)) ?? GROUPS[0]);
+const runLabel = (r: RunRecord) => (categoryOf(r) === 'Running' ? `${r.kind} run` : `${r.source}${r.segments && r.segments.length > 1 ? ` · ${r.segments.length} runs` : ''}`);
+
+function CategoryBadge({ r }: { r: RunRecord }) {
+  const hyrox = categoryOf(r) === 'Hyrox Run';
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${hyrox ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-pink-50 text-pink-700 ring-pink-200'}`}>
+      {categoryOf(r)}
+    </span>
+  );
+}
 
 export function RunningPerformance() {
   const { workouts, today, goals } = useData();
   const [range, setRange] = useState<RangeKey>('90d');
+  const [category, setCategory] = useState<'all' | RunCategory>('all');
+  const [showAll, setShowAll] = useState(false);
   const days = RANGE_DAYS[range];
   const from = rangeStart(range, today);
   const prevFrom = addDays(from, -days);
   const prevTo = addDays(from, -1);
-  const all = useMemo(() => runs(workouts.filter((w) => w.date <= today)), [workouts, today]);
+  const everyRun = useMemo(() => runs(workouts.filter((w) => w.date <= today)), [workouts, today]);
+  const all = everyRun.filter((r) => category === 'all' || categoryOf(r) === category);
+  const groups = GROUPS.filter((g) => category === 'all' || (category === 'Hyrox Run') === (g.id === 'hyrox'));
   const cur = all.filter((r) => r.date >= from);
   const prev = all.filter((r) => r.date >= prevFrom && r.date <= prevTo);
   const weeks = days / 7;
@@ -44,7 +62,8 @@ export function RunningPerformance() {
     .filter((b) => b.to >= from)
     .map((b) => ({ key: b.key, km: totalKm(cur.filter((r) => r.date >= b.from && r.date <= b.to)) }));
 
-  const bestAll = best5kPace(all);
+  // 10 km prediction always uses pure running, whichever category is shown.
+  const bestAll = best5kPace(everyRun);
   const predicted = bestAll ? predictTime(bestAll * 5, 5, goals.runGoalDistanceKm) : 0;
   const goalTime = goals.runGoalPaceSecPerKm * goals.runGoalDistanceKm;
 
@@ -55,7 +74,7 @@ export function RunningPerformance() {
     return (
       <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
         <p className="font-medium text-slate-900">{fmtLong(r.date)}</p>
-        <p className="text-slate-600">{r.source === 'Running' ? `${r.kind} run` : `${r.source} · ${r.kind}`}</p>
+        <p className="text-slate-600">{categoryOf(r)} · {runLabel(r)}</p>
         <p className="mt-1 text-slate-700">{r.distanceKm} km · {fmtPace(r.paceSecPerKm)}/km{r.avgHr ? ` · ${r.avgHr} bpm` : ''}</p>
       </div>
     );
@@ -63,7 +82,15 @@ export function RunningPerformance() {
 
   return (
     <div>
-      <PageHeader title="Running Performance" subtitle="Includes standalone runs plus run segments inside HYROX and Engine sessions." actions={<><DemoBadge /><Segmented value={range} onChange={setRange} options={RANGE_OPTIONS} /></>} />
+      <PageHeader title="Running Performance" subtitle="Running = pure running sessions. Hyrox Run = runs inside HYROX and HYROX Engine sessions." actions={<><DemoBadge /><Segmented value={range} onChange={setRange} options={RANGE_OPTIONS} /></>} />
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Segmented size="md" value={category} onChange={setCategory} options={[{ value: 'all', label: 'All runs' }, { value: 'Running', label: 'Running' }, { value: 'Hyrox Run', label: 'Hyrox Run' }]} />
+        <p className="text-xs text-slate-500">
+          In this period: <b className="font-semibold text-slate-700">{totalKm(everyRun.filter((r) => r.date >= from && categoryOf(r) === 'Running')).toFixed(1)} km</b> Running ·{' '}
+          <b className="font-semibold text-slate-700">{totalKm(everyRun.filter((r) => r.date >= from && categoryOf(r) === 'Hyrox Run')).toFixed(1)} km</b> Hyrox Run
+        </p>
+      </div>
 
       {cur.length === 0 ? (
         <EmptyState title="No runs in this period" />
@@ -80,7 +107,7 @@ export function RunningPerformance() {
 
           <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Card>
-              <CardHeader icon={Gauge} title="Running pace progression" subtitle="Average pace per run · lower is faster" action={<Legend items={GROUPS.map((g) => ({ label: g.label, color: g.color }))} />} />
+              <CardHeader icon={Gauge} title="Running pace progression" subtitle="Average pace per run · lower is faster" action={<Legend items={groups.map((g) => ({ label: g.label, color: g.color }))} />} />
               <div className="h-60 p-3 sm:h-72 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart margin={{ top: 8, right: 12, left: -4, bottom: 0 }}>
@@ -89,7 +116,7 @@ export function RunningPerformance() {
                     <YAxis dataKey="paceSecPerKm" type="number" reversed domain={['dataMin - 10', 'dataMax + 10']} tickFormatter={paceTicks} {...AXIS} width={44} />
                     <ZAxis range={[60, 60]} />
                     <Tooltip content={runTooltip} cursor={{ strokeDasharray: '3 3' }} />
-                    {GROUPS.map((g) => (
+                    {groups.map((g) => (
                       <Scatter key={g.id} name={g.label} data={cur.filter((r) => groupOf(r).id === g.id).map((r) => ({ ...r, t: new Date(r.date).getTime() }))} fill={g.color} line={{ stroke: g.color, strokeWidth: 1.5 }} stroke="#fff" strokeWidth={1.5} />
                     ))}
                   </ScatterChart>
@@ -113,7 +140,7 @@ export function RunningPerformance() {
             </Card>
 
             <Card>
-              <CardHeader icon={HeartPulse} title="Average heart rate" subtitle="Per run, by run type" action={<Legend items={GROUPS.map((g) => ({ label: g.label, color: g.color }))} />} />
+              <CardHeader icon={HeartPulse} title="Average heart rate" subtitle="Per run, by run type" action={<Legend items={groups.map((g) => ({ label: g.label, color: g.color }))} />} />
               <div className="h-60 p-3 sm:h-72 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
@@ -121,7 +148,7 @@ export function RunningPerformance() {
                     <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => fmtShort(new Date(v).toISOString().slice(0, 10))} {...AXIS} allowDuplicatedCategory={false} />
                     <YAxis {...AXIS} domain={['dataMin - 5', 'dataMax + 5']} unit="" />
                     <Tooltip content={runTooltip} />
-                    {GROUPS.map((g) => (
+                    {groups.map((g) => (
                       <Line key={g.id} data={cur.filter((r) => groupOf(r).id === g.id && r.avgHr).map((r) => ({ ...r, t: new Date(r.date).getTime() }))} dataKey="avgHr" name={g.label} stroke={g.color} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     ))}
                   </LineChart>
@@ -130,7 +157,7 @@ export function RunningPerformance() {
             </Card>
 
             <Card>
-              <CardHeader icon={Activity} title="Pace vs heart rate" subtitle="Down-and-right over time = faster at lower effort" action={<Legend items={GROUPS.map((g) => ({ label: g.label, color: g.color }))} />} />
+              <CardHeader icon={Activity} title="Pace vs heart rate" subtitle="Down-and-right over time = faster at lower effort" action={<Legend items={groups.map((g) => ({ label: g.label, color: g.color }))} />} />
               <div className="h-60 p-3 sm:h-72 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart margin={{ top: 8, right: 12, left: -4, bottom: 14 }}>
@@ -139,7 +166,7 @@ export function RunningPerformance() {
                     <YAxis dataKey="avgHr" type="number" domain={['dataMin - 4', 'dataMax + 4']} {...AXIS} width={44} name="HR" />
                     <ZAxis range={[60, 60]} />
                     <Tooltip content={runTooltip} cursor={{ strokeDasharray: '3 3' }} />
-                    {GROUPS.map((g) => (
+                    {groups.map((g) => (
                       <Scatter key={g.id} name={g.label} data={cur.filter((r) => groupOf(r).id === g.id && r.avgHr)} fill={g.color} stroke="#fff" strokeWidth={1.5} />
                     ))}
                   </ScatterChart>
@@ -175,13 +202,18 @@ export function RunningPerformance() {
         </Card>
 
         <Card className="xl:col-span-2 overflow-hidden">
-          <CardHeader icon={Footprints} title="Recent runs" subtitle="Most recent first" />
+          <CardHeader
+            icon={Footprints}
+            title={showAll ? 'All runs in period' : 'Recent runs'}
+            subtitle={`${cur.length} run${cur.length === 1 ? '' : 's'} · most recent first`}
+            action={cur.length > 8 && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setShowAll((v) => !v)}>{showAll ? 'Show recent' : `Show all ${cur.length}`}</button>}
+          />
           <ul className="mt-3 divide-y divide-slate-100 md:hidden">
-            {[...cur].reverse().slice(0, 8).map((r) => (
+            {[...cur].reverse().slice(0, showAll ? undefined : 8).map((r) => (
               <li key={r.workoutId} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2"><TypeBadge type={r.source} /><span className="text-xs text-slate-500">{fmtShort(r.date)}</span></span>
-                  <span className="mt-0.5 block text-sm text-slate-700">{r.kind} · {r.distanceKm} km</span>
+                  <span className="flex items-center gap-2"><CategoryBadge r={r} /><span className="text-xs text-slate-500">{fmtShort(r.date)}</span></span>
+                  <span className="mt-0.5 block text-sm text-slate-700">{runLabel(r)} · {r.distanceKm} km</span>
                 </span>
                 <span className="text-right">
                   <span className="block text-sm font-semibold text-slate-900">{fmtPace(r.paceSecPerKm)}/km</span>
@@ -195,19 +227,19 @@ export function RunningPerformance() {
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
                   <th className="px-5 py-2 font-medium">Date</th>
+                  <th className="px-3 py-2 font-medium">Category</th>
                   <th className="px-3 py-2 font-medium">Session</th>
-                  <th className="px-3 py-2 font-medium">Type</th>
                   <th className="px-3 py-2 text-right font-medium">Distance</th>
                   <th className="px-3 py-2 text-right font-medium">Pace</th>
                   <th className="px-5 py-2 text-right font-medium">Avg HR</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {[...cur].reverse().slice(0, 8).map((r) => (
+                {[...cur].reverse().slice(0, showAll ? undefined : 8).map((r) => (
                   <tr key={r.workoutId}>
                     <td className="px-5 py-2.5 text-slate-600">{fmtShort(r.date)}</td>
-                    <td className="px-3 py-2.5"><TypeBadge type={r.source} /></td>
-                    <td className="px-3 py-2.5 text-slate-700">{r.kind}</td>
+                    <td className="px-3 py-2.5"><CategoryBadge r={r} /></td>
+                    <td className="px-3 py-2.5 text-slate-700">{runLabel(r)}</td>
                     <td className="px-3 py-2.5 text-right text-slate-700">{r.distanceKm} km</td>
                     <td className="px-3 py-2.5 text-right font-medium text-slate-900">{fmtPace(r.paceSecPerKm)}/km</td>
                     <td className="px-5 py-2.5 text-right text-slate-700">{r.avgHr ? `${r.avgHr} bpm` : '—'}</td>

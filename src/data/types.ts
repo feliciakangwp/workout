@@ -27,7 +27,12 @@ export type RunKind = 'Easy' | 'Tempo' | 'Intervals' | '5K Time Trial' | 'Long' 
 export interface ExerciseEntry {
   name: string;
   sets: number;
-  reps: number;
+  /** Reps per set (or metres for carries / sleds). Absent for time or distance + time exercises. */
+  reps?: number;
+  /** Distance per set in metres (ergs and bikes). */
+  distanceM?: number;
+  /** Time per set in seconds (plank, ergs and bikes). */
+  durationSec?: number;
   /** Load per rep in kg (per hand for dumbbell / carry work). */
   weightKg?: number;
   /** Muscle groups for exercises not in the library (user-added). */
@@ -41,8 +46,10 @@ export interface RunData {
   distanceKm: number;
   /** Average pace in seconds per km. */
   paceSecPerKm: number;
-  /** Average heart rate; optional for HYROX simulations. */
+  /** Average heart rate; optional. */
   avgHr?: number;
+  /** Individual runs or intervals that make up the total, when logged separately. */
+  segments?: { distanceKm: number; timeSec: number }[];
 }
 
 export interface StationResult {
@@ -135,10 +142,10 @@ export interface DraftForm {
   title: string;
   duration: string;
   intensity: number;
-  rows: { key: number; name: string; customName: string; customMuscles: MuscleGroup[]; sets: string; reps: string; weight: string }[];
+  rows: { key: number; name: string; customName: string; customMuscles: MuscleGroup[]; sets: string; reps: string; weight: string; distance: string; time: string }[];
   runKind: RunKind;
-  runKm: string;
-  runTime: string;
+  /** One row per run or interval. */
+  runRows: { key: number; km: string; time: string }[];
   runHr: string;
   sim: SimType;
   division: Division;

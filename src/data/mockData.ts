@@ -86,7 +86,7 @@ const F45_TEMPLATES: { title: string; build: (p: number) => ExerciseEntry[] }[] 
       { name: 'Renegade Row', sets: 3, reps: 10, weightKg: round(lerp(7, 9, p), 1) },
       { name: 'Thruster', sets: 3, reps: 12, weightKg: round(lerp(7, 9, p), 1) },
       { name: 'Tricep Dip', sets: 2, reps: 12 },
-      { name: 'Plank', sets: 3, reps: 1 },
+      { name: 'Plank', sets: 3, durationSec: 45 },
     ],
   },
   {
@@ -138,8 +138,8 @@ function strengthSession(week: number): ExerciseEntry[] {
 
 function engineSession(week: number): ExerciseEntry[] {
   return [
-    { name: 'SkiErg Intervals', sets: 5, reps: 250 },
-    { name: 'Row Intervals', sets: 5, reps: 250 },
+    { name: 'SkiErg', sets: 5, distanceM: 250, durationSec: Math.round(lerp(64, 57, week / (TOTAL_WEEKS - 1)) + noise(2)) },
+    { name: 'Row Erg', sets: 5, distanceM: 250, durationSec: Math.round(lerp(60, 54, week / (TOTAL_WEEKS - 1)) + noise(2)) },
     { name: 'Sled Push', sets: 4, reps: 25 },
     { name: 'Wall Balls', sets: 4, reps: week > 6 ? 25 : 20, weightKg: 4 },
     { name: 'Burpee Broad Jump', sets: 3, reps: 20 },
@@ -147,11 +147,11 @@ function engineSession(week: number): ExerciseEntry[] {
 }
 
 const STATION_EXERCISE: Record<string, ExerciseEntry> = {
-  skierg: { name: 'SkiErg Intervals', sets: 2, reps: 500 },
+  skierg: { name: 'SkiErg', sets: 2, distanceM: 500 },
   sledPush: { name: 'Sled Push', sets: 2, reps: 25 },
   sledPull: { name: 'Sled Pull', sets: 2, reps: 25 },
   burpeeBroadJump: { name: 'Burpee Broad Jump', sets: 2, reps: 40 },
-  rowing: { name: 'Row Intervals', sets: 2, reps: 500 },
+  rowing: { name: 'Row Erg', sets: 2, distanceM: 500 },
   farmersCarry: { name: "Farmer's Carry (HYROX)", sets: 2, reps: 100, weightKg: 16 },
   sandbagLunges: { name: 'Sandbag Lunges', sets: 2, reps: 50, weightKg: 10 },
   wallBalls: { name: 'Wall Balls', sets: 2, reps: 50, weightKg: 4 },
@@ -255,7 +255,9 @@ function buildWorkouts(): Workout[] {
         workouts.push({ ...base, type: 'Strength', title: 'Strength — Full Body', durationMin: 65 + Math.round(rand() * 10), intensity: week === ILLNESS_WEEK + 1 ? 6 : 8, exercises: strengthSession(week) });
         break;
       case 3: {
-        const run: RunData = { ...makeRun('Compromised', week), kind: 'Intervals', distanceKm: 3 };
+        const base3 = makeRun('Compromised', week);
+        const segments = [0, 1, 2].map((i) => ({ distanceKm: 1, timeSec: Math.round(base3.paceSecPerKm + (i - 1) * 4 + noise(5)) }));
+        const run: RunData = { ...base3, kind: 'Intervals', distanceKm: 3, segments, paceSecPerKm: Math.round(segments.reduce((a, x) => a + x.timeSec, 0) / 3) };
         workouts.push({ ...base, type: 'HYROX Engine', title: 'HYROX Engine — Erg & Sled Intervals', durationMin: 60, intensity: 8, exercises: engineSession(week), run });
         break;
       }
@@ -306,7 +308,12 @@ function buildWorkouts(): Workout[] {
             title: 'HYROX Full Sim',
             durationMin: Math.ceil(total / 60),
             intensity: 9,
-            exercises: stations.map((st) => ({ ...STATION_EXERCISE[st.station], sets: 1, reps: STATION_EXERCISE[st.station].reps * 2, creditSets: 4 })),
+            exercises: stations.map((st) => {
+              const e = STATION_EXERCISE[st.station];
+              return e.distanceM
+                ? { ...e, sets: 1, distanceM: e.distanceM * 2, durationSec: st.timeSec, creditSets: 4 }
+                : { ...e, sets: 1, reps: (e.reps ?? 0) * 2, creditSets: 4 };
+            }),
             stations,
             hyrox: { sim: 'full', division: { sex: 'female', category: 'open' }, splits },
             run,

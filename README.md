@@ -45,6 +45,10 @@ src/
   today and future days. Past days are view-only. Swipe right for earlier weeks, left for later ones.
 - **Open workouts**: *Save* keeps a workout open (shown in a bar at the top of every page) so you can keep logging;
   only *Completed* adds it to the workout log and charts.
+- **Exercise logging**: lifts use sets × reps × weight, with your best previous effort shown in grey. Plank is logged
+  by time; SkiErg, Row Erg, Assault Bike and Bike Erg by distance and time (not offered in Strength sessions).
+- **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). On the Running page,
+  pure runs are *Running* and runs inside HYROX / HYROX Engine sessions are *Hyrox Run*.
 - **Add workout → HYROX** records race-style splits: Half, ¾ or Full Sim, a 1 km run before every station, and station
   distances / reps scaled to the sim. Half and ¾ station times are scaled to full distance for comparison.
 
