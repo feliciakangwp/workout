@@ -2,7 +2,7 @@ import { Award, Flag, Info, Timer } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { DEMO_TODAY, generateSample } from '../data/mockData';
+import { generateSample } from '../data/mockData';
 import { STATION_BY_ID, simLabel } from '../data/stations';
 import type { Profile, Race, UserData, Workout } from '../data/types';
 import { type Best, type Performance, type RaceEstimate, combineEstimates, compareSim, completedRaces, hyroxPerformances, raceEstimate, raceTypeLabel, sortByDate, upcomingRaces } from '../lib/analytics';
@@ -22,10 +22,10 @@ export function usePerformances() {
 const teammateCache = new Map<string, Promise<UserData | null>>();
 
 /** A tagged partner's sims and completed races. */
-function partnerPerformances(data: UserData, partnerId: string, myRaces: Race[]): Performance[] {
+function partnerPerformances(data: UserData, partnerId: string, myRaces: Race[], today: string): Performance[] {
   const workouts = [...generateSample(data.sample).workouts, ...data.added];
   // Their own races, plus completed shared races with them that you can see.
-  const races = [...data.goals.races, ...myRaces.filter((r) => r.shared && r.teammates?.some((t) => t.id === partnerId))].filter((r) => r.date < DEMO_TODAY);
+  const races = [...data.goals.races, ...myRaces.filter((r) => r.shared && r.teammates?.some((t) => t.id === partnerId))].filter((r) => r.date < today);
   return hyroxPerformances(workouts, races);
 }
 
@@ -39,7 +39,7 @@ interface TeamEstimate {
 /** Race estimate; for doubles with a tagged partner, the average of both athletes' estimates. */
 export function useRaceEstimate(race: Race): TeamEstimate | null {
   const { backend } = useAuth();
-  const { goals, athlete } = useData();
+  const { goals, athlete, today } = useData();
   const performances = usePerformances();
   const partners = race.format === 'doubles' ? (race.teammates ?? []).filter((t) => t.id !== athlete.id) : [];
   const key = partners.map((p) => p.id).join(',');
@@ -64,7 +64,7 @@ export function useRaceEstimate(race: Race): TeamEstimate | null {
       const d = loaded[profile.id];
       if (d === undefined) return { profile };
       if (d === 'error' || d === null) return { profile, error: `${profile.displayName}'s results aren't available, so this uses yours only.` };
-      return { profile, estimate: raceEstimate(race, partnerPerformances(d, profile.id, goals.races)) };
+      return { profile, estimate: raceEstimate(race, partnerPerformances(d, profile.id, goals.races, today)) };
     });
     const ready = team.filter((t) => t.estimate).map((t) => t.estimate!);
     if (!ready.length) return { estimate: mine, mine, partners: team };
@@ -73,7 +73,7 @@ export function useRaceEstimate(race: Race): TeamEstimate | null {
       e.notes.map((n) => (i === 0 ? `You: ${n}` : `${team.filter((t) => t.estimate)[i - 1].profile.displayName}: ${n.replace(/\byour\b/g, 'their')}`)),
     );
     return { estimate: { ...combineEstimates([mine, ...ready]), notes }, mine, partners: team };
-  }, [race, performances, loaded, key, goals.races]);
+  }, [race, performances, loaded, key, goals.races, today]);
 }
 
 function Split({ label, sec, raw, best }: { label: string; sec?: number; raw?: string; best?: Best }) {

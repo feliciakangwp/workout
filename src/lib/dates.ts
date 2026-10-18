@@ -5,6 +5,11 @@ const DAY_MS = 86_400_000;
 export const toDate = (iso: string) => new Date(`${iso}T00:00:00Z`);
 export const toIso = (d: Date) => d.toISOString().slice(0, 10);
 export const addDays = (iso: string, n: number) => toIso(new Date(toDate(iso).getTime() + n * DAY_MS));
+/** The device's local calendar date. */
+export const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 export const diffDays = (a: string, b: string) => Math.round((toDate(a).getTime() - toDate(b).getTime()) / DAY_MS);
 
 /** 0 = Monday … 6 = Sunday */

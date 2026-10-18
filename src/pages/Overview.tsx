@@ -1,4 +1,4 @@
-import { Activity, CalendarDays, Clock, Dumbbell, Footprints, HeartPulse, Lightbulb, Pencil, Sparkles, Target, TrendingUp, TriangleAlert } from 'lucide-react';
+import { Activity, CalendarDays, Clock, Dumbbell, Footprints, Lightbulb, Pencil, Sparkles, Target, TrendingUp, TriangleAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Bar, ReferenceLine, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { PageId } from '../components/Layout';
@@ -13,8 +13,8 @@ import { fmtDuration, fmtPace, fmtPct, fmtTime, parseTime, pctChange } from '../
 import { AXIS, GRID, SERIES } from '../lib/theme';
 
 export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
-  const { workouts, recovery, today } = useData();
-  const cmp = useMemo(() => weekComparison(workouts, recovery, today), [workouts, recovery, today]);
+  const { workouts, today } = useData();
+  const cmp = useMemo(() => weekComparison(workouts, today), [workouts, today]);
   const { current: c, previous: p } = cmp;
   const vs = `vs ${cmp.daysElapsed === 7 ? 'last week' : 'same point last week'}`;
 
@@ -22,13 +22,12 @@ export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
     <div>
       <PageHeader title="Training Overview" subtitle={`This week so far (${cmp.daysElapsed} of 7 days) compared with the same days last week.`} actions={<DemoBadge />} />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatCard icon={CalendarDays} label="Workouts this week" value={String(c.workouts)} unit={`/ ${cmp.daysElapsed} days`} delta={c.workouts - p.workouts} deltaLabel={`${c.workouts - p.workouts >= 0 ? '+' : ''}${c.workouts - p.workouts}`} comparison={`${p.workouts} ${vs}`} />
         <StatCard icon={Clock} label="Training duration" value={fmtDuration(c.minutes)} delta={c.minutes - p.minutes} deltaLabel={fmtPct(pctChange(c.minutes, p.minutes))} comparison={`${fmtDuration(p.minutes)} ${vs}`} accent="sky" />
         <StatCard icon={Footprints} label="Running distance" value={c.runKm.toFixed(1)} unit="km" delta={c.runKm - p.runKm} deltaLabel={fmtPct(pctChange(c.runKm, p.runKm))} comparison={`${p.runKm.toFixed(1)} km ${vs}`} accent="violet" />
         <StatCard icon={Dumbbell} label="Strength index" value={c.strengthIndex.toFixed(1)} unit="pts" delta={c.strengthIndex - p.strengthIndex} deltaLabel={`${c.strengthIndex - p.strengthIndex >= 0 ? '+' : ''}${(c.strengthIndex - p.strengthIndex).toFixed(1)}`} comparison={`${p.strengthIndex.toFixed(1)} last week · 100 = block start`} accent="amber" />
         <StatCard icon={Activity} label="Muscle coverage" value={`${c.musclesOnTarget}/10`} unit="on target" delta={c.musclesOnTarget - p.musclesOnTarget} deltaLabel={`${c.musclesOnTarget - p.musclesOnTarget >= 0 ? '+' : ''}${c.musclesOnTarget - p.musclesOnTarget}`} comparison={`${p.musclesOnTarget}/10 last week (rolling 7 days)`} accent="emerald" />
-        <StatCard icon={HeartPulse} label="Recovery status" value={String(c.recoveryScore)} unit={cmp.recoveryLabel} delta={c.recoveryScore - p.recoveryScore} deltaLabel={`${c.recoveryScore - p.recoveryScore >= 0 ? '+' : ''}${c.recoveryScore - p.recoveryScore}`} comparison={`${p.recoveryScore} this day last week`} accent="rose" />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
@@ -236,12 +235,12 @@ function TrainingTrends() {
 
 // ---------------------------------------------------------------------------
 function Insights({ onNavigate }: { onNavigate: (p: PageId) => void }) {
-  const { workouts, recovery, today } = useData();
-  const insights = useMemo(() => trainingInsights(workouts, recovery, today), [workouts, recovery, today]);
+  const { workouts, today } = useData();
+  const insights = useMemo(() => trainingInsights(workouts, today), [workouts, today]);
   const meta = {
     improving: { icon: Sparkles, tone: 'text-emerald-600 bg-emerald-50', link: 'strength' as PageId, linkLabel: 'View strength' },
     attention: { icon: TriangleAlert, tone: 'text-amber-600 bg-amber-50', link: 'muscles' as PageId, linkLabel: 'View muscle analysis' },
-    focus: { icon: Lightbulb, tone: 'text-blue-600 bg-blue-50', link: 'recovery' as PageId, linkLabel: 'View recovery' },
+    focus: { icon: Lightbulb, tone: 'text-blue-600 bg-blue-50', link: 'hyrox' as PageId, linkLabel: 'View HYROX performance' },
   };
   return (
     <div className="mt-5">

@@ -1,5 +1,5 @@
-import { CheckCircle2, Plus, Save, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { CheckCircle2, ChevronDown, ChevronUp, Plus, Save, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EXERCISES, EXERCISE_BY_NAME, entryMeasure, exerciseMeasure } from '../data/exercises';
 import { DATA_START } from '../data/mockData';
 import { MUSCLES } from '../data/muscles';
@@ -129,15 +129,21 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
   const [runKind, setRunKind] = useState<RunKind>(init.runKind);
   const [runRows, setRunRows] = useState<RunRow[]>(init.runRows);
   const [runHr, setRunHr] = useState(init.runHr);
+  const [order, setOrder] = useState<number[]>(init.order ?? []);
   const [sim, setSim] = useState<SimType>(init.sim);
   const [division, setDivision] = useState<Division>(init.division);
   const [splits, setSplits] = useState<SplitInputs>(init.splits);
   const [simHr, setSimHr] = useState(init.simHr);
   const [notes, setNotes] = useState(init.notes);
   const [errors, setErrors] = useState<string[]>([]);
+  const errorsRef = useRef<HTMLUListElement>(null);
+  // Completed sits at the bottom of a long form: bring problems into view.
+  useEffect(() => {
+    if (errors.length) errorsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [errors]);
   const bests = useMemo(() => bestEfforts(workouts), [workouts]);
 
-  const formValues = (): DraftForm => ({ date, type, title, duration, intensity, rows, runKind, runRows, runHr, sim, division, splits, simHr, notes });
+  const formValues = (): DraftForm => ({ date, type, title, duration, intensity, rows, runKind, runRows, runHr, order: type === 'HYROX Engine' ? sequenceKeys : undefined, sim, division, splits, simHr, notes });
 
   /** Keeps the workout open so it can be continued later. */
   const saveOpen = () => {
@@ -152,6 +158,22 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
     setPlanDetail(planKey(plan.date, plan.type), formValues());
     notify(`${plan.type} plan saved for ${fmtShort(plan.date)}.`);
     onClose();
+  };
+
+  // HYROX Engine: runs and exercises in the order they are done (new rows go last).
+  const sequenceKeys = useMemo(() => {
+    const live = new Set([...rows.map((r) => r.key), ...runRows.map((r) => r.key)]);
+    const kept = order.filter((k) => live.has(k));
+    const seen = new Set(kept);
+    return [...kept, ...rows.map((r) => r.key).filter((k) => !seen.has(k)), ...runRows.map((r) => r.key).filter((k) => !seen.has(k))];
+  }, [order, rows, runRows]);
+  const moveItem = (key: number, dir: -1 | 1) => {
+    const keys = [...sequenceKeys];
+    const i = keys.indexOf(key);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= keys.length) return;
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+    setOrder(keys);
   };
 
   const updateRow = (key: number, patch: Partial<ExerciseRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -195,7 +217,7 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
 
   const checkDate = (errs: string[]) => {
     if (!date) errs.push('Choose a workout date.');
-    else if (date > today) errs.push('The prototype only accepts dates up to the demo date.');
+    else if (date > today) errs.push("The date can't be in the future.");
     else if (date < DATA_START) errs.push('Choose a date within the demonstration period (from 20 Jul 2026).');
   };
 
@@ -254,11 +276,14 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
     });
   };
 
+  const isEmptyRun = (r: RunRow) => !r.km.trim() && !r.time.trim();
+  const isEmptyExercise = (r: ExerciseRow) => !r.reps && !r.weight && !r.distance && !r.time && !(r.name === CUSTOM && r.customName.trim());
+
   /** Builds the run (one or more runs / intervals) for Running and HYROX Engine. */
   const buildRun = (errs: string[]): RunData | undefined => {
     const segments: { distanceKm: number; timeSec: number }[] = [];
     runRows.forEach((r, i) => {
-      if (!r.km.trim() && !r.time.trim()) return; // empty row
+      if (isEmptyRun(r)) return;
       const km = Number(r.km);
       const sec = parseSplit(r.time);
       if (!(km > 0 && km <= 100)) errs.push(`Run ${i + 1}: enter a distance in km.`);
@@ -293,7 +318,7 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
         // Saved custom exercises carry their muscle groups on every entry.
         const muscles = isCustom ? r.customMuscles : savedCustom(r.name)?.muscles;
         const n = `Exercise ${i + 1}${name ? ` (${name})` : ''}`;
-        if (!r.reps && !r.weight && !r.distance && !r.time && !(isCustom && name)) return; // empty row
+        if (isEmptyExercise(r)) return;
         const sets = Number(r.sets);
         if (!name) errs.push(`Exercise ${i + 1}: enter a name.`);
         if (!(sets > 0 && Number.isInteger(sets))) errs.push(`${n}: sets must be a whole number above 0.`);
@@ -320,6 +345,16 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
     setErrors(errs);
     if (errs.length) return;
     if (newCustoms.length) saveCustomExercises(newCustoms);
+    // HYROX Engine: remember whether runs or exercises came first, or in between.
+    const sequence =
+      type === 'HYROX Engine' && run && exercises.length
+        ? sequenceKeys.flatMap((key): ('run' | 'exercise')[] => {
+            const ex = rows.find((r) => r.key === key);
+            if (ex) return isEmptyExercise(ex) ? [] : ['exercise'];
+            const rr = runRows.find((r) => r.key === key);
+            return rr && !isEmptyRun(rr) ? ['run'] : [];
+          })
+        : undefined;
     finish({
       date,
       type,
@@ -328,6 +363,7 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
       intensity,
       exercises,
       run,
+      sequence,
       notes: notes.trim() || undefined,
     });
   };
@@ -341,6 +377,140 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
       ...EXERCISES.filter((e) => type !== 'Strength' || e.measure !== 'distanceTime' || e.name === current).map((e) => e.name),
       ...customExercises.filter((c) => c.types.includes(type) || c.name === current).map((c) => c.name),
     ].sort((a, b) => a.localeCompare(b));
+
+  const renderExercise = (r: ExerciseRow, i: number, controls?: ReactNode) => {
+    const isCustom = r.name === CUSTOM;
+    const measure = rowMeasure(r);
+    const best = isCustom ? undefined : bests[r.name];
+    const options = exerciseOptions(r.name);
+    return (
+      <div key={r.key} className="rounded-xl border border-slate-200 p-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+          <div className="col-span-2 sm:col-span-1">
+            <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
+            <select id={`ex-${r.key}`} className="input" value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })}>
+              {options.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                  {savedCustom(name) ? ' (my exercise)' : ''}
+                </option>
+              ))}
+              <option value={CUSTOM}>Custom exercise…</option>
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor={`sets-${r.key}`}>{measure === 'distanceTime' ? 'Rounds' : 'Sets'}</label>
+            <input id={`sets-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
+          </div>
+          {measure === 'weight' && (
+            <>
+              <div>
+                <label className="label" htmlFor={`reps-${r.key}`}>{EXERCISE_BY_NAME[r.name]?.repUnit === 'm' ? 'Distance (m)' : 'Reps'}</label>
+                <input id={`reps-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
+              </div>
+              <div>
+                <label className="label" htmlFor={`w-${r.key}`}>Weight (kg)</label>
+                <input id={`w-${r.key}`} type="number" inputMode="decimal" min={0} step={0.5} className="input placeholder:text-slate-400" placeholder={best?.weightKg ? `Best ${best.weightKg}` : 'BW'} value={r.weight} onChange={(e) => updateRow(r.key, { weight: e.target.value })} />
+              </div>
+            </>
+          )}
+          {measure === 'distanceTime' && (
+            <div>
+              <label className="label" htmlFor={`dist-${r.key}`}>Distance (m)</label>
+              <input id={`dist-${r.key}`} type="number" inputMode="numeric" min={1} className="input" placeholder="500" value={r.distance} onChange={(e) => updateRow(r.key, { distance: e.target.value })} />
+            </div>
+          )}
+          {measure !== 'weight' && (
+            <div className={measure === 'time' ? 'sm:col-span-2' : ''}>
+              <label className="label" htmlFor={`time-${r.key}`}>{measure === 'time' ? 'Time per set (m:ss)' : 'Time (m:ss)'}</label>
+              <input id={`time-${r.key}`} inputMode="decimal" className="input" placeholder={measure === 'time' ? '0:45' : '1:50'} value={r.time} onChange={(e) => updateRow(r.key, { time: e.target.value })} />
+            </div>
+          )}
+          <div className="flex items-end">
+            {controls}
+            <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove exercise ${i + 1}`}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </div>
+        {best && <p className="mt-1.5 text-xs text-slate-400">{best.label}</p>}
+        {isCustom && (
+          <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
+            <input className="input" placeholder="Exercise name" value={r.customName} onChange={(e) => updateRow(r.key, { customName: e.target.value })} aria-label="Custom exercise name" />
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <div>
+                <p className="label">Count by</p>
+                <Segmented
+                  size="md"
+                  value={r.customMeasure === 'weight' ? 'reps' : 'time'}
+                  onChange={(v) => updateRow(r.key, { customMeasure: v === 'reps' ? 'weight' : 'time' })}
+                  options={[{ value: 'reps', label: 'Reps' }, { value: 'time', label: 'Time' }]}
+                />
+              </div>
+              {r.customMeasure !== 'weight' && (
+                <div>
+                  <p className="label">Time based on</p>
+                  <Segmented<ExerciseMeasure>
+                    size="md"
+                    value={r.customMeasure}
+                    onChange={(v) => updateRow(r.key, { customMeasure: v })}
+                    options={[{ value: 'distanceTime', label: 'Distance + time' }, { value: 'time', label: 'Time only' }]}
+                  />
+                </div>
+              )}
+            </div>
+            <p className="label !mb-0">Muscle groups</p>
+            <div className="flex flex-wrap gap-1.5">
+              {MUSCLES.map((m) => {
+                const on = r.customMuscles.includes(m.id);
+                return (
+                  <button key={m.id} onClick={() => updateRow(r.key, { customMuscles: on ? r.customMuscles.filter((x) => x !== m.id) : [...r.customMuscles, m.id] })} className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${on ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}>
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div>
+              <p className="label">Save to my exercises for future</p>
+              <div className="flex flex-wrap gap-3">
+                {SAVE_TO_TYPES.map((t) => (
+                  <label key={t} className="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" className="h-4 w-4 accent-blue-600" checked={r.saveTo.includes(t)} onChange={(e) => updateRow(r.key, { saveTo: e.target.checked ? [...r.saveTo, t] : r.saveTo.filter((x) => x !== t) })} />
+                    {t}
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500">Once you tap Completed it appears in the exercise list for those workout types.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderRun = (r: RunRow, i: number, controls?: ReactNode) => {
+    const km = Number(r.km);
+    const sec = parseSplit(r.time);
+    return (
+      <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-xl border border-slate-200 p-3">
+        <div>
+          <label className="label" htmlFor={`rkm-${r.key}`}>Run {i + 1} · distance (km)</label>
+          <input id={`rkm-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className="input" placeholder="1" value={r.km} onChange={(e) => updateRun(r.key, { km: e.target.value })} />
+        </div>
+        <div>
+          <label className="label" htmlFor={`rt-${r.key}`}>Time (m:ss)</label>
+          <input id={`rt-${r.key}`} inputMode="decimal" className="input" placeholder="5:15" value={r.time} onChange={(e) => updateRun(r.key, { time: e.target.value })} />
+        </div>
+        <div className="mb-0.5 flex items-center">
+          {controls}
+          <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={runRows.length === 1} onClick={() => setRunRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove run ${i + 1}`}>
+            <Trash2 size={16} />
+          </button>
+        </div>
+        {km > 0 && sec > 0 && <p className="col-span-3 -mt-1 text-xs text-slate-500">Pace {fmtPace(sec / km)} /km</p>}
+      </div>
+    );
+  };
 
   return (
     <Modal
@@ -380,7 +550,7 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
         </p>
       )}
       {errors.length > 0 && (
-        <ul className="mb-4 list-disc space-y-0.5 rounded-lg bg-rose-50 py-2 pl-7 pr-3 text-xs text-rose-700" role="alert">
+        <ul ref={errorsRef} className="mb-4 list-disc space-y-0.5 rounded-lg bg-rose-50 py-2 pl-7 pr-3 text-xs text-rose-700" role="alert">
           {errors.map((e) => <li key={e}>{e}</li>)}
         </ul>
       )}
@@ -416,7 +586,47 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
 
       {type === 'HYROX' && <HyroxSimFields sim={sim} onSim={setSim} division={division} onDivision={setDivision} splits={splits} onSplits={setSplits} hr={simHr} onHr={setSimHr} totals={simTotals} />}
 
-      {type !== 'HYROX' && type !== 'Running' && (
+      {type === 'HYROX Engine' && (
+        <div className="mt-5">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <h4 className="text-sm font-semibold text-slate-800">Runs & exercises</h4>
+            <div className="flex gap-1.5">
+              <button className="btn-ghost py-1.5 text-xs" onClick={() => setRows((rs) => [...rs, newRow()])}>
+                <Plus size={14} /> Add exercise
+              </button>
+              <button className="btn-ghost py-1.5 text-xs" onClick={() => setRunRows((rs) => [...rs, newRunRow()])}>
+                <Plus size={14} /> Add run
+              </button>
+            </div>
+          </div>
+          <p className="mb-2 text-[11px] text-slate-500">In the order you do them: use the arrows to put a run first, last or in between exercises.</p>
+          <ol className="space-y-2">
+            {(() => {
+              let ex = 0;
+              let run = 0;
+              return sequenceKeys.map((key, idx) => {
+                const controls = (
+                  <span className="mr-1 flex flex-col">
+                    <button className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30" disabled={idx === 0} onClick={() => moveItem(key, -1)} aria-label="Move up">
+                      <ChevronUp size={16} />
+                    </button>
+                    <button className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30" disabled={idx === sequenceKeys.length - 1} onClick={() => moveItem(key, 1)} aria-label="Move down">
+                      <ChevronDown size={16} />
+                    </button>
+                  </span>
+                );
+                const exRow = rows.find((r) => r.key === key);
+                if (exRow) return <li key={key}>{renderExercise(exRow, ex++, controls)}</li>;
+                const runRow = runRows.find((r) => r.key === key)!;
+                return <li key={key}>{renderRun(runRow, run++, controls)}</li>;
+              });
+            })()}
+          </ol>
+          <p className="mt-1.5 text-[11px] text-slate-500">Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.</p>
+        </div>
+      )}
+
+      {type !== 'HYROX' && type !== 'Running' && type !== 'HYROX Engine' && (
         <div className="mt-5">
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-slate-800">Exercises</h4>
@@ -425,114 +635,7 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
             </button>
           </div>
           <div className="space-y-2">
-            {rows.map((r, i) => {
-              const isCustom = r.name === CUSTOM;
-              const measure = rowMeasure(r);
-              const best = isCustom ? undefined : bests[r.name];
-              const options = exerciseOptions(r.name);
-              return (
-                <div key={r.key} className="rounded-xl border border-slate-200 p-3">
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-                    <div className="col-span-2 sm:col-span-1">
-                      <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
-                      <select id={`ex-${r.key}`} className="input" value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })}>
-                        {options.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                            {savedCustom(name) ? ' (my exercise)' : ''}
-                          </option>
-                        ))}
-                        <option value={CUSTOM}>Custom exercise…</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label" htmlFor={`sets-${r.key}`}>{measure === 'distanceTime' ? 'Rounds' : 'Sets'}</label>
-                      <input id={`sets-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
-                    </div>
-                    {measure === 'weight' && (
-                      <>
-                        <div>
-                          <label className="label" htmlFor={`reps-${r.key}`}>{EXERCISE_BY_NAME[r.name]?.repUnit === 'm' ? 'Distance (m)' : 'Reps'}</label>
-                          <input id={`reps-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
-                        </div>
-                        <div>
-                          <label className="label" htmlFor={`w-${r.key}`}>Weight (kg)</label>
-                          <input id={`w-${r.key}`} type="number" inputMode="decimal" min={0} step={0.5} className="input placeholder:text-slate-400" placeholder={best?.weightKg ? `Best ${best.weightKg}` : 'BW'} value={r.weight} onChange={(e) => updateRow(r.key, { weight: e.target.value })} />
-                        </div>
-                      </>
-                    )}
-                    {measure === 'distanceTime' && (
-                      <div>
-                        <label className="label" htmlFor={`dist-${r.key}`}>Distance (m)</label>
-                        <input id={`dist-${r.key}`} type="number" inputMode="numeric" min={1} className="input" placeholder="500" value={r.distance} onChange={(e) => updateRow(r.key, { distance: e.target.value })} />
-                      </div>
-                    )}
-                    {measure !== 'weight' && (
-                      <div className={measure === 'time' ? 'sm:col-span-2' : ''}>
-                        <label className="label" htmlFor={`time-${r.key}`}>{measure === 'time' ? 'Time per set (m:ss)' : 'Time (m:ss)'}</label>
-                        <input id={`time-${r.key}`} inputMode="decimal" className="input" placeholder={measure === 'time' ? '0:45' : '1:50'} value={r.time} onChange={(e) => updateRow(r.key, { time: e.target.value })} />
-                      </div>
-                    )}
-                    <div className="flex items-end">
-                      <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove exercise ${i + 1}`}>
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                  {best && <p className="mt-1.5 text-xs text-slate-400">{best.label}</p>}
-                  {isCustom && (
-                    <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
-                      <input className="input" placeholder="Exercise name" value={r.customName} onChange={(e) => updateRow(r.key, { customName: e.target.value })} aria-label="Custom exercise name" />
-                      <div className="flex flex-wrap gap-x-4 gap-y-2">
-                        <div>
-                          <p className="label">Count by</p>
-                          <Segmented
-                            size="md"
-                            value={r.customMeasure === 'weight' ? 'reps' : 'time'}
-                            onChange={(v) => updateRow(r.key, { customMeasure: v === 'reps' ? 'weight' : 'time' })}
-                            options={[{ value: 'reps', label: 'Reps' }, { value: 'time', label: 'Time' }]}
-                          />
-                        </div>
-                        {r.customMeasure !== 'weight' && (
-                          <div>
-                            <p className="label">Time based on</p>
-                            <Segmented<ExerciseMeasure>
-                              size="md"
-                              value={r.customMeasure}
-                              onChange={(v) => updateRow(r.key, { customMeasure: v })}
-                              options={[{ value: 'distanceTime', label: 'Distance + time' }, { value: 'time', label: 'Time only' }]}
-                            />
-                          </div>
-                        )}
-                      </div>
-                      <p className="label !mb-0">Muscle groups</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {MUSCLES.map((m) => {
-                          const on = r.customMuscles.includes(m.id);
-                          return (
-                            <button key={m.id} onClick={() => updateRow(r.key, { customMuscles: on ? r.customMuscles.filter((x) => x !== m.id) : [...r.customMuscles, m.id] })} className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${on ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}>
-                              {m.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div>
-                        <p className="label">Save to my exercises for future</p>
-                        <div className="flex flex-wrap gap-3">
-                          {SAVE_TO_TYPES.map((t) => (
-                            <label key={t} className="inline-flex items-center gap-2 text-sm text-slate-700">
-                              <input type="checkbox" className="h-4 w-4 accent-blue-600" checked={r.saveTo.includes(t)} onChange={(e) => updateRow(r.key, { saveTo: e.target.checked ? [...r.saveTo, t] : r.saveTo.filter((x) => x !== t) })} />
-                              {t}
-                            </label>
-                          ))}
-                        </div>
-                        <p className="mt-1 text-[11px] text-slate-500">Once you tap Completed it appears in the exercise list for those workout types.</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {rows.map((r, i) => renderExercise(r, i))}
           </div>
           <p className="mt-1.5 text-[11px] text-slate-500">
             Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.
@@ -543,12 +646,16 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
 
       {hasRun(type) && (
         <div className="mt-5">
-          <div className="mb-2 flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-slate-800">{type === 'Running' ? 'Running' : 'Hyrox Run'}</h4>
-            <button className="btn-ghost py-1.5 text-xs" onClick={() => setRunRows((rs) => [...rs, newRunRow()])}>
-              <Plus size={14} /> Add run
-            </button>
-          </div>
+          {type === 'Running' ? (
+            <div className="mb-2 flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-slate-800">Running</h4>
+              <button className="btn-ghost py-1.5 text-xs" onClick={() => setRunRows((rs) => [...rs, newRunRow()])}>
+                <Plus size={14} /> Add run
+              </button>
+            </div>
+          ) : (
+            <h4 className="mb-2 text-sm font-semibold text-slate-800">Hyrox Run totals</h4>
+          )}
           {type === 'Running' && (
             <div className="mb-2 max-w-[220px]">
               <label className="label" htmlFor="run-kind">Run type</label>
@@ -557,28 +664,11 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
               </select>
             </div>
           )}
-          <ol className="space-y-2">
-            {runRows.map((r, i) => {
-              const km = Number(r.km);
-              const sec = parseSplit(r.time);
-              return (
-                <li key={r.key} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-xl border border-slate-200 p-3">
-                  <div>
-                    <label className="label" htmlFor={`rkm-${r.key}`}>Run {i + 1} · distance (km)</label>
-                    <input id={`rkm-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className="input" placeholder="1" value={r.km} onChange={(e) => updateRun(r.key, { km: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="label" htmlFor={`rt-${r.key}`}>Time (m:ss)</label>
-                    <input id={`rt-${r.key}`} inputMode="decimal" className="input" placeholder="5:15" value={r.time} onChange={(e) => updateRun(r.key, { time: e.target.value })} />
-                  </div>
-                  <button className="mb-0.5 rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={runRows.length === 1} onClick={() => setRunRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove run ${i + 1}`}>
-                    <Trash2 size={16} />
-                  </button>
-                  {km > 0 && sec > 0 && <p className="col-span-3 -mt-1 text-xs text-slate-500">Pace {fmtPace(sec / km)} /km</p>}
-                </li>
-              );
-            })}
-          </ol>
+          {type === 'Running' && (
+            <ol className="space-y-2">
+              {runRows.map((r, i) => <li key={r.key}>{renderRun(r, i)}</li>)}
+            </ol>
+          )}
           <div className="mt-2 grid grid-cols-3 items-end gap-2">
             <div className="rounded-xl bg-blue-50 px-3 py-2 text-center">
               <p className="text-[11px] text-blue-700">Distance</p>

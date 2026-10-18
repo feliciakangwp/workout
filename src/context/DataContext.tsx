@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEMO_TODAY, generateSample } from '../data/mockData';
-import { planKey, type CustomExercise, type DraftForm, type Goals, type Profile, type Race, type RecoveryDay, type SharedRace, type UserData, type WeekPlan, type WeighIn, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
+import { localToday } from '../lib/dates';
+import { planKey, type CustomExercise, type DraftForm, type Goals, type Profile, type Race, type SharedRace, type UserData, type WeekPlan, type WeighIn, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
 import { newUserData } from '../lib/backend';
 import { sampleWeighIns, sortWeighIns } from '../lib/analytics/body';
 import { useAuth } from './AuthContext';
@@ -12,7 +13,6 @@ interface DataContextValue {
   readOnly: boolean;
   /** Demonstration workouts plus the athlete's logged workouts. */
   workouts: Workout[];
-  recovery: RecoveryDay[];
   goals: Goals;
   today: string;
   addWorkout: (w: Omit<Workout, 'id' | 'isSample'>) => Workout;
@@ -74,6 +74,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [shared, setShared] = useState<SharedRace[]>([]);
   const loaded = useRef(false);
+  // Today's date on this device (never before the sample data's last day); refreshed when the app comes back into view.
+  const [today, setToday] = useState(() => (localToday() > DEMO_TODAY ? localToday() : DEMO_TODAY));
+  useEffect(() => {
+    const refresh = () => setToday((t) => (localToday() > t ? localToday() : t));
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
 
   // Shared doubles / relay races this athlete is in (only ones you are also in when viewing a friend).
   const loadShared = useCallback(
@@ -220,9 +231,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             athlete,
             readOnly,
             workouts: [...sample.workouts, ...data.added],
-            recovery: sample.recovery,
             goals: { ...data.goals, currentWeightKg: latestWeight ?? data.goals.currentWeightKg, races: [...data.goals.races, ...shared.map((x) => fromShared(x, athlete.id))] },
-            today: DEMO_TODAY,
+            today,
             addWorkout,
             removeWorkout,
             updateGoals,
@@ -240,7 +250,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             removeWeighIn,
           }
         : null,
-    [data, sample, shared, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, weighIns, latestWeight, addWeighIn, removeWeighIn],
+    [data, sample, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, weighIns, latestWeight, addWeighIn, removeWeighIn],
   );
 
   if (!value)

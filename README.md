@@ -21,14 +21,14 @@ React 18 · TypeScript · Vite · Tailwind CSS · Recharts · Lucide React
 ```
 src/
   data/            central demo data and reference tables
-    mockData.ts    seeded 13-week workout + wellness generator, goals, weekly schedule
+    mockData.ts    seeded 13-week workout generator, goals, weekly schedule
     exercises.ts   exercise → muscle mapping (primary / secondary / conditioning)
     muscles.ts     muscle groups and weekly set targets
     stations.ts    HYROX stations, standard work and example target times
   lib/analytics/   pure functions deriving every metric from the workout list
   context/         DataContext: sample + session-added workouts, editable goals
   components/      layout, UI primitives, body map, workout detail, add-workout form
-  pages/           Overview, Muscle Analysis, Strength, Running, HYROX, Recovery, Workout Log
+  pages/           Overview, Muscle Analysis, Strength, Running, HYROX, Workout Log, Body Composition, Friends
 ```
 
 ### Accounts and friends
@@ -91,7 +91,8 @@ you add your own.
   only *Completed* adds it to the workout log and charts.
 - **Exercise logging**: lifts use sets × reps × weight, with your best previous effort shown in grey. Plank is logged
   by time; SkiErg, Row Erg, Assault Bike and Bike Erg by distance and time (not offered in Strength sessions).
-- **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). On the Running page,
+- **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). In HYROX Engine, runs
+  and exercises sit in one list in the order you do them; the arrows move a run before, after or between exercises. On the Running page,
   pure runs are *Running* and runs inside HYROX / HYROX Engine sessions are *Hyrox Run*.
 - **Sim analysis** (HYROX page, and in each sim's details): every run and station of a completed sim is compared with
   your best from any other sim, solo race or relay leg, with new bests flagged. Half and ¾ sims are scaled to a full
@@ -106,7 +107,6 @@ you add your own.
   distances / reps scaled to the sim. Half and ¾ station times are scaled to full distance for comparison.
 
 Every chart is computed from the same workout list, so workouts added through **Add workout** immediately update
-all pages (muscle coverage, strength progression, running, HYROX stations, training load and soreness).
-Added workouts live in React state only and reset on reload.
+all pages (muscle coverage, strength progression, running, HYROX stations and insights).
 
-The prototype uses a fixed demo date (`DEMO_TODAY = 2026-10-17`) so the sample data always lines up with the calendar.
+"Today" is the device's date. The generated sample workouts run from 20 Jul to 17 Oct 2026.

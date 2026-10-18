@@ -95,20 +95,16 @@ export interface Workout {
   exercises: ExerciseEntry[];
   run?: RunData;
   stations?: StationResult[];
+  /**
+   * HYROX Engine: the order runs and exercises were done in, e.g. run, exercise,
+   * run. Runs map in turn to `run.segments`, exercises to `exercises`.
+   */
+  sequence?: ('run' | 'exercise')[];
   /** Race-style run + station splits for HYROX simulations. */
   hyrox?: HyroxSession;
   notes?: string;
   /** true for demonstration data, false for workouts added in this session. */
   isSample: boolean;
-}
-
-export interface RecoveryDay {
-  date: string;
-  sleepHours: number;
-  sleepScore: number;
-  restingHr: number;
-  hrv: number;
-  bodyBattery: number;
 }
 
 export interface Race {
@@ -176,6 +172,8 @@ export interface DraftForm {
   /** One row per run or interval. */
   runRows: { key: number; km: string; time: string }[];
   runHr: string;
+  /** HYROX Engine: exercise and run row keys in the order they are done. */
+  order?: number[];
   sim: SimType;
   division: Division;
   splits: Record<StationId, { run: string; station: string }>;
@@ -266,7 +264,7 @@ export interface WeighIn {
 /** Everything stored for one athlete. */
 export interface UserData {
   version: 1;
-  /** Seed for this athlete's demonstration workouts and wellness data. */
+  /** Seed for this athlete's demonstration workouts. */
   sample: { seed: number; liftScale: number; paceShiftSec: number };
   added: Workout[];
   goals: Goals;

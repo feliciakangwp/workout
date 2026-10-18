@@ -12,7 +12,6 @@ import { MuscleAnalysis } from './pages/MuscleAnalysis';
 import { StrengthProgression } from './pages/StrengthProgression';
 import { RunningPerformance } from './pages/RunningPerformance';
 import { HyroxPerformance } from './pages/HyroxPerformance';
-import { Recovery } from './pages/Recovery';
 import { WorkoutLog } from './pages/WorkoutLog';
 import { Friends } from './pages/Friends';
 import { BodyComposition } from './pages/BodyComposition';
@@ -95,7 +94,6 @@ function Dashboard() {
         {page === 'strength' && <StrengthProgression />}
         {page === 'running' && <RunningPerformance />}
         {page === 'hyrox' && <HyroxPerformance />}
-        {page === 'recovery' && <Recovery />}
         {page === 'log' && <WorkoutLog onAddWorkout={() => openAdd()} />}
         {page === 'body' && <BodyComposition />}
         {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}

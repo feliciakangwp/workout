@@ -78,7 +78,7 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
             <MiniStat label="Avg pace" value={<span className="inline-flex items-center gap-1.5"><Gauge size={14} className="text-slate-400" />{fmtPace(workout.run.paceSecPerKm)}/km</span>} />
             <MiniStat label="Avg HR" value={<span className="inline-flex items-center gap-1.5"><HeartPulse size={14} className="text-slate-400" />{workout.run.avgHr ? `${workout.run.avgHr} bpm` : '—'}</span>} />
           </div>
-          {workout.run.segments && workout.run.segments.length > 1 && (
+          {workout.run.segments && workout.run.segments.length > 1 && !workout.sequence && (
             <ol className="mt-2 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 text-sm">
               {workout.run.segments.map((seg, i) => (
                 <li key={i} className="flex items-center justify-between px-3 py-2">
@@ -93,7 +93,9 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
         </div>
       )}
 
-      {workout.exercises.length > 0 && !workout.hyrox && (
+      {workout.sequence && <SequenceList workout={workout} />}
+
+      {workout.exercises.length > 0 && !workout.hyrox && !workout.sequence && (
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Exercises</h4>
           <div className="overflow-hidden rounded-xl border border-slate-200">
@@ -192,6 +194,43 @@ function HyroxSplits({ workout }: { workout: Workout }) {
                 <span className="block text-[10px] font-normal uppercase tracking-wide text-slate-500">Station</span>
                 {s.stationSec ? fmtTime(s.stationSec) : '—'}
               </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+/** HYROX Engine runs and exercises in the order they were done. */
+function SequenceList({ workout }: { workout: Workout }) {
+  let ex = 0;
+  let run = 0;
+  return (
+    <div>
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Runs & exercises in order</h4>
+      <ol className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 text-sm">
+        {workout.sequence!.map((kind, i) => {
+          if (kind === 'run') {
+            const seg = workout.run?.segments?.[run];
+            const n = ++run;
+            return (
+              <li key={i} className="flex items-center justify-between gap-3 bg-blue-50/40 px-3 py-2">
+                <span className="flex items-center gap-2 text-slate-700"><Route size={14} className="text-blue-500" /> Run {n}{seg ? ` · ${seg.distanceKm} km` : ''}</span>
+                {seg && (
+                  <span className="font-medium text-slate-900">
+                    {fmtTime(seg.timeSec)} <span className="font-normal text-slate-500">· {fmtPace(seg.timeSec / seg.distanceKm)}/km</span>
+                  </span>
+                )}
+              </li>
+            );
+          }
+          const e = workout.exercises[ex++];
+          if (!e) return null;
+          return (
+            <li key={i} className="flex items-center justify-between gap-3 px-3 py-2">
+              <span className="min-w-0 text-slate-800">{e.name} <span className="text-slate-500">· {fmtSetsReps(e)}</span></span>
+              <span className="shrink-0 text-slate-600">{fmtLoad(e)}</span>
             </li>
           );
         })}

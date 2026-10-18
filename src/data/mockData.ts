@@ -8,10 +8,10 @@
  * running economy, a mid-block illness week and normal day-to-day noise.
  * It is generated with a seeded RNG so it is identical on every load.
  */
-import { addDays, dateRange, diffDays, weekdayIndex } from '../lib/dates';
+import { dateRange, diffDays, weekdayIndex } from '../lib/dates';
 import { round } from '../lib/format';
 import { STATIONS } from './stations';
-import type { ExerciseEntry, Goals, RaceResult, RecoveryDay, RunData, RunKind, StationResult, Workout } from './types';
+import type { ExerciseEntry, Goals, RaceResult, RunData, RunKind, StationResult, Workout } from './types';
 
 /** The prototype's fixed "today" so the demo data always lines up with the calendar. */
 export const DEMO_TODAY = '2026-10-17';
@@ -342,28 +342,6 @@ function buildWorkouts(): Workout[] {
 }
 
 
-// ---------------------------------------------------------------------------
-// Daily Garmin-style wellness metrics (sample only — no device connection)
-// ---------------------------------------------------------------------------
-function buildRecovery(workouts: Workout[]): RecoveryDay[] {
-  const loadByDate = new Map<string, number>();
-  for (const w of workouts) loadByDate.set(w.date, (loadByDate.get(w.date) ?? 0) + w.durationMin * w.intensity);
-  return dateRange(DATA_START, DEMO_TODAY).map((date) => {
-    const week = Math.floor(diffDays(date, DATA_START) / 7);
-    const p = week / (TOTAL_WEEKS - 1);
-    const prevLoad = loadByDate.get(addDays(date, -1)) ?? 0;
-    const ill = week === ILLNESS_WEEK ? 1 : 0;
-    const weekend = weekdayIndex(date) >= 5 ? 0.35 : 0;
-    const sleepHours = Math.round((7.1 + weekend + noise(0.75) - ill * 0.3 - prevLoad / 3000) * 10) / 10;
-    const sleepScore = Math.round(Math.min(96, Math.max(45, 38 + (sleepHours - 5) * 15 + noise(5))));
-    const hrvBase = lerp(49, 57, p);
-    const hrv = Math.round(hrvBase - prevLoad * 0.012 + noise(3.5) - ill * 9);
-    const restingHr = Math.round(lerp(57, 53, p) + prevLoad * 0.004 + noise(1.2) + ill * 4);
-    const bodyBattery = Math.round(Math.min(100, Math.max(18, 22 + sleepScore * 0.62 + (hrv - hrvBase) * 1.3 - prevLoad * 0.015)));
-    return { date, sleepHours, sleepScore, restingHr, hrv, bodyBattery };
-  });
-}
-
 /** Per-athlete variation for demonstration data. */
 export interface SampleProfile {
   seed: number;
@@ -375,15 +353,14 @@ export interface SampleProfile {
 
 export const DEFAULT_SAMPLE: SampleProfile = { seed: 20261017, liftScale: 1, paceShiftSec: 0 };
 
-/** Generates an athlete's demonstration workouts and wellness data (deterministic per profile). */
-export function generateSample(profile: SampleProfile): { workouts: Workout[]; recovery: RecoveryDay[] } {
+/** Generates an athlete's demonstration workouts (deterministic per profile). */
+export function generateSample(profile: SampleProfile): { workouts: Workout[] } {
   rand = mulberry32(profile.seed);
   liftScale = profile.liftScale;
   paceShiftSec = profile.paceShiftSec;
   const workouts = buildWorkouts();
-  return { workouts, recovery: buildRecovery(workouts) };
+  return { workouts };
 }
 
 const defaultSample = generateSample(DEFAULT_SAMPLE);
 export const SAMPLE_WORKOUTS: Workout[] = defaultSample.workouts;
-export const SAMPLE_RECOVERY: RecoveryDay[] = defaultSample.recovery;

@@ -1,4 +1,4 @@
-import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, HeartPulse, LayoutDashboard, ListChecks, LogOut, Pencil, Play, Plus, Scale, Trophy, Users, X } from 'lucide-react';
+import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, LayoutDashboard, ListChecks, LogOut, Pencil, Play, Plus, Scale, Trophy, Users, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { DemoBadge } from './ui';
@@ -12,7 +12,7 @@ import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { raceTypeLabel, upcomingRaces } from '../lib/analytics';
 
-export type PageId = 'overview' | 'muscles' | 'strength' | 'running' | 'hyrox' | 'recovery' | 'log' | 'body' | 'friends';
+export type PageId = 'overview' | 'muscles' | 'strength' | 'running' | 'hyrox' | 'log' | 'body' | 'friends';
 
 export const NAV: { id: PageId; label: string; short: string; icon: LucideIcon }[] = [
   { id: 'overview', label: 'Overview', short: 'Home', icon: LayoutDashboard },
@@ -20,7 +20,6 @@ export const NAV: { id: PageId; label: string; short: string; icon: LucideIcon }
   { id: 'strength', label: 'Strength Progression', short: 'Strength', icon: Dumbbell },
   { id: 'running', label: 'Running Performance', short: 'Running', icon: Footprints },
   { id: 'hyrox', label: 'HYROX Performance', short: 'HYROX', icon: Trophy },
-  { id: 'recovery', label: 'Recovery', short: 'Recovery', icon: HeartPulse },
   { id: 'log', label: 'Workout Log', short: 'Log', icon: ListChecks },
 ];
 
@@ -270,7 +269,7 @@ export function Layout({ page, onNavigate, children }: { page: PageId; onNavigat
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-900 lg:font-medium">{ALL_NAV.find((n) => n.id === page)?.label}</p>
-            <p className="truncate text-[11px] text-slate-500 sm:text-xs">Demo date: {fmtLong(today)}</p>
+            <p className="truncate text-[11px] text-slate-500 sm:text-xs">Today: {fmtLong(today)}</p>
           </div>
           <div className="hidden items-center gap-2 md:flex">
             <DemoBadge text="Prototype · demonstration data" />
