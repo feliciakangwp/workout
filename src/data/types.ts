@@ -264,8 +264,8 @@ export interface WeighIn {
 /** Everything stored for one athlete. */
 export interface UserData {
   version: 1;
-  /** Seed for this athlete's demonstration workouts. */
-  sample: { seed: number; liftScale: number; paceShiftSec: number };
+  /** Seed for this athlete's demonstration workouts; null for real accounts, which start empty. */
+  sample: { seed: number; liftScale: number; paceShiftSec: number } | null;
   added: Workout[];
   goals: Goals;
   plan: WeekPlan;

@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { WorkoutType } from '../data/types';
 import { TYPE_BADGE } from '../lib/theme';
+import { useHasSampleData } from '../context/DataContext';
 
 export function Card({ children, className = '', id }: { children: ReactNode; className?: string; id?: string }) {
   return <div id={id} className={`card ${className}`}>{children}</div>;
@@ -120,7 +121,9 @@ export function TypeBadge({ type }: { type: WorkoutType }) {
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${TYPE_BADGE[type]}`}>{type}</span>;
 }
 
+/** Labels demonstration data; hidden for real accounts, which have none. */
 export function DemoBadge({ text = 'Demo data' }: { text?: string }) {
+  if (!useHasSampleData()) return null;
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
       <FlaskConical size={11} /> {text}

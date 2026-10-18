@@ -1,14 +1,16 @@
 import { Activity, BarChart3, ChevronRight, ChevronsLeft, ChevronsRight, Dumbbell, Footprints, LayoutDashboard, ListChecks, LogOut, Pencil, Play, Plus, Scale, Trophy, Users, X } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { DemoBadge } from './ui';
+import { DemoBadge, Modal } from './ui';
+import { UsernameField, useUsernameCheck } from './UsernameField';
+import { cleanUsername, usernameProblem } from '../lib/username';
 import { fmtLong, fmtShort, diffDays } from '../lib/dates';
 import { simLabel } from '../data/stations';
 import { DEFAULT_TITLE } from './AddWorkoutModal';
 import { planSummary } from './WeeklyPlanner';
 import { planKey } from '../data/types';
 import { useAuth } from '../context/AuthContext';
-import { useData } from '../context/DataContext';
+import { useData, useHasSampleData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { raceTypeLabel, upcomingRaces } from '../lib/analytics';
 
@@ -184,6 +186,7 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const { readOnly } = useData();
   const { openProfile } = useUI();
   const [open, setOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -200,11 +203,11 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
       </button>
       {open && (
         <div className="absolute right-0 top-11 z-50 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-          <div className="px-3 py-2">
-            <p className="text-sm font-semibold text-slate-900">{user.profile.displayName}</p>
-            <p className="truncate text-xs text-slate-500">{user.email}</p>
-            {backend.mode === 'demo' && <p className="mt-1 text-[11px] text-amber-700">Demo account (stored in this browser)</p>}
-          </div>
+          <button className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-100" onClick={() => { setRenaming(true); setOpen(false); }} aria-label="Edit user ID">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">{user.profile.displayName} <Pencil size={12} className="text-slate-400" /></span>
+            <span className="block text-xs text-slate-500">Your user ID · tap to change</span>
+            {backend.mode === 'demo' && <span className="mt-1 block text-[11px] text-amber-700">Demo account (stored in this browser)</span>}
+          </button>
           <div className="my-1 border-t border-slate-100" />
           {readOnly ? (
             <button className={item} onClick={() => { viewFriend(null); setOpen(false); }}><LayoutDashboard size={16} /> Back to my dashboard</button>
@@ -216,7 +219,62 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
           <button className={`${item} text-rose-600 hover:bg-rose-50`} onClick={() => signOut()}><LogOut size={16} /> Sign out</button>
         </div>
       )}
+      {renaming && <ChangeUsernameModal onClose={() => setRenaming(false)} />}
     </div>
+  );
+}
+
+/** Edit your user ID (also used to sign in). */
+function ChangeUsernameModal({ onClose }: { onClose: () => void }) {
+  const { user, changeUsername } = useAuth();
+  const { notify } = useUI();
+  const current = user!.profile.displayName;
+  const [name, setName] = useState(current);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const check = useUsernameCheck(name, current);
+  const unchanged = cleanUsername(name) === current;
+  const save = async () => {
+    const problem = usernameProblem(name);
+    if (problem) return setError(problem);
+    if (check.status === 'taken') return setError(check.message);
+    setBusy(true);
+    try {
+      await changeUsername(name);
+      notify(`Your user ID is now ${cleanUsername(name)}. Use it next time you sign in.`);
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Edit user ID"
+      footer={
+        <>
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={busy || unchanged || check.status === 'taken' || check.status === 'checking' || check.status === 'invalid'}>{busy ? 'Saving…' : 'Save'}</button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <UsernameField id="rename-user" value={name} onChange={(v) => { setName(v); setError(''); }} check={check} autoFocus />
+        {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700" role="alert">{error}</p>}
+        <p className="text-xs text-slate-500">Your user ID is your profile name and what you sign in with. Your password stays the same.</p>
+      </div>
+    </Modal>
+  );
+}
+
+function DemoFooter() {
+  if (!useHasSampleData()) return null;
+  return (
+    <footer className="hidden px-6 pb-6 text-center text-[11px] text-slate-400 lg:block">
+      Demonstration athlete: workouts are generated sample data — no device or service is connected.
+    </footer>
   );
 }
 
@@ -288,9 +346,7 @@ export function Layout({ page, onNavigate, children }: { page: PageId; onNavigat
           <OpenWorkoutsBar />
           {children}
         </main>
-        <footer className="hidden px-6 pb-6 text-center text-[11px] text-slate-400 lg:block">
-          Prototype dashboard. All metrics are generated demonstration data — no device or service is connected.
-        </footer>
+        <DemoFooter />
       </div>
 
       {/* Mobile / tablet bottom tab bar */}

@@ -7,9 +7,10 @@ interface AuthContextValue {
   /** null while signed out. */
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  /** Resolves false when the account must confirm its email before signing in. */
-  signUp: (email: string, password: string, displayName: string) => Promise<boolean>;
+  signIn: (username: string, password: string) => Promise<void>;
+  signUp: (username: string, password: string) => Promise<void>;
+  /** Changes your user ID. */
+  changeUsername: (username: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** The athlete whose dashboard is shown: yourself, or a friend (read-only). */
   viewing: Profile | null;
@@ -32,12 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [backend]);
 
-  const signIn = useCallback(async (email: string, password: string) => setUser(await backend.signIn(email, password)), [backend]);
-  const signUp = useCallback(
-    async (email: string, password: string, displayName: string) => {
-      const { user: u } = await backend.signUp(email, password, displayName);
-      if (u) setUser(u);
-      return !!u;
+  const signIn = useCallback(async (username: string, password: string) => setUser(await backend.signIn(username, password)), [backend]);
+  const signUp = useCallback(async (username: string, password: string) => setUser(await backend.signUp(username, password)), [backend]);
+  const changeUsername = useCallback(
+    async (username: string) => {
+      const profile = await backend.changeUsername(username);
+      setUser((u) => (u ? { ...u, profile } : u));
     },
     [backend],
   );
@@ -49,8 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [backend]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ backend, user, loading, signIn, signUp, signOut, viewing: friend ?? user?.profile ?? null, viewFriend: setFriend }),
-    [backend, user, loading, signIn, signUp, signOut, friend],
+    () => ({ backend, user, loading, signIn, signUp, changeUsername, signOut, viewing: friend ?? user?.profile ?? null, viewFriend: setFriend }),
+    [backend, user, loading, signIn, signUp, changeUsername, signOut, friend],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -8,12 +8,15 @@ export function hashString(s: string) {
   return h >>> 0;
 }
 
-/** Starting data for a new account: its own demonstration workouts and no races yet. */
-export function newUserData(userId: string): UserData {
+/**
+ * Starting data for a new account: no workouts or races yet. Demonstration
+ * athletes (`withSample`) get their own generated workouts instead.
+ */
+export function newUserData(userId: string, withSample = false): UserData {
   const h = hashString(userId);
   return {
     version: 1,
-    sample: { seed: h, liftScale: 0.9 + (h % 25) / 100, paceShiftSec: (h % 31) - 15 },
+    sample: withSample ? { seed: h, liftScale: 0.9 + (h % 25) / 100, paceShiftSec: (h % 31) - 15 } : null,
     added: [],
     goals: { ...DEFAULT_GOALS, races: [] },
     plan: {},

@@ -45,7 +45,7 @@ export function Friends({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const search = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
-    if (query.trim().length < 2) return setError('Type at least 2 characters of a name, or a full email address.');
+    if (query.trim().length < 2) return setError('Type at least 2 characters of a user ID.');
     setBusy(true);
     try {
       setResults(await backend.searchProfiles(query));
@@ -71,9 +71,9 @@ export function Friends({ onOpenDashboard }: { onOpenDashboard: () => void }) {
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">{error}</p>}
 
       <Card>
-        <CardHeader icon={Search} title="Find athletes" subtitle="Search by name, or enter someone's exact email address" />
+        <CardHeader icon={Search} title="Find athletes" subtitle="Search by user ID" />
         <form onSubmit={search} className="flex gap-2 p-4 sm:p-5">
-          <input className="input" placeholder="Name or email" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search athletes" />
+          <input className="input" placeholder="User ID" autoCapitalize="none" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search athletes" />
           <button type="submit" className="btn-primary shrink-0" disabled={busy}><Search size={15} /> Search</button>
         </form>
         {results && (

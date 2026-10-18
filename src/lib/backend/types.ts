@@ -2,24 +2,30 @@ import type { Friendship, Profile, SharedRace, UserData } from '../../data/types
 import type { ScanResult } from '../bodyScanOcr';
 
 export interface AuthUser {
+  /** `displayName` is the athlete's user ID. */
   profile: Profile;
-  email: string;
 }
 
 /**
- * Storage and authentication used by the app. The demo backend keeps
- * accounts in this browser; the Supabase backend is used when
- * VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set at build time.
+ * Storage and authentication used by the app. Athletes sign in with a user ID
+ * and password. The demo backend keeps accounts in this browser; the Supabase
+ * backend is used when VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set at
+ * build time.
  */
 export interface Backend {
   mode: 'demo' | 'supabase';
   /** Restores the signed-in session, if any. */
   currentUser(): Promise<AuthUser | null>;
-  signIn(email: string, password: string): Promise<AuthUser>;
-  /** `user` is null when the account must confirm its email first. */
-  signUp(email: string, password: string, displayName: string): Promise<{ user: AuthUser | null }>;
+  /** Signs in with a user ID and password. */
+  signIn(username: string, password: string): Promise<AuthUser>;
+  /** Creates an account and its profile, named after the user ID, and signs in. */
+  signUp(username: string, password: string): Promise<AuthUser>;
   signOut(): Promise<void>;
-  /** Other athletes matching a name, or an exact email address. */
+  /** False when another athlete already has this user ID (ignoring case). */
+  isUsernameAvailable(username: string): Promise<boolean>;
+  /** Changes the signed-in athlete's user ID (used to sign in and shown on their profile). */
+  changeUsername(username: string): Promise<Profile>;
+  /** Other athletes whose user ID contains the query. */
   searchProfiles(query: string): Promise<Profile[]>;
   listFriendships(): Promise<Friendship[]>;
   /** Sends a friend request (or accepts one already received from this athlete). */

@@ -88,6 +88,13 @@ export function trainingInsights(workouts: Workout[], today = DEMO_TODAY): Insig
   const low = coverage.filter((m) => m.status === 'significant' || m.status === 'below').sort((a, b) => a.pct - b.pct);
   const weekendLong = workouts.filter((w) => w.date > addDays(today, -28) && weekdayIndex(w.date) === 4 && w.type === 'Running').length;
 
+  if (!workouts.some((w) => w.date > addDays(today, -28) && w.date <= today))
+    return [
+      { kind: 'improving', title: 'What is improving', points: ['Log a few weeks of workouts to see your progress here.'] },
+      { kind: 'attention', title: 'What needs attention', points: ['No workouts logged in the last 4 weeks yet.'] },
+      { kind: 'focus', title: 'Suggested training focus', points: ['Plan your week on the calendar and log each session with Completed.'] },
+    ];
+
   const improving: string[] = [];
   if (topLift) improving.push(`${topLift.name} strength is up ${topLift.changeSinceStartPct.toFixed(0)}% since the start of the block.`);
   if (paceGain > 0) improving.push(`Average running pace is ${Math.round(paceGain)} s/km faster than the first 4 weeks.`);

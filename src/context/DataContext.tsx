@@ -11,6 +11,8 @@ interface DataContextValue {
   athlete: Profile;
   /** True when viewing a friend's dashboard: nothing can be changed. */
   readOnly: boolean;
+  /** Demonstration athletes have generated sample workouts; real accounts don't. */
+  hasSampleData: boolean;
   /** Demonstration workouts plus the athlete's logged workouts. */
   workouts: Workout[];
   goals: Goals;
@@ -116,7 +118,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => {
       live = false;
     };
-  }, [backend, athlete.id, athlete.displayName, readOnly]);
+    // Not keyed on the name: changing your user ID shouldn't reload your data.
+  }, [backend, athlete.id, readOnly]);
 
   // Save own changes shortly after they happen.
   useEffect(() => {
@@ -216,13 +219,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const weighIns = useMemo(() => {
     if (!data) return [];
     const own = data.weighIns ?? [];
-    return sortWeighIns(own.length ? own : sampleWeighIns(data.sample.seed, data.goals.currentWeightKg, data.goals.athleteSex));
+    return sortWeighIns(own.length || !data.sample ? own : sampleWeighIns(data.sample.seed, data.goals.currentWeightKg, data.goals.athleteSex));
   }, [data]);
   // The latest weigh-in is the current body weight.
   const latestWeight = [...weighIns].reverse().find((w) => w.weightKg !== undefined)?.weightKg;
 
   const sampleKey = data ? JSON.stringify(data.sample) : '';
-  const sample = useMemo(() => (sampleKey ? generateSample(JSON.parse(sampleKey)) : null), [sampleKey]);
+  // Demonstration athletes get generated workouts; real accounts start with none.
+  const sample = useMemo(() => (!sampleKey ? null : sampleKey === 'null' ? { workouts: [] } : generateSample(JSON.parse(sampleKey))), [sampleKey]);
 
   const value = useMemo<DataContextValue | null>(
     () =>
@@ -230,6 +234,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         ? {
             athlete,
             readOnly,
+            hasSampleData: !!data.sample,
             workouts: [...sample.workouts, ...data.added],
             goals: { ...data.goals, currentWeightKg: latestWeight ?? data.goals.currentWeightKg, races: [...data.goals.races, ...shared.map((x) => fromShared(x, athlete.id))] },
             today,
@@ -270,6 +275,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       {children}
     </DataContext.Provider>
   );
+}
+
+/** Whether demonstration labels apply (true outside a dashboard). */
+export function useHasSampleData() {
+  return useContext(DataContext)?.hasSampleData ?? true;
 }
 
 export function useData() {

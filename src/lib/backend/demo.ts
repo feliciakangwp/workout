@@ -2,9 +2,11 @@ import { DEFAULT_GOALS } from '../../data/mockData';
 import type { Friendship, Profile, SharedRace, UserData } from '../../data/types';
 import { FELICIA_DATA, hashString, newUserData } from './defaults';
 import type { AuthUser, Backend } from './types';
+import { cleanUsername } from '../username';
 
 interface DemoUser extends Profile {
-  email: string;
+  /** Hash of the password; demonstration athletes have none and sign in without one. */
+  passwordHash?: string;
 }
 interface DemoLink {
   requester: string;
@@ -23,7 +25,7 @@ const KEY = 'hyrox-dashboard.demo.v1';
 
 function seedStore(): DemoStore {
   const fiona: UserData = {
-    ...newUserData('demo-fiona'),
+    ...newUserData('demo-fiona', true),
     sample: { seed: 7331, liftScale: 1.12, paceShiftSec: -12 },
     goals: {
       ...DEFAULT_GOALS,
@@ -36,7 +38,7 @@ function seedStore(): DemoStore {
     },
   };
   const jordan: UserData = {
-    ...newUserData('demo-jordan'),
+    ...newUserData('demo-jordan', true),
     sample: { seed: 4242, liftScale: 1.35, paceShiftSec: -25 },
     goals: {
       ...DEFAULT_GOALS,
@@ -48,9 +50,9 @@ function seedStore(): DemoStore {
   };
   return {
     users: [
-      { id: 'demo-felicia', displayName: 'Felicia', email: 'felicia@demo.app' },
-      { id: 'demo-fiona', displayName: 'Fiona', email: 'fiona@demo.app' },
-      { id: 'demo-jordan', displayName: 'Jordan', email: 'jordan@demo.app' },
+      { id: 'demo-felicia', displayName: 'Felicia' },
+      { id: 'demo-fiona', displayName: 'Fiona' },
+      { id: 'demo-jordan', displayName: 'Jordan' },
     ],
     // Jordan has already sent Felicia a friend request.
     links: [{ requester: 'demo-jordan', addressee: 'demo-felicia', status: 'pending' }],
@@ -83,7 +85,9 @@ export function createDemoBackend(): Backend {
       /* storage unavailable: keep in memory */
     }
   };
-  const toAuth = (u: DemoUser): AuthUser => ({ profile: { id: u.id, displayName: u.displayName }, email: u.email });
+  const toAuth = (u: DemoUser): AuthUser => ({ profile: { id: u.id, displayName: u.displayName } });
+  const pwHash = (id: string, password: string) => String(hashString(`${id}:${password}`));
+  const byName = (s: DemoStore, name: string) => s.users.find((x) => x.displayName.toLowerCase() === cleanUsername(name).toLowerCase());
   const me = (s: DemoStore) => {
     if (!s.session) throw new Error('Not signed in.');
     return s.session;
@@ -97,20 +101,41 @@ export function createDemoBackend(): Backend {
       const u = s.users.find((x) => x.id === s.session);
       return u ? toAuth(u) : null;
     },
-    async signIn(email) {
+    async signIn(username, password) {
       const s = load();
-      const u = s.users.find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
-      if (!u) throw new Error('No account with that email. Create one below.');
+      const u = byName(s, username);
+      if (!u || (u.passwordHash && u.passwordHash !== pwHash(u.id, password))) throw new Error('Wrong user ID or password.');
       save({ ...s, session: u.id });
       return toAuth(u);
     },
-    async signUp(email, _password, displayName) {
+    async signUp(username, password) {
       const s = load();
-      const clean = email.trim().toLowerCase();
-      if (s.users.some((x) => x.email.toLowerCase() === clean)) throw new Error('An account with that email already exists. Sign in instead.');
-      const u: DemoUser = { id: `user-${hashString(clean + Date.now())}`, displayName: displayName.trim(), email: clean };
+      const name = cleanUsername(username);
+      if (byName(s, name)) throw new Error(`"${name}" is not available. Choose another user ID.`);
+      const id = `user-${hashString(name.toLowerCase() + Date.now())}`;
+      const u: DemoUser = { id, displayName: name, passwordHash: pwHash(id, password) };
       save({ ...s, users: [...s.users, u], data: { ...s.data, [u.id]: newUserData(u.id) }, session: u.id });
-      return { user: toAuth(u) };
+      return toAuth(u);
+    },
+    async isUsernameAvailable(username) {
+      const s = load();
+      const u = byName(s, username);
+      return !u || u.id === s.session;
+    },
+    async changeUsername(username) {
+      const s = load();
+      const id = me(s);
+      const name = cleanUsername(username);
+      const taken = byName(s, name);
+      if (taken && taken.id !== id) throw new Error(`"${name}" is not available. Choose another user ID.`);
+      // Keep teammates' copies of shared races showing the new name.
+      const rename = (p: Profile) => (p.id === id ? { ...p, displayName: name } : p);
+      save({
+        ...s,
+        users: s.users.map((u) => (u.id === id ? { ...u, displayName: name } : u)),
+        sharedRaces: s.sharedRaces.map((r) => ({ ...r, members: r.members.map(rename) })),
+      });
+      return { id, displayName: name };
     },
     async signOut() {
       save({ ...load(), session: null });
@@ -120,7 +145,7 @@ export function createDemoBackend(): Backend {
       const q = query.trim().toLowerCase();
       if (!q) return [];
       return s.users
-        .filter((u) => u.id !== s.session && (u.displayName.toLowerCase().includes(q) || u.email.toLowerCase() === q))
+        .filter((u) => u.id !== s.session && u.displayName.toLowerCase().includes(q))
         .map(({ id, displayName }) => ({ id, displayName }));
     },
     async listFriendships() {

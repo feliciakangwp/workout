@@ -2,9 +2,13 @@ import { createClient } from '@supabase/supabase-js';
 import type { BodySegment, Friendship, Profile, SegmentReading, SharedRace, UserData } from '../../data/types';
 import type { ScanResult } from '../bodyScanOcr';
 import type { AuthUser, Backend } from './types';
+import { cleanUsername } from '../username';
+
+/** Domain of the hidden login addresses (no email is ever sent to them). */
+const LOGIN_DOMAIN = 'users.hyrox-dashboard.app';
 
 /**
- * Supabase backend: email + password auth, a public `profiles` table,
+ * Supabase backend: user ID + password sign-in, a public `profiles` table,
  * `friendships` (pending / accepted), one JSON document per athlete in
  * `user_data`, and `shared_races` for doubles / relay teammates. Row-level security in supabase/schema.sql makes data readable
  * only by its owner and accepted friends, and writable only by its owner.
@@ -19,44 +23,66 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
   };
 
   const profileOf = async (id: string, fallbackName = 'Athlete'): Promise<Profile> => {
-    const { data } = await db.from('profiles').select('id, display_name').eq('id', id).maybeSingle();
-    return { id, displayName: data?.display_name ?? fallbackName };
+    const { data } = await db.from('profiles').select('id, username').eq('id', id).maybeSingle();
+    return { id, displayName: data?.username ?? fallbackName };
   };
 
-  const authUser = async (id: string, email: string, name?: string): Promise<AuthUser> => ({ profile: await profileOf(id, name), email });
+  const authUser = async (id: string, name?: string): Promise<AuthUser> => ({ profile: await profileOf(id, name) });
+  const notAvailable = (name: string) => new Error(`"${name}" is not available. Choose another user ID.`);
 
   return {
     mode: 'supabase',
     async currentUser() {
       const { data } = await db.auth.getSession();
       const u = data.session?.user;
-      return u ? authUser(u.id, u.email ?? '', u.user_metadata?.display_name) : null;
+      return u ? authUser(u.id, u.user_metadata?.username) : null;
     },
-    async signIn(email, password) {
-      const { data, error } = await db.auth.signInWithPassword({ email: email.trim(), password });
-      if (error || !data.user) throw new Error(error?.message ?? 'Sign in failed.');
-      return authUser(data.user.id, data.user.email ?? email, data.user.user_metadata?.display_name);
+    async signIn(username, password) {
+      // Accounts sign in with a hidden login address; look it up from the user ID.
+      const { data: email, error: lookup } = await db.rpc('login_email', { p_username: cleanUsername(username) });
+      if (lookup) throw new Error(lookup.message);
+      if (!email) throw new Error('Wrong user ID or password.');
+      const { data, error } = await db.auth.signInWithPassword({ email: email as string, password });
+      if (error || !data.user) throw new Error(error?.message === 'Invalid login credentials' ? 'Wrong user ID or password.' : error?.message ?? 'Sign in failed.');
+      return authUser(data.user.id);
     },
-    async signUp(email, password, displayName) {
-      const { data, error } = await db.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { data: { display_name: displayName.trim() }, emailRedirectTo: window.location.origin + import.meta.env.BASE_URL },
-      });
-      if (error) throw new Error(error.message);
-      // Without a session the project requires email confirmation first.
-      if (!data.session || !data.user) return { user: null };
-      return { user: await authUser(data.user.id, data.user.email ?? email, displayName) };
+    async signUp(username, password) {
+      const name = cleanUsername(username);
+      if (!(await this.isUsernameAvailable(name))) throw notAvailable(name);
+      // Supabase Auth needs an email, so each account gets a private, never-used login address.
+      const { data, error } = await db.auth.signUp({ email: `${crypto.randomUUID()}@${LOGIN_DOMAIN}`, password, options: { data: { username: name } } });
+      if (error) throw /database error/i.test(error.message) ? notAvailable(name) : new Error(error.message);
+      if (!data.session || !data.user) throw new Error('Sign-up needs "Confirm email" turned off in Supabase (Authentication → Sign In / Providers → Email).');
+      return authUser(data.user.id, name);
     },
     async signOut() {
       await db.auth.signOut();
+    },
+    async isUsernameAvailable(username) {
+      const { data, error } = await db.rpc('username_available', { p_username: cleanUsername(username) });
+      if (error) throw new Error(error.message);
+      return data as boolean;
+    },
+    async changeUsername(username) {
+      const me = await userId();
+      const name = cleanUsername(username);
+      const { error } = await db.from('profiles').update({ username: name }).eq('id', me);
+      if (error) throw error.code === '23505' ? notAvailable(name) : new Error(error.message);
+      // Shared races keep a copy of each member's name: update yours.
+      const races = await this.listSharedRaces().catch(() => []);
+      await Promise.all(
+        races
+          .filter((r) => r.members.some((m) => m.id === me && m.displayName !== name))
+          .map((r) => this.saveSharedRace({ ...r, members: r.members.map((m) => (m.id === me ? { ...m, displayName: name } : m)) }).catch(() => undefined)),
+      );
+      return { id: me, displayName: name };
     },
     async searchProfiles(query) {
       const q = query.trim();
       if (!q) return [];
       const { data, error } = await db.rpc('search_profiles', { query: q });
       if (error) throw new Error(error.message);
-      return (data as { id: string; display_name: string }[]).map((r) => ({ id: r.id, displayName: r.display_name }));
+      return (data as { id: string; username: string }[]).map((r) => ({ id: r.id, displayName: r.username }));
     },
     async listFriendships() {
       const me = await userId();
@@ -64,8 +90,8 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       if (error) throw new Error(error.message);
       const rows = data as { requester: string; addressee: string; status: 'pending' | 'accepted' }[];
       const ids = rows.map((r) => (r.requester === me ? r.addressee : r.requester));
-      const { data: profiles } = ids.length ? await db.from('profiles').select('id, display_name').in('id', ids) : { data: [] };
-      const names = new Map((profiles ?? []).map((p: { id: string; display_name: string }) => [p.id, p.display_name]));
+      const { data: profiles } = ids.length ? await db.from('profiles').select('id, username').in('id', ids) : { data: [] };
+      const names = new Map((profiles ?? []).map((p: { id: string; username: string }) => [p.id, p.username]));
       return rows.map((r): Friendship => {
         const other = r.requester === me ? r.addressee : r.requester;
         return { profile: { id: other, displayName: names.get(other) ?? 'Athlete' }, status: r.status === 'accepted' ? 'friends' : r.requester === me ? 'requested' : 'incoming' };

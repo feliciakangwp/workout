@@ -3,12 +3,21 @@
 -- Row-level security makes each athlete's data private to them and to friends
 -- who have accepted a friend request; only the owner can change it.
 
--- Public profile: display name only (email stays private in auth.users).
+-- Athletes sign up and sign in with a user ID and password. Supabase Auth
+-- needs an email, so the app gives every account a hidden login address
+-- (<random>@users.hyrox-dashboard.app) that is never shown or emailed.
+-- In Authentication → Sign In / Providers → Email, turn OFF "Confirm email".
+
+-- Public profile: the athlete's user ID, unique ignoring case.
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  display_name text not null check (char_length(display_name) between 1 and 60),
+  username text not null check (username ~ '^[A-Za-z0-9._-]{3,20}$'),
   created_at timestamptz not null default now()
 );
+-- Earlier versions of this script used display names instead of user IDs.
+alter table public.profiles add column if not exists username text;
+alter table public.profiles drop column if exists display_name;
+create unique index if not exists profiles_username_key on public.profiles (lower(username));
 
 -- Friend requests: pending until the addressee accepts.
 create table if not exists public.friendships (
@@ -41,7 +50,7 @@ returns boolean language sql stable security definer set search_path = public as
   );
 $$;
 
--- profiles: any signed-in athlete can read names (for friend lists); only the owner edits.
+-- profiles: any signed-in athlete can read user IDs (for friend lists); only the owner changes theirs.
 drop policy if exists "profiles: read" on public.profiles;
 create policy "profiles: read" on public.profiles for select to authenticated using (true);
 drop policy if exists "profiles: update own" on public.profiles;
@@ -76,8 +85,8 @@ create policy "user_data: update own" on public.user_data for update to authenti
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, display_name)
-  values (new.id, coalesce(nullif(trim(new.raw_user_meta_data ->> 'display_name'), ''), split_part(new.email, '@', 1)));
+  insert into public.profiles (id, username)
+  values (new.id, trim(new.raw_user_meta_data ->> 'username'));
   return new;
 end;
 $$;
@@ -85,20 +94,43 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Search other athletes by name, or by exact email address, without exposing emails.
+-- Search other athletes by user ID.
+drop function if exists public.search_profiles(text);
 create or replace function public.search_profiles(query text)
-returns table (id uuid, display_name text)
+returns table (id uuid, username text)
 language sql stable security definer set search_path = public as $$
-  select p.id, p.display_name
+  select p.id, p.username
   from public.profiles p
-  join auth.users u on u.id = p.id
   where auth.uid() is not null
     and p.id <> auth.uid()
     and length(trim(query)) >= 2
-    and (p.display_name ilike '%' || trim(query) || '%' or lower(u.email) = lower(trim(query)))
-  order by p.display_name
+    and p.username ilike '%' || trim(query) || '%'
+  order by p.username
   limit 20;
 $$;
+
+-- Sign-up and rename check: is this user ID free (ignoring case)? Your own counts as free.
+create or replace function public.username_available(p_username text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select not exists (
+    select 1 from public.profiles
+    where lower(username) = lower(trim(p_username)) and id is distinct from auth.uid()
+  );
+$$;
+revoke all on function public.username_available(text) from public;
+grant execute on function public.username_available(text) to anon, authenticated;
+
+-- Sign-in: the hidden login address for a user ID (only app-made addresses are returned).
+create or replace function public.login_email(p_username text)
+returns text language sql stable security definer set search_path = public as $$
+  select u.email
+  from auth.users u
+  join public.profiles p on p.id = u.id
+  where lower(p.username) = lower(trim(p_username))
+    and u.email like '%@users.hyrox-dashboard.app';
+$$;
+revoke all on function public.login_email(text) from public;
+grant execute on function public.login_email(text) to anon, authenticated;
 revoke all on function public.search_profiles(text) from public, anon;
 grant execute on function public.search_profiles(text) to authenticated;
 revoke all on function public.is_friend(uuid) from public, anon;
