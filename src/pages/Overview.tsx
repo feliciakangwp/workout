@@ -61,6 +61,8 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
     <Card>
       <CardHeader icon={Target} title="Goals & races" subtitle="Editable example goals — not measured values" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>} />
       <div className="space-y-4 p-5">
+        {/* Body weight is private: not shown on a friend's dashboard. */}
+        {!readOnly && (
         <div>
           <div className="flex items-baseline justify-between text-sm">
             <span className="font-medium text-slate-700">Body weight</span>
@@ -72,6 +74,7 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
             <button className="font-medium text-blue-600 hover:text-blue-700" onClick={() => onNavigate('body')}>Body composition →</button>
           </div>
         </div>
+        )}
         <div>
           <div className="flex items-baseline justify-between text-sm">
             <span className="font-medium text-slate-700">{goals.runGoalDistanceKm} km @ {fmtPace(goals.runGoalPaceSecPerKm)}/km</span>

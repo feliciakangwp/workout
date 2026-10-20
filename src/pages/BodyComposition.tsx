@@ -29,6 +29,18 @@ const EVAL_TONE: Record<string, string> = {
 const deltaBadge = (c?: Change) => (c?.delta !== undefined ? { delta: c.delta, deltaLabel: fmtDelta(c.delta, c.unit) } : {});
 
 export function BodyComposition() {
+  const { readOnly, athlete } = useData();
+  if (readOnly)
+    return (
+      <div>
+        <PageHeader title="Body Composition" />
+        <EmptyState title="Private" text={`${athlete.displayName}'s weight and body composition are only visible to them.`} />
+      </div>
+    );
+  return <OwnBodyComposition />;
+}
+
+function OwnBodyComposition() {
   const { weighIns, readOnly, removeWeighIn, athlete } = useData();
   const [adding, setAdding] = useState(false);
   const [panel, setPanel] = useState<Panel>('lean');

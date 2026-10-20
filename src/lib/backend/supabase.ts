@@ -3,6 +3,7 @@ import type { BodySegment, Friendship, Profile, SegmentReading, SharedRace, User
 import type { ScanResult } from '../bodyScanOcr';
 import type { AuthUser, Backend } from './types';
 import { cleanUsername } from '../username';
+import { mergePrivate, redact, splitPrivate, type PrivateData } from './privacy';
 
 /** Domain of the hidden login addresses (no email is ever sent to them). */
 const LOGIN_DOMAIN = 'users.hyrox-dashboard.app';
@@ -120,11 +121,22 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     async loadUserData(id) {
       const { data, error } = await db.from('user_data').select('data').eq('user_id', id).maybeSingle();
       if (error) throw new Error(error.message);
-      return (data?.data as UserData | undefined) ?? null;
+      const shared = (data?.data as UserData | undefined) ?? null;
+      if (!shared) return null;
+      if (id !== (await userId())) return redact(shared);
+      // Body weight and weigh-ins live in user_private, readable only by the athlete.
+      const { data: priv, error: privError } = await db.from('user_private').select('data').eq('user_id', id).maybeSingle();
+      if (privError) throw new Error(privError.message);
+      return mergePrivate(shared, priv?.data as PrivateData | undefined);
     },
     async saveUserData(id, data) {
-      const { error } = await db.from('user_data').upsert({ user_id: id, data, updated_at: new Date().toISOString() });
-      if (error) throw new Error(error.message);
+      const parts = splitPrivate(data);
+      const now = new Date().toISOString();
+      const [a, b] = await Promise.all([
+        db.from('user_data').upsert({ user_id: id, data: parts.shared, updated_at: now }),
+        db.from('user_private').upsert({ user_id: id, data: parts.private, updated_at: now }),
+      ]);
+      if (a.error || b.error) throw new Error((a.error ?? b.error)!.message);
     },
     async listSharedRaces() {
       const { data, error } = await db.from('shared_races').select('id, owner, data');

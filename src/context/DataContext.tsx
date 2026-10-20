@@ -217,10 +217,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Invented sample weigh-ins are shown only until the athlete uploads their own.
   const weighIns = useMemo(() => {
-    if (!data) return [];
+    // Weigh-ins are private: never shown on a friend's dashboard.
+    if (!data || readOnly) return [];
     const own = data.weighIns ?? [];
     return sortWeighIns(own.length || !data.sample ? own : sampleWeighIns(data.sample.seed, data.goals.currentWeightKg, data.goals.athleteSex));
-  }, [data]);
+  }, [data, readOnly]);
   // The latest weigh-in is the current body weight.
   const latestWeight = [...weighIns].reverse().find((w) => w.weightKg !== undefined)?.weightKg;
 

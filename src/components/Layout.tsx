@@ -44,9 +44,11 @@ const initials = (name: string) =>
     .toUpperCase();
 
 function NavList({ page, onNavigate, collapsed }: { page: PageId; onNavigate: (p: PageId) => void; collapsed: boolean }) {
+  const { readOnly } = useData();
   return (
     <nav className="flex flex-col gap-1">
-      {ALL_NAV.map(({ id, label, icon: Icon }) => {
+      {/* Body composition is private: hidden on a friend's dashboard. */}
+      {ALL_NAV.filter((n) => !(readOnly && n.id === 'body')).map(({ id, label, icon: Icon }) => {
         const active = id === page;
         return (
           <button
@@ -218,7 +220,7 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
             <button className={item} onClick={() => { openProfile(); setOpen(false); }}><Pencil size={16} /> Athlete & races</button>
           )}
           <button className={item} onClick={() => { onNavigate('race3d'); setOpen(false); }}><Box size={16} /> Race 3D</button>
-          <button className={item} onClick={() => { onNavigate('body'); setOpen(false); }}><Scale size={16} /> Body composition</button>
+          {!readOnly && <button className={item} onClick={() => { onNavigate('body'); setOpen(false); }}><Scale size={16} /> Body composition</button>}
           <button className={item} onClick={() => { onNavigate('friends'); setOpen(false); }}><Users size={16} /> Friends</button>
           <button className={`${item} text-rose-600 hover:bg-rose-50`} onClick={() => signOut()}><LogOut size={16} /> {demoVisit ? 'Leave demo' : 'Sign out'}</button>
         </div>

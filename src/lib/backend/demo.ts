@@ -1,6 +1,7 @@
 import { DEFAULT_GOALS } from '../../data/mockData';
 import type { Friendship, Profile, SharedRace, UserData } from '../../data/types';
 import { FELICIA_DATA, hashString, newUserData } from './defaults';
+import { redact } from './privacy';
 import type { AuthUser, Backend } from './types';
 import { cleanUsername } from '../username';
 
@@ -182,7 +183,9 @@ export function createDemoBackend(): Backend {
       const id = me(s);
       const allowed = userId === id || s.links.some((l) => l.status === 'accepted' && between(l, id, userId));
       if (!allowed) throw new Error('You can only view friends who have accepted your request.');
-      return s.data[userId] ?? null;
+      const data = s.data[userId] ?? null;
+      // Friends never get your body weight or weigh-ins.
+      return data && userId !== id ? redact(data) : data;
     },
     async saveUserData(userId, data) {
       const s = load();

@@ -39,7 +39,9 @@ whether it is available. Athletes sign in with user ID + password, and change th
 the account menu.
 
 Each athlete signs in and sees only their own dashboard. Friends (after a request is accepted) can open each other's
-dashboards **read-only** from the Friends page (account menu → Friends).
+dashboards **read-only** from the Friends page (account menu → Friends). Body weight, weight goals and weigh-ins (Body
+Composition) are private: they are kept apart (`user_private` in Supabase, readable only by the athlete) and never
+shown on, or sent to, a friend's dashboard.
 
 - **Teammates**: in a Doubles or Relay race you can tag friends (1 partner / up to 3 relay teammates). The race then
   appears in their races too and any teammate can edit it; each relay member picks their own legs. Only the person who

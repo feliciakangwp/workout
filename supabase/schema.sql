@@ -36,7 +36,15 @@ create table if not exists public.user_data (
   updated_at timestamptz not null default now()
 );
 
+-- Body weight and weigh-ins: only the athlete can read or change them (never friends).
+create table if not exists public.user_private (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
 alter table public.profiles enable row level security;
+alter table public.user_private enable row level security;
 alter table public.friendships enable row level security;
 alter table public.user_data enable row level security;
 
@@ -79,6 +87,11 @@ drop policy if exists "user_data: insert own" on public.user_data;
 create policy "user_data: insert own" on public.user_data for insert to authenticated with check (user_id = auth.uid());
 drop policy if exists "user_data: update own" on public.user_data;
 create policy "user_data: update own" on public.user_data for update to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- user_private: the owner only.
+drop policy if exists "user_private: own" on public.user_private;
+create policy "user_private: own" on public.user_private for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- Create the profile automatically when someone signs up.
