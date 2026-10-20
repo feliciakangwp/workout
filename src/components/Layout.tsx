@@ -12,6 +12,7 @@ import { planSummary } from './WeeklyPlanner';
 import { planKey } from '../data/types';
 import { useAuth } from '../context/AuthContext';
 import { useData, useHasSampleData } from '../context/DataContext';
+import { useFriendRequests } from '../context/FriendRequestsContext';
 import { useUI } from '../context/UIContext';
 import { raceTypeLabel, upcomingRaces } from '../lib/analytics';
 
@@ -44,8 +45,14 @@ const initials = (name: string) =>
     .slice(0, 2)
     .toUpperCase();
 
+/** Red count dot for unanswered friend requests. */
+function Badge({ n }: { n: number }) {
+  return <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-none text-white ring-2 ring-white">{n}</span>;
+}
+
 function NavList({ page, onNavigate, collapsed }: { page: PageId; onNavigate: (p: PageId) => void; collapsed: boolean }) {
   const { readOnly } = useData();
+  const { incoming } = useFriendRequests();
   return (
     <nav className="flex flex-col gap-1">
       {/* Body composition is private: hidden on a friend's dashboard. */}
@@ -57,12 +64,13 @@ function NavList({ page, onNavigate, collapsed }: { page: PageId; onNavigate: (p
             onClick={() => onNavigate(id)}
             title={collapsed ? label : undefined}
             aria-current={active ? 'page' : undefined}
-            className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+            className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
               active ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             } ${collapsed ? 'justify-center' : ''}`}
           >
             <Icon size={18} className="shrink-0" />
             {!collapsed && <span className="truncate">{label}</span>}
+            {id === 'friends' && incoming.length > 0 && (collapsed ? <Badge n={incoming.length} /> : <span className="ml-auto rounded-full bg-rose-500 px-1.5 text-[11px] font-semibold text-white">{incoming.length}</span>)}
           </button>
         );
       })}
@@ -193,6 +201,7 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const { openProfile } = useUI();
   const [open, setOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const { incoming } = useFriendRequests();
   const [exercisesOpen, setExercisesOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -205,8 +214,9 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const item = 'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100';
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen((o) => !o)} className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 hover:bg-blue-200" aria-label="Account menu" aria-expanded={open}>
+      <button onClick={() => setOpen((o) => !o)} className="relative flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-700 hover:bg-blue-200" aria-label="Account menu" aria-expanded={open}>
         {initials(user.profile.displayName)}
+        {incoming.length > 0 && <Badge n={incoming.length} />}
       </button>
       {open && (
         <div className="absolute right-0 top-11 z-50 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
@@ -224,7 +234,10 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
           <button className={item} onClick={() => { onNavigate('race3d'); setOpen(false); }}><Box size={16} /> Race 3D</button>
           {!readOnly && <button className={item} onClick={() => { onNavigate('body'); setOpen(false); }}><Scale size={16} /> Body composition</button>}
           {!readOnly && <button className={item} onClick={() => { setExercisesOpen(true); setOpen(false); }}><Dumbbell size={16} /> My exercises</button>}
-          <button className={item} onClick={() => { onNavigate('friends'); setOpen(false); }}><Users size={16} /> Friends</button>
+          <button className={item} onClick={() => { onNavigate('friends'); setOpen(false); }}>
+            <Users size={16} /> Friends
+            {incoming.length > 0 && <span className="ml-auto rounded-full bg-rose-500 px-1.5 text-[11px] font-semibold text-white">{incoming.length} new</span>}
+          </button>
           <button className={`${item} text-rose-600 hover:bg-rose-50`} onClick={() => signOut()}><LogOut size={16} /> {demoVisit ? 'Leave demo' : 'Sign out'}</button>
         </div>
       )}

@@ -5,6 +5,8 @@ import { AddWorkoutModal } from './components/AddWorkoutModal';
 import { AthleteProfileModal } from './components/AthleteProfileModal';
 import { LoginScreen } from './components/LoginScreen';
 import { UpdateBanner } from './components/UpdateBanner';
+import { FriendRequestPrompt } from './components/FriendRequestPrompt';
+import { FriendRequestsProvider } from './context/FriendRequestsContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { UIProvider } from './context/UIContext';
 import { DataProvider, useData } from './context/DataContext';
@@ -93,28 +95,31 @@ function Dashboard() {
 
   return (
     <UIProvider value={ui}>
-      <Layout page={page} onNavigate={navigate}>
-        {page === 'overview' && <Overview onNavigate={navigate} />}
-        {page === 'muscles' && <MuscleAnalysis />}
-        {page === 'strength' && <StrengthProgression />}
-        {page === 'running' && <RunningPerformance />}
-        {page === 'hyrox' && <HyroxPerformance />}
-        {page === 'log' && <WorkoutLog onAddWorkout={() => openAdd()} />}
-        {page === 'race3d' && (
-          <Suspense fallback={<p className="py-20 text-center text-sm text-slate-500">Loading 3D race…</p>}>
-            <Race3D />
-          </Suspense>
+      <FriendRequestsProvider>
+        <Layout page={page} onNavigate={navigate}>
+          {page === 'overview' && <Overview onNavigate={navigate} />}
+          {page === 'muscles' && <MuscleAnalysis />}
+          {page === 'strength' && <StrengthProgression />}
+          {page === 'running' && <RunningPerformance />}
+          {page === 'hyrox' && <HyroxPerformance />}
+          {page === 'log' && <WorkoutLog onAddWorkout={() => openAdd()} />}
+          {page === 'race3d' && (
+            <Suspense fallback={<p className="py-20 text-center text-sm text-slate-500">Loading 3D race…</p>}>
+              <Race3D />
+            </Suspense>
+          )}
+          {page === 'body' && <BodyComposition />}
+          {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
+        </Layout>
+        {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} date={adding.date} plan={adding.plan} start={adding.start} onClose={() => setAdding(null)} />}
+        <AthleteProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+        {!readOnly && <FriendRequestPrompt onNavigate={navigate} />}
+        {toast && (
+          <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg lg:bottom-5" role="status">
+            <CheckCircle2 size={16} className="shrink-0 text-emerald-400" /> {toast}
+          </div>
         )}
-        {page === 'body' && <BodyComposition />}
-        {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
-      </Layout>
-      {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} date={adding.date} plan={adding.plan} start={adding.start} onClose={() => setAdding(null)} />}
-      <AthleteProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
-      {toast && (
-        <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg lg:bottom-5" role="status">
-          <CheckCircle2 size={16} className="shrink-0 text-emerald-400" /> {toast}
-        </div>
-      )}
+      </FriendRequestsProvider>
     </UIProvider>
   );
 }

@@ -2,6 +2,7 @@ import { Check, Eye, Search, UserMinus, UserPlus, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Card, CardHeader, PageHeader } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { useFriendRequests } from '../context/FriendRequestsContext';
 import { useUI } from '../context/UIContext';
 import type { Friendship, Profile } from '../data/types';
 
@@ -26,16 +27,20 @@ export function Friends({ onOpenDashboard }: { onOpenDashboard: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const requests = useFriendRequests();
   const refresh = useCallback(() => backend.listFriendships().then(setLinks).catch((e: Error) => setError(e.message)), [backend]);
+  // Reload when requests change (e.g. answered from the pop-up or a new one arrived).
+  const incomingKey = requests.incoming.map((p) => p.id).join();
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, incomingKey]);
 
   const run = async (fn: () => Promise<void>, message: string) => {
     setError('');
     try {
       await fn();
       await refresh();
+      requests.refresh();
       notify(message);
     } catch (e) {
       setError((e as Error).message);
