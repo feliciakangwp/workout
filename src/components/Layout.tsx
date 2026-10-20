@@ -185,7 +185,7 @@ function OpenWorkoutsBar() {
 
 /** Avatar button with the account menu: races, friends, sign out. */
 function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
-  const { user, signOut, backend, viewFriend } = useAuth();
+  const { user, signOut, backend, viewFriend, demoVisit } = useAuth();
   const { readOnly } = useData();
   const { openProfile } = useUI();
   const [open, setOpen] = useState(false);
@@ -209,7 +209,7 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
           <button className="w-full rounded-lg px-3 py-2 text-left hover:bg-slate-100" onClick={() => { setRenaming(true); setOpen(false); }} aria-label="Edit user ID">
             <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">{user.profile.displayName} <Pencil size={12} className="text-slate-400" /></span>
             <span className="block text-xs text-slate-500">Your user ID · tap to change</span>
-            {backend.mode === 'demo' && <span className="mt-1 block text-[11px] text-amber-700">Demo account (stored in this browser)</span>}
+            {backend.mode === 'demo' && <span className="mt-1 block text-[11px] text-amber-700">{demoVisit ? 'Demo athlete: changes stay in this browser' : 'Demo account (stored in this browser)'}</span>}
           </button>
           <div className="my-1 border-t border-slate-100" />
           {readOnly ? (
@@ -220,7 +220,7 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
           <button className={item} onClick={() => { onNavigate('race3d'); setOpen(false); }}><Box size={16} /> Race 3D</button>
           <button className={item} onClick={() => { onNavigate('body'); setOpen(false); }}><Scale size={16} /> Body composition</button>
           <button className={item} onClick={() => { onNavigate('friends'); setOpen(false); }}><Users size={16} /> Friends</button>
-          <button className={`${item} text-rose-600 hover:bg-rose-50`} onClick={() => signOut()}><LogOut size={16} /> Sign out</button>
+          <button className={`${item} text-rose-600 hover:bg-rose-50`} onClick={() => signOut()}><LogOut size={16} /> {demoVisit ? 'Leave demo' : 'Sign out'}</button>
         </div>
       )}
       {renaming && <ChangeUsernameModal onClose={() => setRenaming(false)} />}
@@ -270,6 +270,18 @@ function ChangeUsernameModal({ onClose }: { onClose: () => void }) {
         <p className="text-xs text-slate-500">Your user ID is your profile name and what you sign in with. Your password stays the same.</p>
       </div>
     </Modal>
+  );
+}
+
+/** While exploring the demo on a site with real accounts: a way back to sign up. */
+function DemoVisitBanner() {
+  const { demoVisit, signOut } = useAuth();
+  if (!demoVisit) return null;
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+      <span className="min-w-0 flex-1">You're exploring the demo with sample data. Nothing here is saved to an account.</span>
+      <button className="btn-primary py-1.5 text-xs" onClick={() => signOut()}>Sign up or sign in</button>
+    </div>
   );
 }
 
@@ -346,6 +358,7 @@ export function Layout({ page, onNavigate, children }: { page: PageId; onNavigat
         </header>
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pb-28 pt-4 sm:px-6 sm:py-6 lg:pb-6">
           {page !== 'friends' && <ViewingBanner />}
+          <DemoVisitBanner />
           <TodayPlanBar />
           <OpenWorkoutsBar />
           {children}

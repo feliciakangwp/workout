@@ -9,7 +9,7 @@ const DEMO_ACCOUNTS = ['Felicia', 'Fiona', 'Jordan'];
 
 /** Sign in or sign up with a user ID and password. */
 export function LoginScreen() {
-  const { backend, signIn, signUp } = useAuth();
+  const { backend, signIn, signUp, enterDemo } = useAuth();
   const demo = backend.mode === 'demo';
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [username, setUsername] = useState('');
@@ -45,7 +45,7 @@ export function LoginScreen() {
     setError('');
     setBusy(true);
     try {
-      await signIn(name, '');
+      await enterDemo(name);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -93,20 +93,21 @@ export function LoginScreen() {
           {mode === 'signup' && <p className="text-center text-xs text-slate-500">Your user ID is your profile name. You can change it later by tapping your name.</p>}
         </form>
 
-        {demo && (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
-            <p className="font-semibold">Demo mode</p>
-            <p className="mt-0.5">Accounts are stored only in this browser. Connect Supabase so friends can sign up from their own phones.</p>
-            <p className="mt-3 font-medium text-amber-900">Try a demo athlete (no password):</p>
-            <div className="mt-1.5 flex flex-wrap gap-2">
-              {DEMO_ACCOUNTS.map((name) => (
-                <button key={name} type="button" disabled={busy} onClick={() => quick(name)} className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-amber-200 hover:bg-amber-100">
-                  {name}
-                </button>
-              ))}
-            </div>
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
+          <p className="font-semibold">Just looking? Explore the demo</p>
+          <p className="mt-0.5">
+            {demo
+              ? 'Accounts on this site are stored only in this browser. Try a demo athlete with sample training data (no password):'
+              : 'See the dashboard with sample training data, no sign-up needed. Nothing you change in the demo is saved to an account.'}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {DEMO_ACCOUNTS.map((name) => (
+              <button key={name} type="button" disabled={busy} onClick={() => quick(name)} className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-amber-200 hover:bg-amber-100">
+                {name}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

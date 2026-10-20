@@ -46,6 +46,8 @@ dashboards **read-only** from the Friends page (account menu → Friends).
   created the race changes who is tagged; a tagged teammate can leave the race.
 - **Demo mode** (default): accounts live in this browser only. Demo athletes with sample data (no password):
   Felicia, Fiona and Jordan (Jordan has sent Felicia a friend request). Data is kept in browser storage between visits.
+- **Explore the demo**: the sign-in page always offers the demo athletes, so anyone can look around without signing up.
+  With Supabase connected, the demo stays in that browser and a banner leads back to sign up.
 - **Supabase mode**: user ID + password sign-in, with data stored in Supabase. Enabled when
   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set at build time.
 
