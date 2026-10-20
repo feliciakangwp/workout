@@ -27,3 +27,31 @@
 }
 
 .recharts-wrapper:focus, .recharts-surface:focus { outline: none; }
+
+/* Race 3D labels (drawn over the WebGL canvas) */
+.r3d-tag {
+  @apply whitespace-nowrap rounded-lg bg-white/90 px-2 py-1 text-center text-[11px] leading-tight text-slate-700 shadow-sm ring-1 ring-slate-200;
+}
+.r3d-tag b {
+  @apply font-semibold text-slate-900;
+}
+.r3d-tag i {
+  @apply not-italic text-amber-700;
+}
+.r3d-run {
+  @apply bg-blue-50/90 text-[10px] text-blue-800 ring-blue-200;
+}
+.r3d-start {
+  @apply bg-emerald-50/90 text-emerald-800 ring-emerald-200;
+}
+.r3d-num {
+  @apply mr-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-semibold text-white;
+}
+@media (max-width: 640px) {
+  .r3d-tag {
+    @apply px-1.5 py-0.5 text-[9px];
+  }
+  .r3d-run {
+    @apply hidden;
+  }
+}

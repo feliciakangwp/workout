@@ -1,5 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { ALL_NAV, Layout, type PageId } from './components/Layout';
 import { AddWorkoutModal } from './components/AddWorkoutModal';
 import { AthleteProfileModal } from './components/AthleteProfileModal';
@@ -15,6 +15,9 @@ import { HyroxPerformance } from './pages/HyroxPerformance';
 import { WorkoutLog } from './pages/WorkoutLog';
 import { Friends } from './pages/Friends';
 import { BodyComposition } from './pages/BodyComposition';
+
+// Three.js is large: load the 3D page only when it is opened.
+const Race3D = lazy(() => import('./pages/Race3D'));
 import type { WorkoutType } from './data/types';
 
 type PlannedRef = { date: string; type: WorkoutType };
@@ -95,6 +98,11 @@ function Dashboard() {
         {page === 'running' && <RunningPerformance />}
         {page === 'hyrox' && <HyroxPerformance />}
         {page === 'log' && <WorkoutLog onAddWorkout={() => openAdd()} />}
+        {page === 'race3d' && (
+          <Suspense fallback={<p className="py-20 text-center text-sm text-slate-500">Loading 3D race…</p>}>
+            <Race3D />
+          </Suspense>
+        )}
         {page === 'body' && <BodyComposition />}
         {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
       </Layout>

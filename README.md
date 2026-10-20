@@ -70,6 +70,15 @@ dashboards **read-only** from the Friends page (account menu → Friends).
    returns the values. Without it (and in demo mode) scans are read on-device with Tesseract OCR, which works best on
    clear, straight-on screenshots.
 
+### Race 3D
+
+**Race 3D** (sidebar or account menu) draws the race floor with Three.js: start / finish, the eight stations in order
+and a 1 km run lane before each. Each station has a solid pillar for your best time and a glass one for your average,
+with its base coloured by the gap between them (green small, amber, red large); labels give the times. The panel on top
+shows the estimated finish range. *Solo* uses your own sims and races; *Doubles* uses the team estimate with the partner
+tagged in your upcoming doubles race. *Play the race* replays it with a runner and a race clock at best or average pace.
+Three.js is only downloaded when the tab is opened.
+
 ### Body composition
 
 **Body Composition** (sidebar, account menu, or *Body composition →* on the Overview goals card): *Add weigh-in*,
