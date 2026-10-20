@@ -71,7 +71,7 @@ export const DEFAULT_TITLE: Record<WorkoutType, string> = {
   HYROX: 'HYROX Session',
   'HYROX Engine': 'HYROX Engine',
   Running: 'Run',
-  Recovery: 'Recovery Session',
+  Recovery: 'Rest and recovery',
 };
 
 /** Best previous effort per exercise, shown in grey while logging. */

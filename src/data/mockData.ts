@@ -367,7 +367,7 @@ const NOTE_POOL: Partial<Record<Workout['type'], string[]>> = {
 const maybeNote = (type: Workout['type']) => (rand() < 0.18 ? pick(NOTE_POOL[type] ?? ['']) || undefined : undefined);
 
 const RECOVERY_SESSIONS = [
-  { title: 'Tuina massage + mobility', min: 60 },
+  { title: 'Rest and recovery', min: 60 },
   { title: 'Mobility & stretching flow', min: 40 },
   { title: 'Yoga flow', min: 50 },
   { title: 'Easy swim', min: 35 },

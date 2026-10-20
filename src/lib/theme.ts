@@ -37,7 +37,7 @@ export const TYPE_DESCRIPTIONS: Record<WorkoutType, string> = {
   F45: 'Functional HIIT class — full-body strength and conditioning.',
   HYROX: 'HYROX simulation or race-pace station work with compromised running.',
   'HYROX Engine': 'Erg intervals, sled work and wall balls with short run repeats.',
-  Recovery: 'Tuina massage, mobility and light stretching.',
+  Recovery: 'Rest and recovery.',
   Running: 'Easy, tempo, interval or long run.',
   Strength: 'Heavy compound lifts: squat, hinge, push, pull and carries.',
 };
