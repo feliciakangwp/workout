@@ -4,6 +4,7 @@ import { ALL_NAV, Layout, type PageId } from './components/Layout';
 import { AddWorkoutModal } from './components/AddWorkoutModal';
 import { AthleteProfileModal } from './components/AthleteProfileModal';
 import { LoginScreen } from './components/LoginScreen';
+import { UpdateBanner } from './components/UpdateBanner';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { UIProvider } from './context/UIContext';
 import { DataProvider, useData } from './context/DataContext';
@@ -30,6 +31,7 @@ const readHash = (): PageId => {
 export default function App() {
   return (
     <AuthProvider>
+      <UpdateBanner />
       <Gate />
     </AuthProvider>
   );
