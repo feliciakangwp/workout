@@ -1,5 +1,6 @@
 import { X, TrendingDown, TrendingUp, Minus, FlaskConical } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { LucideIcon } from 'lucide-react';
 import type { WorkoutType } from '../data/types';
 import { TYPE_BADGE } from '../lib/theme';
@@ -143,7 +144,8 @@ export function Modal({ open, onClose, title, children, wide = false, footer }: 
     };
   }, [open, onClose]);
   if (!open) return null;
-  return (
+  // Rendered on <body> so a parent with blur or sticky positioning (like the header) can't trap it.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} />
       <div role="dialog" aria-modal="true" aria-label={title} className={`relative flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white shadow-xl sm:rounded-2xl ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}>
@@ -156,7 +158,8 @@ export function Modal({ open, onClose, title, children, wide = false, footer }: 
         <div className="overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

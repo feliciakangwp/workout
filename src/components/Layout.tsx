@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { DemoBadge, Modal } from './ui';
 import { UsernameField, useUsernameCheck } from './UsernameField';
+import { MyExercisesModal } from './MyExercisesModal';
 import { cleanUsername, usernameProblem } from '../lib/username';
 import { fmtLong, fmtShort, diffDays } from '../lib/dates';
 import { simLabel } from '../data/stations';
@@ -192,6 +193,7 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const { openProfile } = useUI();
   const [open, setOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [exercisesOpen, setExercisesOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -221,11 +223,13 @@ function AccountMenu({ onNavigate }: { onNavigate: (p: PageId) => void }) {
           )}
           <button className={item} onClick={() => { onNavigate('race3d'); setOpen(false); }}><Box size={16} /> Race 3D</button>
           {!readOnly && <button className={item} onClick={() => { onNavigate('body'); setOpen(false); }}><Scale size={16} /> Body composition</button>}
+          {!readOnly && <button className={item} onClick={() => { setExercisesOpen(true); setOpen(false); }}><Dumbbell size={16} /> My exercises</button>}
           <button className={item} onClick={() => { onNavigate('friends'); setOpen(false); }}><Users size={16} /> Friends</button>
           <button className={`${item} text-rose-600 hover:bg-rose-50`} onClick={() => signOut()}><LogOut size={16} /> {demoVisit ? 'Leave demo' : 'Sign out'}</button>
         </div>
       )}
       {renaming && <ChangeUsernameModal onClose={() => setRenaming(false)} />}
+      {exercisesOpen && <MyExercisesModal onClose={() => setExercisesOpen(false)} />}
     </div>
   );
 }

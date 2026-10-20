@@ -33,6 +33,10 @@ interface DataContextValue {
   /** Custom exercises saved for reuse. */
   customExercises: CustomExercise[];
   saveCustomExercises: (list: CustomExercise[]) => void;
+  /** Renames a custom exercise everywhere it is used: logged workouts, open workouts and plans. */
+  renameCustomExercise: (from: string, to: string) => void;
+  /** Removes a custom exercise from the exercise list (logged workouts keep it). */
+  deleteCustomExercise: (name: string) => void;
   /** Body composition weigh-ins, oldest first (demonstration ones until the athlete adds their own). */
   weighIns: WeighIn[];
   addWeighIn: (w: Omit<WeighIn, 'id' | 'isSample'>) => void;
@@ -225,6 +229,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // The latest weigh-in is the current body weight.
   const latestWeight = [...weighIns].reverse().find((w) => w.weightKg !== undefined)?.weightKg;
 
+  const renameCustomExercise = useCallback(
+    (from: string, to: string) =>
+      update((d) => {
+        const ex = <T extends { name: string }>(e: T): T => (e.name === from ? { ...e, name: to } : e);
+        const form = (f: DraftForm): DraftForm => ({ ...f, rows: f.rows.map(ex) });
+        return {
+          ...d,
+          customExercises: d.customExercises.map(ex),
+          added: d.added.map((w) => (w.exercises.some((e) => e.name === from) ? { ...w, exercises: w.exercises.map(ex) } : w)),
+          drafts: d.drafts.map((x) => ({ ...x, form: form(x.form) })),
+          planDetails: Object.fromEntries(Object.entries(d.planDetails ?? {}).map(([k, f]) => [k, form(f)])),
+        };
+      }),
+    [update],
+  );
+  const deleteCustomExercise = useCallback((name: string) => update((d) => ({ ...d, customExercises: d.customExercises.filter((c) => c.name !== name) })), [update]);
+
   const sampleKey = data ? JSON.stringify(data.sample) : '';
   // Demonstration athletes get generated workouts; real accounts start with none.
   const sample = useMemo(() => (!sampleKey ? null : sampleKey === 'null' ? { workouts: [] } : generateSample(JSON.parse(sampleKey), today)), [sampleKey, today]);
@@ -251,12 +272,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
             deleteDraft,
             customExercises: data.customExercises,
             saveCustomExercises,
+            renameCustomExercise,
+            deleteCustomExercise,
             weighIns,
             addWeighIn,
             removeWeighIn,
           }
         : null,
-    [data, sample, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, weighIns, latestWeight, addWeighIn, removeWeighIn],
+    [data, sample, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, weighIns, latestWeight, addWeighIn, removeWeighIn],
   );
 
   if (!value)
