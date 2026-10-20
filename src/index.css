@@ -44,6 +44,15 @@
 .r3d-start {
   @apply bg-emerald-50/90 text-emerald-800 ring-emerald-200;
 }
+.r3d-you {
+  @apply bg-orange-500 text-white ring-orange-600;
+}
+.r3d-you b {
+  @apply text-white;
+}
+.r3d-short {
+  @apply hidden;
+}
 .r3d-num {
   @apply mr-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-semibold text-white;
 }
@@ -51,7 +60,11 @@
   .r3d-tag {
     @apply px-1.5 py-0.5 text-[9px];
   }
-  .r3d-run {
+  .r3d-run,
+  .r3d-full {
     @apply hidden;
+  }
+  .r3d-short {
+    @apply inline;
   }
 }

@@ -32,7 +32,7 @@ export default function Race3D() {
     <div>
       <PageHeader
         title="Race 3D"
-        subtitle="Your race floor in 3D: best and average time for every run and station, and your estimated finish. Drag to rotate, pinch or scroll to zoom."
+        subtitle="A HYROX arena in 3D: the running track outside, the stations inside, with your best and average time for every run and station. Drag to rotate, pinch or scroll to zoom."
         actions={
           <Segmented
             size="md"
@@ -128,12 +128,11 @@ function RaceView({ race, label }: { race: Race; label: string }) {
           <button className="btn-ghost py-1.5 text-xs" onClick={reset} aria-label="Restart replay"><RotateCcw size={14} /> Reset</button>
           <Segmented value={pace} onChange={(p) => { setPace(p); reset(); }} options={[{ value: 'best', label: 'Best pace' }, { value: 'avg', label: 'Average pace' }]} />
           <span className="ml-auto hidden items-center gap-3 text-[11px] text-slate-500 sm:flex">
-            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-blue-600" /> Best</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-blue-200" /> Average</span>
-            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Gap avg vs best</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> You (replay)</span>
+            <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Station edge: gap avg vs best</span>
           </span>
         </div>
-        <div className="h-[460px] sm:h-[560px]">
+        <div className="h-[520px] sm:h-[560px]">
           {hasWebgl ? (
             <Race3DScene
               rows={rows}

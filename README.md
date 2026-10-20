@@ -72,11 +72,13 @@ dashboards **read-only** from the Friends page (account menu → Friends).
 
 ### Race 3D
 
-**Race 3D** (sidebar or account menu) draws the race floor with Three.js: start / finish, the eight stations in order
-and a 1 km run lane before each. Each station has a solid pillar for your best time and a glass one for your average,
-with its base coloured by the gap between them (green small, amber, red large); labels give the times. The panel on top
-shows the estimated finish range. *Solo* uses your own sims and races; *Doubles* uses the team estimate with the partner
-tagged in your upcoming doubles race. *Play the race* replays it with a runner and a race clock at best or average pace.
+**Race 3D** (sidebar or account menu) draws a HYROX arena with Three.js: an oval running track around the outside
+(with the Roxzone gate on the front straight) and the eight stations inside, each with an athlete doing the movement
+(SkiErg pulls, sled push and pull, burpee broad jumps, rowing, farmer's carry, sandbag lunges, wall ball throws).
+Labels give best and average times per station and per run; each station's edge is coloured by the gap between them
+(green small, amber, red large). The panel on top shows the estimated finish range. *Solo* uses your own sims and races;
+*Doubles* uses the team estimate with the partner tagged in your upcoming doubles race. *Play the race* replays it:
+an orange runner laps the track for each 1 km run, then that station's athlete turns orange while the race clock runs.
 Three.js is only downloaded when the tab is opened.
 
 ### Body composition
