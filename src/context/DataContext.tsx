@@ -71,6 +71,27 @@ function toShared(r: Race, me: Profile, existing?: SharedRace): SharedRace {
   };
 }
 
+/**
+ * Races added in different visits could share an id (an old per-visit counter),
+ * so editing one changed the other. Give repeats their own id; the fix is saved
+ * with the next change.
+ */
+function repairRaceIds(d: UserData): UserData {
+  const seen = new Set<string>();
+  let changed = false;
+  const races = d.goals.races.map((r, i) => {
+    if (!seen.has(r.id)) {
+      seen.add(r.id);
+      return r;
+    }
+    changed = true;
+    const id = `${r.id}-${i}`;
+    seen.add(id);
+    return { ...r, id };
+  });
+  return changed ? { ...d, goals: { ...d.goals, races } } : d;
+}
+
 /** Loads the viewed athlete's data and saves changes (own data only). */
 export function DataProvider({ children }: { children: ReactNode }) {
   const { backend, user, viewing, viewFriend } = useAuth();
@@ -114,7 +135,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .loadUserData(athlete.id)
       .then((d) => {
         if (!live) return;
-        if (d) setData(d);
+        if (d) setData(repairRaceIds(d));
         else if (!readOnly) setData(newUserData(athlete.id));
         else setError(`${athlete.displayName} hasn't logged any data yet.`);
       })

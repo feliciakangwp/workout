@@ -10,8 +10,19 @@ import { fmtTime, parseTime } from '../lib/format';
 import { Modal, Segmented } from './ui';
 import type { ProfileTarget } from '../context/UIContext';
 
-let raceKey = 0;
-const newRace = (date: string): Race => ({ id: `race-new-${raceKey++}`, name: '', date, format: 'solo', category: 'open', relayStations: [] });
+/** Unique across visits: a per-visit counter restarted at 0 and gave a new race the id of one saved earlier. */
+const newRaceId = () => `race-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const newRace = (date: string): Race => ({ id: newRaceId(), name: '', date, format: 'solo', category: 'open', relayStations: [] });
+
+/** Gives each race a unique id, repairing races saved with a clashing id by the old counter. */
+function uniqueIds(races: Race[]): Race[] {
+  const seen = new Set<string>();
+  return races.map((r) => {
+    const id = seen.has(r.id) ? newRaceId() : r.id;
+    seen.add(id);
+    return id === r.id ? r : { ...r, id };
+  });
+}
 
 /** Text inputs for a completed race's result. */
 interface ResultInputs {
@@ -75,7 +86,7 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
   useEffect(() => {
     if (!open) return;
     setSex(goals.athleteSex);
-    const list = goals.races.map((r) => ({ ...r, relayStations: [...r.relayStations] }));
+    const list = uniqueIds(goals.races).map((r) => ({ ...r, relayStations: [...r.relayStations] }));
     let focus: string | null = null;
     if (target && 'addRace' in target) {
       const race = newRace(target.addRace === 'past' ? addDays(today, -1) : today);

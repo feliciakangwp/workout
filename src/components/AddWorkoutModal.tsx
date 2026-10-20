@@ -25,11 +25,28 @@ const parseSplit = (text: string) => parseTime(text.trim().replace(/\./g, ':'));
 type SplitInputs = Record<StationId, { run: string; station: string }>;
 const emptySplits = () => Object.fromEntries(STATIONS.map((s) => [s.id, { run: '', station: '' }])) as SplitInputs;
 
-let rowKey = 0;
+/** Row keys are saved with open workouts and plans, so they must not restart at 0 on each visit. */
+let rowKey = Date.now();
 const newRow = (name = 'Squat'): ExerciseRow => ({ key: rowKey++, name, customName: '', customMuscles: [], customMeasure: 'weight', saveTo: [], sets: '3', reps: '10', weight: '', distance: '', time: '' });
 /** Workout types a custom exercise can be saved to. */
 const SAVE_TO_TYPES: WorkoutType[] = ['HYROX Engine', 'Strength'];
 const newRunRow = (): RunRow => ({ key: rowKey++, km: '', time: '' });
+
+/**
+ * New keys for a loaded form's rows (keeping the run / exercise order), so rows
+ * saved with clashing keys by the old per-visit counter edit independently.
+ */
+function withFreshKeys(form: DraftForm): DraftForm {
+  const map = new Map<number, number>();
+  const rekey = <T extends { key: number }>(r: T): T => {
+    const key = rowKey++;
+    if (!map.has(r.key)) map.set(r.key, key);
+    return { ...r, key };
+  };
+  const rows = form.rows.map(rekey);
+  const runRows = form.runRows.map(rekey);
+  return { ...form, rows, runRows, order: form.order?.map((k) => map.get(k)).filter((k): k is number => k !== undefined) };
+}
 
 const blankForm = (today: string, division: Division): DraftForm => ({
   date: today,
@@ -107,7 +124,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
   const draft = drafts.find((d) => d.id === draftId);
   const planRef = plan ?? start;
   // Initial values: the open workout being continued, the saved plan, or a blank form.
-  const [init] = useState<DraftForm>(() => {
+  const [init] = useState<DraftForm>(() => withFreshKeys(initialForm()));
+  function initialForm(): DraftForm {
     if (draft) return draft.form;
     if (planRef) {
       const saved = planDetails[planKey(planRef.date, planRef.type)];
@@ -116,7 +134,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
       return { ...base, type: planRef.type, date: plan ? plan.date : start && start.date < today ? start.date : today };
     }
     return blankForm(forDate && forDate <= today ? forDate : today, defaultDivision);
-  });
+  }
   /** Open-workout id for Save: the one being continued, or a new one. */
   const [ownId] = useState(() => draftId ?? `draft-${Date.now()}`);
   const locked = !!planRef || !!draft?.fromPlan;
