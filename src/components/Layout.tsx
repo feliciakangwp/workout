@@ -126,7 +126,8 @@ function TodayPlanBar() {
   const { plan, planDetails, today, workouts, drafts, readOnly } = useData();
   const { startPlannedWorkout } = useUI();
   if (readOnly) return null;
-  const pending = (plan[today] ?? []).filter((t) => !workouts.some((w) => w.date === today && w.type === t) && !drafts.some((d) => d.fromPlan === planKey(today, t)));
+  // Counted from the plan isn't logged yet: still offer to log the details.
+  const pending = (plan[today] ?? []).filter((t) => !workouts.some((w) => w.date === today && w.type === t && !w.fromPlan) && !drafts.some((d) => d.fromPlan === planKey(today, t)));
   if (!pending.length) return null;
   return (
     <div className="mb-3 space-y-2">

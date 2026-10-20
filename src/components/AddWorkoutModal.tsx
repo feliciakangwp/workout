@@ -1,6 +1,7 @@
 import { CheckCircle2, ChevronDown, ChevronUp, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EXERCISES, EXERCISE_BY_NAME, entryMeasure, exerciseMeasure } from '../data/exercises';
+import { DEFAULT_TITLE } from '../lib/workoutTitles';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
 import { planKey, type CustomExercise, type Division, type DraftForm, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
@@ -65,14 +66,7 @@ const blankForm = (today: string, division: Division): DraftForm => ({
   notes: '',
 });
 
-export const DEFAULT_TITLE: Record<WorkoutType, string> = {
-  F45: 'F45 Class',
-  Strength: 'Strength Session',
-  HYROX: 'HYROX Session',
-  'HYROX Engine': 'HYROX Engine',
-  Running: 'Run',
-  Recovery: 'Rest and recovery',
-};
+export { DEFAULT_TITLE };
 
 /** Best previous effort per exercise, shown in grey while logging. */
 interface Best {

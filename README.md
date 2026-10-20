@@ -97,6 +97,12 @@ went up or down overall and per body part, whether fat was lost while keeping mu
 The latest weigh-in sets the current body weight on the goals card. Two invented example weigh-ins are shown until
 you add your own.
 
+### Saving across devices
+
+Each save checks whether another device (or tab) saved in between and merges the two, so a race or workout added on
+the phone isn't overwritten by an older copy open on the laptop. Open apps pick up changes from other devices when
+they come back into view and every minute. If sharing a tagged race fails, the race stays in your own races.
+
 ### Races and HYROX simulations
 
 - **Athlete & races** (sidebar card on laptop, profile icon on mobile): choose the athlete's sex and upcoming races —
@@ -111,6 +117,9 @@ you add your own.
   any day. Past days stay editable: *Add a past workout* (or *Log this workout* for a planned one) fills in training you
   did earlier, and logged workouts can be deleted from the day. Go back up to a year: swipe right for earlier weeks,
   left for later ones. Add workout also accepts any past date.
+- **Planned = done**: a workout planned for today or an earlier day counts as done even if it wasn't logged (using
+  any exercises written into the plan; *Log this workout* adds the details). A planned Recovery day is a rest day
+  unless exercises were planned for it.
 - **Plan ahead**: on a planned day, *Plan exercises* fills in the workout (exercises, sets, reps, target weights, runs)
   and *Save plan* keeps it. On the day, a *Today's plan → Start workout* bar opens the workout pre-filled from the plan.
   *+ Add workout* is for unplanned (ad-hoc) sessions.

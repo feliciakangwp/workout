@@ -83,7 +83,8 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
           const done = byDate.get(d) ?? [];
           const past = d < today;
           const isToday = d === today;
-          const status = done.length ? 'done' : past ? (planned.length ? 'missed' : 'rest') : planned.length ? 'planned' : 'empty';
+          // A planned Recovery day without exercises is a rest day, not a missed workout.
+          const status = done.length ? 'done' : past ? (planned.some((t) => t !== 'Recovery') ? 'missed' : 'rest') : planned.length ? 'planned' : 'empty';
           return (
             <button
               key={d}
@@ -196,7 +197,8 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
                 const key = planKey(date, t);
                 const detail = planDetails[key];
                 const started = drafts.some((d) => d.fromPlan === key);
-                const done = workouts.some((w) => w.type === t);
+                const done = workouts.some((w) => w.type === t && !w.fromPlan);
+                const counted = workouts.some((w) => w.type === t && w.fromPlan);
                 return (
                   <div key={t} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 p-3">
                     <span className="h-2 w-2 rounded-full" style={{ background: TYPE_COLORS[t] }} />
@@ -214,6 +216,7 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
                     )}
                     {started && <span className="text-xs font-medium text-blue-700">In progress</span>}
                     {done && date <= today && <span className="text-xs font-medium text-emerald-700">{past ? 'Done' : 'Done today'}</span>}
+                    {counted && <span className="basis-full text-[11px] text-emerald-700">Counted as done from your plan. Log it to add the details.</span>}
                   </div>
                 );
               })}

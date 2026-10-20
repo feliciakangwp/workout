@@ -105,6 +105,8 @@ export interface Workout {
   notes?: string;
   /** true for demonstration data, false for workouts added in this session. */
   isSample: boolean;
+  /** Not logged: planned for a day that has come, so counted as done from the plan. */
+  fromPlan?: boolean;
 }
 
 export interface Race {
@@ -283,4 +285,6 @@ export interface UserData {
   customExercises: CustomExercise[];
   /** Body composition weigh-ins the athlete uploaded. */
   weighIns?: WeighIn[];
+  /** Save counter, to notice when another device saved in between. */
+  rev?: number;
 }

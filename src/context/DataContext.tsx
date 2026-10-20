@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEMO_TODAY, generateSample } from '../data/mockData';
 import { localToday } from '../lib/dates';
+import { plannedAsDone } from '../lib/planWorkouts';
+import { mergeUserData } from '../lib/merge';
 import { STATIONS } from '../data/stations';
 import { OTHER_LEG, planKey, type CustomExercise, type DraftForm, type Goals, type Profile, type Race, type SharedRace, type UserData, type WeekPlan, type WeighIn, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
 import { newUserData } from '../lib/backend';
@@ -144,6 +146,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
   }, [loadShared]);
 
+  /** The version last loaded from or saved to the server. */
+  const base = useRef<UserData | null>(null);
+  /** The local data matching `base` (no unsaved edits while state is this object). */
+  const synced = useRef<UserData | null>(null);
+  /** Set when state is replaced from the server, so that change isn't saved back. */
+  const skipSave = useRef(false);
+  const pending = useRef(false);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+
   useEffect(() => {
     let live = true;
     loaded.current = false;
@@ -153,8 +164,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .loadUserData(athlete.id)
       .then((d) => {
         if (!live) return;
-        if (d) setData(repairRaceIds(d));
-        else if (!readOnly) setData(newUserData(athlete.id));
+        base.current = d;
+        if (d) {
+          const repaired = repairRaceIds(d);
+          synced.current = repaired === d ? d : null;
+          setData(repaired);
+        } else if (!readOnly) setData(newUserData(athlete.id));
         else setError(`${athlete.displayName} hasn't logged any data yet.`);
       })
       .catch((e: Error) => live && setError(e.message));
@@ -164,17 +179,83 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Not keyed on the name: changing your user ID shouldn't reload your data.
   }, [backend, athlete.id, readOnly]);
 
+  /**
+   * Saves `local`. If another device saved since our last load / save, the two
+   * are merged first, so a race or workout added elsewhere isn't overwritten.
+   */
+  const sync = useCallback(
+    async (local: UserData) => {
+      const server = await backend.loadUserData(athlete.id).catch(() => null);
+      const b = base.current;
+      const merged = server && b && (server.rev ?? 0) !== (b.rev ?? 0) ? mergeUserData(b, local, server) : local;
+      const next = { ...merged, rev: Math.max(server?.rev ?? 0, b?.rev ?? 0) + 1 };
+      await backend.saveUserData(athlete.id, next);
+      base.current = next;
+      if (merged === local) {
+        synced.current = local;
+        return;
+      }
+      // Show what the other device added, keeping any edit made while saving.
+      setData((cur) => {
+        if (cur !== local) return cur ? mergeUserData(local, cur, next) : cur;
+        skipSave.current = true;
+        synced.current = next;
+        return next;
+      });
+    },
+    [backend, athlete.id],
+  );
+
   // Save own changes shortly after they happen.
   useEffect(() => {
     if (!data || readOnly) return;
-    if (!loaded.current) {
-      loaded.current = true;
-      backend.saveUserData(athlete.id, data).catch(() => undefined); // persists new accounts' starting data
+    if (skipSave.current) {
+      skipSave.current = false;
       return;
     }
-    const t = setTimeout(() => backend.saveUserData(athlete.id, data).catch((e: Error) => setError(`Couldn't save: ${e.message}`)), 500);
+    if (!loaded.current) {
+      loaded.current = true;
+      if (data === synced.current) return; // just loaded, nothing to save
+    }
+    if (data === synced.current) return;
+    pending.current = true;
+    const t = setTimeout(() => {
+      queue.current = queue.current
+        .then(() => sync(data))
+        .catch((e: Error) => setError(`Couldn't save: ${e.message}`))
+        .finally(() => (pending.current = false));
+    }, 500);
     return () => clearTimeout(t);
-  }, [data, readOnly, backend, athlete.id]);
+  }, [data, readOnly, sync]);
+
+  // Pick up changes saved on another device when the app comes back into view (and every minute).
+  useEffect(() => {
+    if (readOnly) return;
+    const refresh = () => {
+      if (pending.current) return;
+      queue.current = queue.current.then(async () => {
+        const server = await backend.loadUserData(athlete.id).catch(() => null);
+        const b = base.current;
+        if (!server || !b || (server.rev ?? 0) === (b.rev ?? 0)) return;
+        base.current = server;
+        setData((cur) => {
+          if (!cur || cur === synced.current) {
+            skipSave.current = true;
+            synced.current = server;
+            return server;
+          }
+          return mergeUserData(b, cur, server); // keep unsaved edits; saved by the next change
+        });
+      });
+    };
+    const onVisible = () => document.visibilityState === 'visible' && refresh();
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = setInterval(refresh, 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(timer);
+    };
+  }, [readOnly, backend, athlete.id]);
 
   const update = useCallback((fn: (d: UserData) => UserData) => setData((d) => (d && !readOnly ? fn(d) : d)), [readOnly]);
 
@@ -186,7 +267,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     [update],
   );
-  const removeWorkout = useCallback((id: string) => update((d) => ({ ...d, added: d.added.filter((w) => w.id !== id) })), [update]);
+  const removeWorkout = useCallback(
+    (id: string) =>
+      update((d) => {
+        // A workout counted from the plan is removed by unplanning it.
+        if (id.startsWith('plan:')) {
+          const [date, type] = id.slice(5).split('|');
+          return { ...d, plan: { ...d.plan, [date]: (d.plan[date] ?? []).filter((t) => t !== type) } };
+        }
+        return { ...d, added: d.added.filter((w) => w.id !== id) };
+      }),
+    [update],
+  );
   /**
    * Saves goals and races. Doubles / relay races with tagged teammates are
    * stored as shared races; the rest stay in the athlete's own data.
@@ -196,20 +288,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (readOnly) return;
       const personal: Race[] = [];
       const nextShared: SharedRace[] = [];
+      /** Races being shared for the first time, kept to fall back on if sharing fails. */
+      const newlyShared = new Map<string, Race>();
       for (const r of g.races) {
         const existing = r.shared ? shared.find((x) => x.id === r.id) : undefined;
         const hasTeam = r.format !== 'solo' && (r.teammates?.length ?? 0) > 0;
         // A teammate's copy always stays shared; the owner's becomes personal again once untagged.
-        if (hasTeam || (existing && existing.ownerId !== athlete.id)) nextShared.push(toShared(r, athlete, existing));
-        else personal.push({ ...r, teammates: undefined, shared: undefined });
+        if (hasTeam || (existing && existing.ownerId !== athlete.id)) {
+          const sr = toShared(r, athlete, existing);
+          nextShared.push(sr);
+          if (!existing) newlyShared.set(sr.id, r);
+        } else personal.push({ ...r, teammates: undefined, shared: undefined });
       }
       const ops: Promise<void>[] = [];
       for (const old of shared)
         if (!nextShared.some((x) => x.id === old.id)) ops.push(old.ownerId === athlete.id ? backend.deleteSharedRace(old.id) : backend.leaveSharedRace(old.id));
-      nextShared.forEach((x) => ops.push(backend.saveSharedRace(x)));
+      nextShared.forEach((x) =>
+        ops.push(
+          backend.saveSharedRace(x).catch((e: Error) => {
+            // Never lose a race because sharing it failed: keep it in your own races (tags kept, so it is shared on the next save).
+            const r = newlyShared.get(x.id);
+            if (r) update((d) => ({ ...d, goals: { ...d.goals, races: [...d.goals.races.filter((y) => y.id !== r.id), { ...r, shared: undefined }] } }));
+            throw e;
+          }),
+        ),
+      );
       setShared(nextShared);
       Promise.all(ops)
-        .catch((e: Error) => setError(`Couldn't update shared race: ${e.message}`))
+        .catch((e: Error) => setError(`Couldn't share a race with your teammates (it's kept in your races): ${e.message}`))
         .finally(loadShared);
       update((d) => ({ ...d, goals: { ...g, races: personal } }));
     },
@@ -289,6 +395,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // Demonstration athletes get generated workouts; real accounts start with none.
   const sample = useMemo(() => (!sampleKey ? null : sampleKey === 'null' ? { workouts: [] } : generateSample(JSON.parse(sampleKey), today)), [sampleKey, today]);
 
+  // Planned workouts on days that have come count as done even if not logged.
+  const fromPlan = useMemo(
+    () => (data && sample ? plannedAsDone(data.plan, data.planDetails ?? {}, [...sample.workouts, ...data.added], data.drafts, data.customExercises, today) : []),
+    [data, sample, today],
+  );
+
   const value = useMemo<DataContextValue | null>(
     () =>
       data && sample
@@ -296,7 +408,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             athlete,
             readOnly,
             hasSampleData: !!data.sample,
-            workouts: [...sample.workouts, ...data.added],
+            workouts: [...sample.workouts, ...data.added, ...fromPlan],
             goals: { ...data.goals, currentWeightKg: latestWeight ?? data.goals.currentWeightKg, races: [...data.goals.races, ...shared.map((x) => fromShared(x, athlete.id))] },
             today,
             addWorkout,
@@ -318,7 +430,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             removeWeighIn,
           }
         : null,
-    [data, sample, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, weighIns, latestWeight, addWeighIn, removeWeighIn],
+    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, weighIns, latestWeight, addWeighIn, removeWeighIn],
   );
 
   if (!value)

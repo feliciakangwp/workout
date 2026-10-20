@@ -6,7 +6,7 @@ import { useUI } from '../context/UIContext';
 import { STATION_BY_ID } from '../data/stations';
 import type { Race } from '../data/types';
 import { compareRaces, legName, resultStations, completedRaces, previousRace, raceTypeLabel, resultTotals, teamLabel, type SegmentDelta } from '../lib/analytics';
-import { fmtLong } from '../lib/dates';
+import { fmtLong, fmtShort } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 import { AXIS } from '../lib/theme';
 import { Card, CardHeader, Legend, TrendBadge } from './ui';
@@ -53,12 +53,20 @@ export function RaceAnalysis() {
         ) : (
           <>
             {races.length > 1 && (
-              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-                {races.map((r) => (
-                  <button key={r.id} onClick={() => setRaceId(r.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${r.id === race.id ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}>
-                    {r.name} · {r.date.slice(0, 4)}
-                  </button>
-                ))}
+              <div>
+                <label className="label" htmlFor="race-pick">Race ({races.length} completed)</label>
+                {/* A dropdown grouped by year scales to any number of races. */}
+                <select id="race-pick" className="input" value={race.id} onChange={(e) => setRaceId(e.target.value)}>
+                  {[...new Set(races.map((r) => r.date.slice(0, 4)))].map((year) => (
+                    <optgroup key={year} label={year}>
+                      {races.filter((r) => r.date.startsWith(year)).map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} · {fmtShort(r.date)} · {r.format === 'solo' ? 'Solo' : r.format === 'doubles' ? 'Doubles' : 'Relay'}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
             )}
             <RaceResultView race={race} previous={previousRace(race, races)} />

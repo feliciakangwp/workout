@@ -49,7 +49,13 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
       <div className="flex flex-wrap items-center gap-2">
         <TypeBadge type={workout.type} />
         <span className="text-sm text-slate-500">{fmtLong(workout.date)}</span>
-        {workout.isSample ? <DemoBadge text="Sample workout" /> : <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Added this session</span>}
+        {workout.isSample ? (
+          <DemoBadge text="Sample workout" />
+        ) : workout.fromPlan ? (
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200">Done from plan{workout.exercises.length || workout.run ? '' : ' · no details logged'}</span>
+        ) : (
+          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 ring-1 ring-inset ring-blue-200">Logged</span>
+        )}
       </div>
       <h3 className="-mt-2 text-lg font-semibold text-slate-900">{workout.title}</h3>
 
@@ -154,7 +160,7 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
 
       {onRemove && !workout.isSample && (
         <button onClick={onRemove} className="btn-ghost text-rose-600 hover:bg-rose-50">
-          <Trash2 size={15} /> Remove this workout
+          <Trash2 size={15} /> {workout.fromPlan ? 'Remove from plan' : 'Remove this workout'}
         </button>
       )}
     </div>
