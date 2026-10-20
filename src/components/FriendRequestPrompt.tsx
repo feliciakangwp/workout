@@ -52,7 +52,7 @@ export function FriendRequestPrompt({ onNavigate }: { onNavigate: (p: PageId) =>
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-20 z-[55] flex justify-center px-3 lg:bottom-6 lg:justify-end lg:px-6" role="dialog" aria-label="Friend request">
+    <div className="fixed inset-x-0 bottom-20 z-[45] flex justify-center px-3 lg:bottom-6 lg:justify-end lg:px-6" role="dialog" aria-label="Friend request">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
         <div className="flex items-start gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700"><UserPlus size={18} /></span>

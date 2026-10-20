@@ -1,7 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEMO_TODAY, generateSample } from '../data/mockData';
 import { localToday } from '../lib/dates';
-import { planKey, type CustomExercise, type DraftForm, type Goals, type Profile, type Race, type SharedRace, type UserData, type WeekPlan, type WeighIn, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
+import { STATIONS } from '../data/stations';
+import { OTHER_LEG, planKey, type CustomExercise, type DraftForm, type Goals, type Profile, type Race, type SharedRace, type UserData, type WeekPlan, type WeighIn, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
 import { newUserData } from '../lib/backend';
 import { sampleWeighIns, sortWeighIns } from '../lib/analytics/body';
 import { useAuth } from './AuthContext';
@@ -47,10 +48,16 @@ const DataContext = createContext<DataContextValue | null>(null);
 
 /** A shared race as seen by one member: their own relay legs, everyone else as teammates. */
 function fromShared(s: SharedRace, viewerId: string): Race {
+  // Who does each relay leg; legs of someone who left the race become unassigned.
+  const ids = new Set([...s.members.map((m) => m.id), OTHER_LEG]);
+  const legs = s.race.legs
+    ? (Object.fromEntries(Object.entries(s.race.legs).filter(([, who]) => who && ids.has(who))) as Race['legs'])
+    : (Object.fromEntries(Object.entries(s.memberStations).flatMap(([who, st]) => st.map((x) => [x, who]))) as Race['legs']);
   return {
     id: s.id,
     ...s.race,
-    relayStations: s.memberStations[viewerId] ?? [],
+    legs,
+    relayStations: STATIONS.filter((st) => legs?.[st.id] === viewerId).map((st) => st.id),
     teammates: s.members.filter((m) => m.id !== viewerId),
     shared: { ownerId: s.ownerId, ownerName: s.members.find((m) => m.id === s.ownerId)?.displayName ?? 'Teammate' },
   };
@@ -61,12 +68,15 @@ function toShared(r: Race, me: Profile, existing?: SharedRace): SharedRace {
   const isOwner = !existing || existing.ownerId === me.id;
   const members = isOwner ? [me, ...(r.teammates ?? []).filter((t) => t.id !== me.id)] : existing.members;
   const ids = new Set(members.map((m) => m.id));
-  const memberStations = Object.fromEntries(Object.entries({ ...existing?.memberStations, [me.id]: r.relayStations }).filter(([id]) => ids.has(id)));
+  // With assigned legs every member's stations follow from them; otherwise each member keeps their own picks.
+  const memberStations = r.legs
+    ? Object.fromEntries([...ids].map((id) => [id, STATIONS.filter((st) => r.legs?.[st.id] === id).map((st) => st.id)]))
+    : Object.fromEntries(Object.entries({ ...existing?.memberStations, [me.id]: r.relayStations }).filter(([id]) => ids.has(id)));
   return {
     id: existing?.id ?? `sr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ownerId: existing?.ownerId ?? me.id,
     members,
-    race: { name: r.name, date: r.date, format: r.format, category: r.category, result: r.result },
+    race: { name: r.name, date: r.date, format: r.format, category: r.category, result: r.result, legs: r.format === 'relay' ? r.legs : undefined },
     memberStations,
   };
 }

@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import type { MuscleGroup, Race } from '../data/types';
-import { COVERAGE_META, type FocusLevel, muscleCoverage, raceMuscleFocus, raceSegments, raceSummary, raceTypeLabel, teamLabel, upcomingRaces } from '../lib/analytics';
+import { COVERAGE_META, legName, type FocusLevel, muscleCoverage, raceMuscleFocus, raceSegments, raceSummary, raceTypeLabel, teamLabel, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong } from '../lib/dates';
 import { BodyFigure } from './BodyMap';
 import { Card, CardHeader, Legend } from './ui';
@@ -51,7 +51,7 @@ export function NoRaces() {
 
 /** Full race plan: race demands, the athlete's share and muscle focus. */
 export function RacePlan() {
-  const { goals, workouts, today, readOnly } = useData();
+  const { goals, workouts, today, readOnly, athlete } = useData();
   const { openProfile } = useUI();
   const { races, race, setRaceId } = useRaceSelection();
   const [selected, setSelected] = useState<MuscleGroup | null>(null);
@@ -117,7 +117,7 @@ export function RacePlan() {
                     <p className="text-xs text-slate-500">{s.spec}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${!s.included ? 'bg-slate-100 text-slate-500' : s.share < 1 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                    {!s.included ? 'Teammate' : s.share < 1 ? 'Run + shared' : 'Run + station'}
+                    {race.format === 'relay' ? (s.included ? 'You' : legName(race, s.station, athlete).replace('Not set', 'Not assigned')) : s.share < 1 ? 'Run + shared' : 'Run + station'}
                   </span>
                 </li>
               ))}

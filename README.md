@@ -44,7 +44,9 @@ Composition) are private: they are kept apart (`user_private` in Supabase, reada
 shown on, or sent to, a friend's dashboard.
 
 - **Teammates**: in a Doubles or Relay race you can tag friends (1 partner / up to 3 relay teammates). The race then
-  appears in their races too and any teammate can edit it; each relay member picks their own legs. Only the person who
+  appears in their races too and any teammate can edit it. In a relay, *Relay legs* assigns each station to you, a
+  tagged teammate or an "Other teammate" not on the app; each friend sees their own legs in their race plan. A
+  completed relay takes the whole team's run and station splits; only your own legs count towards your station bests. Only the person who
   created the race changes who is tagged; a tagged teammate can leave the race.
 - **Demo mode** (default): accounts live in this browser only. Demo athletes with sample data (no password):
   Felicia, Fiona and Jordan (Jordan has sent Felicia a friend request). Data is kept in browser storage between visits.

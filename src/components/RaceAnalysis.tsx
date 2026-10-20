@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { STATION_BY_ID } from '../data/stations';
 import type { Race } from '../data/types';
-import { compareRaces, completedRaces, previousRace, raceStations, raceTypeLabel, resultTotals, teamLabel, type SegmentDelta } from '../lib/analytics';
+import { compareRaces, legName, resultStations, completedRaces, previousRace, raceTypeLabel, resultTotals, teamLabel, type SegmentDelta } from '../lib/analytics';
 import { fmtLong } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 import { AXIS } from '../lib/theme';
@@ -197,6 +197,7 @@ function DeltaList({ title, icon: Icon, tone, items, empty }: { title: string; i
 }
 
 function SplitTable({ race, previous }: { race: Race; previous?: Race }) {
+  const { athlete } = useData();
   const prevHas = previous && resultTotals(previous).hasSplits;
   const cell = (cur?: number, prev?: number) => (
     <>
@@ -208,13 +209,16 @@ function SplitTable({ race, previous }: { race: Race; previous?: Race }) {
     <div>
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Splits</h4>
       <ol className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 text-sm">
-        {raceStations(race).map((s) => {
+        {resultStations().map((s) => {
           const x = race.result?.splits.find((y) => y.station === s.id);
           const p = previous?.result?.splits.find((y) => y.station === s.id);
           return (
             <li key={s.id} className="flex items-center gap-3 px-3 py-2">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">{s.order}</span>
-              <span className="min-w-0 flex-1 truncate text-slate-800">{STATION_BY_ID[s.id].name}</span>
+              <span className="min-w-0 flex-1 truncate text-slate-800">
+                {STATION_BY_ID[s.id].name}
+                {race.format === 'relay' && <span className={`block text-[11px] ${legName(race, s.id, athlete) === 'You' ? 'font-medium text-blue-700' : 'text-slate-500'}`}>{legName(race, s.id, athlete)}</span>}
+              </span>
               <span className="w-16 shrink-0 text-right text-xs"><span className="block text-[10px] uppercase tracking-wide text-slate-500">Run</span>{cell(x?.runSec, p?.runSec)}</span>
               <span className="w-16 shrink-0 text-right text-xs"><span className="block text-[10px] uppercase tracking-wide text-slate-500">Station</span>{cell(x?.stationSec, p?.stationSec)}</span>
             </li>

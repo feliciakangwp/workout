@@ -54,7 +54,9 @@ export function hyroxPerformances(workouts: Workout[], races: Race[]): Performan
   for (const r of races) {
     if (!r.result?.splits.length) continue;
     const splits: Performance['splits'] = {};
-    for (const s of r.result.splits) if (s.runSec || s.stationSec) splits[s.station] = { runSec: s.runSec, stationSec: s.stationSec };
+    // A relay result is the team's: only the athlete's own legs count as their efforts.
+    for (const s of r.result.splits)
+      if ((s.runSec || s.stationSec) && (r.format !== 'relay' || r.relayStations.includes(s.station))) splits[s.station] = { runSec: s.runSec, stationSec: s.stationSec };
     if (!Object.keys(splits).length) continue;
     out.push({ id: r.id, source: 'race', label: `${r.name} · ${fmtShort(r.date)} ${r.date.slice(0, 4)}`, date: r.date, format: r.format, category: r.format === 'relay' ? 'open' : r.category, splits, roxzoneSec: r.result.roxzoneSec });
   }

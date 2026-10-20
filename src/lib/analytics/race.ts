@@ -1,7 +1,7 @@
 import { EXERCISE_BY_NAME } from '../../data/exercises';
 import { MUSCLES } from '../../data/muscles';
 import { STATIONS, stationSpec, stationWeight } from '../../data/stations';
-import type { Division, Goals, MuscleGroup, Race, Sex, StationId } from '../../data/types';
+import type { Division, Goals, MuscleGroup, Profile, Race, Sex, StationId } from '../../data/types';
 
 /** Relays always race at the athlete's open weights. */
 export const raceDivision = (race: Race, sex: Sex): Division => ({ sex, category: race.format === 'relay' ? 'open' : race.category });
@@ -128,9 +128,23 @@ export function relayFocusMuscles(goals: Goals, today: string): Set<MuscleGroup>
 /** Stations whose splits apply to this race (a relay athlete's own legs only). */
 export const raceStations = (race: Race) => STATIONS.filter((s) => race.format !== 'relay' || race.relayStations.includes(s.id));
 
+/**
+ * Stations with result splits: all eight for every format. A relay result is the
+ * team's, so every leg is entered, not only the athlete's own.
+ */
+export const resultStations = () => STATIONS;
+
+/** Who does a relay leg, for labels: "You", a teammate's name, or "Other teammate". */
+export function legName(race: Race, station: StationId, me: Profile): string {
+  const who = race.legs?.[station] ?? (race.relayStations.includes(station) ? me.id : undefined);
+  if (!who) return 'Not set';
+  if (who === me.id) return 'You';
+  return race.teammates?.find((t) => t.id === who)?.displayName ?? 'Other teammate';
+}
+
 export function resultTotals(race: Race) {
   const r = race.result;
-  const stations = raceStations(race);
+  const stations = resultStations();
   const splits = stations.map((st) => r?.splits.find((x) => x.station === st.id));
   const filled = splits.filter((x) => x?.runSec && x?.stationSec).length;
   const runSec = splits.reduce((a, x) => a + (x?.runSec ?? 0), 0);
@@ -167,7 +181,7 @@ export function compareRaces(current: Race, previous: Race): { segments: Segment
   const a = resultTotals(current);
   const b = resultTotals(previous);
   const segments: SegmentDelta[] = [];
-  for (const st of raceStations(current)) {
+  for (const st of resultStations()) {
     const x = current.result?.splits.find((s) => s.station === st.id);
     const y = previous.result?.splits.find((s) => s.station === st.id);
     if (x?.runSec && y?.runSec) segments.push({ key: `run-${st.id}`, label: `Run ${st.order}`, currentSec: x.runSec, previousSec: y.runSec, deltaSec: x.runSec - y.runSec });

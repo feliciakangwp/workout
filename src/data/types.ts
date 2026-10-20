@@ -116,6 +116,11 @@ export interface Race {
   category: WeightCategory;
   /** Stations this athlete completes in a relay. */
   relayStations: StationId[];
+  /**
+   * Relay: who does each station: a member's profile id, or OTHER_LEG for a
+   * teammate who isn't on the app. Shared with tagged teammates.
+   */
+  legs?: Partial<Record<StationId, string>>;
   /** Finish details, entered once the race date has passed. */
   result?: RaceResult;
   /** Friends tagged as teammates (doubles partner or relay team). */
@@ -130,10 +135,13 @@ export interface SharedRace {
   ownerId: string;
   /** Everyone in the race, including the owner. */
   members: Profile[];
-  race: { name: string; date: string; format: RaceFormat; category: WeightCategory; result?: RaceResult };
+  race: { name: string; date: string; format: RaceFormat; category: WeightCategory; result?: RaceResult; legs?: Race['legs'] };
   /** Each member's own relay legs. */
   memberStations: Record<string, StationId[]>;
 }
+
+/** Relay leg done by a teammate who isn't on the app. */
+export const OTHER_LEG = 'other';
 
 export interface RaceResult {
   /** Overall finish time; derived from splits + Roxzone when those are complete. */

@@ -2,9 +2,9 @@ import { ChevronDown, Flag, LogOut, Plus, Trash2, Trophy, UserPlus, Users, X } f
 import { useEffect, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { STATIONS } from '../data/stations';
-import type { Profile, Race, RaceFormat, RaceResult, Sex, StationId, WeightCategory } from '../data/types';
+import { OTHER_LEG, type Profile, type Race, type RaceFormat, type RaceResult, type Sex, type StationId, type WeightCategory } from '../data/types';
 import { useAuth } from '../context/AuthContext';
-import { raceStations, raceSummary, raceTypeLabel } from '../lib/analytics';
+import { legName, raceSummary, raceTypeLabel, resultStations } from '../lib/analytics';
 import { addDays, diffDays, fmtLong } from '../lib/dates';
 import { fmtTime, parseTime } from '../lib/format';
 import { Modal, Segmented } from './ui';
@@ -48,8 +48,8 @@ const toInputs = (r?: RaceResult): ResultInputs => ({
 const parse = (t: string) => parseTime(t.trim().replace(/\./g, ':'));
 
 /** Live totals from the inputs; the finish time is automatic once every split and the Roxzone are filled. */
-function liveTotals(race: Race, inp: ResultInputs) {
-  const stations = raceStations(race);
+function liveTotals(inp: ResultInputs) {
+  const stations = resultStations();
   let run = 0;
   let station = 0;
   let filled = 0;
@@ -123,7 +123,7 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
       const n = r.name.trim() || `Race ${i + 1}`;
       if (!r.name.trim()) errs.push(`Race ${i + 1}: enter a race name.`);
       if (!r.date) errs.push(`${n}: choose a date.`);
-      if (r.format === 'relay' && r.relayStations.length === 0) errs.push(`${n}: pick at least one relay station.`);
+      if (r.format === 'relay' && r.relayStations.length === 0) errs.push(`${n}: assign at least one relay station to yourself.`);
       const team = r.teammates?.length ?? 0;
       if (r.format === 'doubles' && team > 1) errs.push(`${n}: a doubles race has one partner — remove the extra teammate.`);
       if (r.format === 'relay' && team > 3) errs.push(`${n}: a relay team has up to 3 teammates besides you.`);
@@ -137,13 +137,13 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
         if (!(v >= min && v <= max)) errs.push(`${n}: ${label} should be a time like ${max > 3600 ? '1:28:45' : '5:20'}.`);
         return v;
       };
-      const splits = raceStations(r).map((s) => ({
+      const splits = resultStations().map((s) => ({
         station: s.id,
         runSec: check(inp.splits[s.id].run, `run before ${s.name}`, 120, 1200),
         stationSec: check(inp.splits[s.id].station, s.name, 10, 2400),
       }));
       const roxzoneSec = check(inp.roxzone, 'Roxzone', 10, 3600);
-      const t = liveTotals(r, inp);
+      const t = liveTotals(inp);
       const totalSec = t.auto ? t.total : check(inp.total, 'finish time', 60, 6 * 3600);
       const hasAny = totalSec || roxzoneSec || splits.some((x) => x.runSec || x.stationSec);
       return hasAny ? { ...race, result: { totalSec, roxzoneSec, splits: splits.filter((x) => x.runSec || x.stationSec) } } : race;
@@ -208,28 +208,9 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
           </div>
         </div>
 
-        {r.format === 'relay' && (
-          <div className="mt-3">
-            <p className="label">Your relay station(s)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {STATIONS.map((s) => {
-                const on = r.relayStations.includes(s.id);
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => update(r.id, { relayStations: on ? r.relayStations.filter((x) => x !== s.id) : [...r.relayStations, s.id] })}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${on ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}
-                  >
-                    {s.order}. {s.name}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-[11px] text-slate-500">In a 4-person relay each athlete usually takes two run + station legs.</p>
-          </div>
-        )}
-
         {r.format !== 'solo' && <TeamFields race={r} friends={friends} owner={isOwner(r)} onChange={(teammates) => update(r.id, { teammates })} />}
+
+        {r.format === 'relay' && <RelayLegs race={r} me={athlete} onChange={(legs) => update(r.id, { legs, relayStations: STATIONS.filter((s) => legs[s.id] === athlete.id).map((s) => s.id) })} />}
         {r.format === 'solo' && (r.teammates?.length ?? 0) > 0 && <p className="mt-3 text-xs text-amber-700">Solo races have no teammates — your tagged friends will be removed when you save.</p>}
 
         <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
@@ -238,7 +219,7 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
           {!done && <span className="block text-blue-700/80">{summary.note}</span>}
         </p>
 
-        {done && <ResultFields race={r} inputs={results[r.id] ?? toInputs()} onChange={(patch) => updateResult(r.id, patch)} />}
+        {done && <ResultFields race={r} me={athlete} inputs={results[r.id] ?? toInputs()} onChange={(patch) => updateResult(r.id, patch)} />}
       </div>
     );
   };
@@ -301,9 +282,10 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
   );
 }
 
-function ResultFields({ race, inputs, onChange }: { race: Race; inputs: ResultInputs; onChange: (patch: Partial<ResultInputs>) => void }) {
-  const t = liveTotals(race, inputs);
-  const stations = raceStations(race);
+function ResultFields({ race, me, inputs, onChange }: { race: Race; me: Profile; inputs: ResultInputs; onChange: (patch: Partial<ResultInputs>) => void }) {
+  const t = liveTotals(inputs);
+  // Every station: a relay result is the whole team's.
+  const stations = resultStations();
   const setSplit = (id: StationId, key: 'run' | 'station', v: string) => onChange({ splits: { ...inputs.splits, [id]: { ...inputs.splits[id], [key]: v } } });
 
   return (
@@ -348,6 +330,7 @@ function ResultFields({ race, inputs, onChange }: { race: Race; inputs: ResultIn
               <p className="mb-1.5 flex items-center gap-2 text-sm font-medium text-slate-800">
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-semibold text-white">{s.order}</span>
                 {s.name}
+                {race.format === 'relay' && <span className="ml-auto text-xs font-normal text-slate-500">{legName(race, s.id, me)}</span>}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <input inputMode="decimal" className="input" placeholder="Run 1 km" aria-label={`Run before ${s.name}`} value={inputs.splits[s.id].run} onChange={(e) => setSplit(s.id, 'run', e.target.value)} />
@@ -362,6 +345,35 @@ function ResultFields({ race, inputs, onChange }: { race: Race; inputs: ResultIn
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Relay: who does each station: you, a tagged teammate, or a teammate who isn't on the app. */
+function RelayLegs({ race, me, onChange }: { race: Race; me: Profile; onChange: (legs: NonNullable<Race['legs']>) => void }) {
+  const people = [{ id: me.id, name: 'You' }, ...(race.teammates ?? []).map((t) => ({ id: t.id, name: t.displayName })), { id: OTHER_LEG, name: 'Other teammate' }];
+  // Older races only stored your own stations.
+  const legs: NonNullable<Race['legs']> = race.legs ?? Object.fromEntries(race.relayStations.map((s) => [s, me.id]));
+  const valid = new Set(people.map((p) => p.id));
+  return (
+    <div className="mt-3">
+      <p className="label">Relay legs: who runs each station</p>
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {STATIONS.map((s) => {
+          const who = legs[s.id] && valid.has(legs[s.id]!) ? legs[s.id]! : '';
+          return (
+            <label key={s.id} className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 ring-1 ring-inset ${who === me.id ? 'bg-blue-50 ring-blue-200' : 'bg-white ring-slate-200'}`}>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-semibold text-white">{s.order}</span>
+              <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{s.name}</span>
+              <select className="input h-8 w-36 shrink-0 py-0 text-xs" aria-label={`Who does ${s.name}`} value={who} onChange={(e) => onChange({ ...legs, [s.id]: e.target.value || undefined })}>
+                <option value="">Not set</option>
+                {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
+          );
+        })}
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">Each person does the 1 km run before their station. Tag teammates above to pick them here; they see their own legs in their races. "Other teammate" is someone not on the app.</p>
     </div>
   );
 }
@@ -412,7 +424,7 @@ function TeamFields({ race, friends, owner, onChange }: { race: Race; friends: P
       </div>
       <p className="mt-2 text-[11px] text-violet-800/80">
         {owner
-          ? 'Tagged friends see this race in their own races and can edit it too (each picks their own relay legs). Only you can change who is tagged.'
+          ? 'Tagged friends see this race in their own races and can edit it too. Only you can change who is tagged.'
           : `Shared by ${race.shared?.ownerName}. You can edit this race; ${race.shared?.ownerName} manages who is tagged.`}
       </p>
     </div>
