@@ -176,6 +176,30 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
     setOrder(keys);
   };
 
+  // New rows scroll into view so the next exercise or run can be filled straight away.
+  const [scrollTo, setScrollTo] = useState<string | null>(null);
+  useEffect(() => {
+    if (!scrollTo) return;
+    document.getElementById(scrollTo)?.closest('.rounded-xl')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setScrollTo(null);
+  }, [scrollTo]);
+  const addExercise = () => {
+    const row = newRow();
+    setRows((rs) => [...rs, row]);
+    setScrollTo(`ex-${row.key}`);
+  };
+  const addRun = () => {
+    const row = newRunRow();
+    setRunRows((rs) => [...rs, row]);
+    setScrollTo(`rkm-${row.key}`);
+  };
+  /** Full-width button under a list, so adding the next item needs no scrolling back up. */
+  const addMoreButton = (label: string, onClick: () => void) => (
+    <button className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-blue-300 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-50" onClick={onClick}>
+      <Plus size={15} /> {label}
+    </button>
+  );
+
   const updateRow = (key: number, patch: Partial<ExerciseRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const updateRun = (key: number, patch: Partial<RunRow>) => setRunRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
@@ -590,10 +614,10 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-semibold text-slate-800">Runs & exercises</h4>
             <div className="flex gap-1.5">
-              <button className="btn-ghost py-1.5 text-xs" onClick={() => setRows((rs) => [...rs, newRow()])}>
+              <button className="btn-ghost py-1.5 text-xs" onClick={addExercise}>
                 <Plus size={14} /> Add exercise
               </button>
-              <button className="btn-ghost py-1.5 text-xs" onClick={() => setRunRows((rs) => [...rs, newRunRow()])}>
+              <button className="btn-ghost py-1.5 text-xs" onClick={addRun}>
                 <Plus size={14} /> Add run
               </button>
             </div>
@@ -621,6 +645,10 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
               });
             })()}
           </ol>
+          <div className="grid grid-cols-2 gap-2">
+            {addMoreButton('Add exercise', addExercise)}
+            {addMoreButton('Add run', addRun)}
+          </div>
           <p className="mt-1.5 text-[11px] text-slate-500">Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.</p>
         </div>
       )}
@@ -629,13 +657,14 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
         <div className="mt-5">
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-slate-800">Exercises</h4>
-            <button className="btn-ghost py-1.5 text-xs" onClick={() => setRows((rs) => [...rs, newRow()])}>
+            <button className="btn-ghost py-1.5 text-xs" onClick={addExercise}>
               <Plus size={14} /> Add exercise
             </button>
           </div>
           <div className="space-y-2">
             {rows.map((r, i) => renderExercise(r, i))}
           </div>
+          {addMoreButton('Add another exercise', addExercise)}
           <p className="mt-1.5 text-[11px] text-slate-500">
             Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.
             {type === 'Strength' && ' Cardio machines (distance & time) are logged under HYROX Engine or F45.'}
@@ -648,7 +677,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
           {type === 'Running' ? (
             <div className="mb-2 flex items-center justify-between">
               <h4 className="text-sm font-semibold text-slate-800">Running</h4>
-              <button className="btn-ghost py-1.5 text-xs" onClick={() => setRunRows((rs) => [...rs, newRunRow()])}>
+              <button className="btn-ghost py-1.5 text-xs" onClick={addRun}>
                 <Plus size={14} /> Add run
               </button>
             </div>
@@ -668,6 +697,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
               {runRows.map((r, i) => <li key={r.key}>{renderRun(r, i)}</li>)}
             </ol>
           )}
+          {type === 'Running' && addMoreButton('Add another run', addRun)}
           <div className="mt-2 grid grid-cols-3 items-end gap-2">
             <div className="rounded-xl bg-blue-50 px-3 py-2 text-center">
               <p className="text-[11px] text-blue-700">Distance</p>
