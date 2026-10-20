@@ -52,26 +52,24 @@ export function FriendRequestPrompt({ onNavigate }: { onNavigate: (p: PageId) =>
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-20 z-[45] flex justify-center px-3 lg:bottom-6 lg:justify-end lg:px-6" role="dialog" aria-label="Friend request">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700"><UserPlus size={18} /></span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-900">Friend request</p>
-            <p className="text-sm text-slate-600"><b className="font-semibold text-slate-900">{next.displayName}</b> wants to be friends. Friends can view each other's dashboards (not weight) and tag each other in races.</p>
-          </div>
-          <button className="rounded-lg p-1 text-slate-400 hover:bg-slate-100" onClick={later} aria-label="Later"><X size={16} /></button>
+    <div className="pointer-events-auto w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-xl" role="dialog" aria-label="Friend request">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700"><UserPlus size={18} /></span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-900">Friend request</p>
+          <p className="text-sm text-slate-600"><b className="font-semibold text-slate-900">{next.displayName}</b> wants to be friends. Friends can view each other's dashboards (not weight) and tag each other in races.</p>
         </div>
-        <div className="mt-3 flex items-center gap-2">
-          <button className="btn-primary flex-1 justify-center" disabled={busy} onClick={() => act(true)}><Check size={15} /> Accept</button>
-          <button className="btn-ghost flex-1 justify-center" disabled={busy} onClick={() => act(false)}>Decline</button>
-        </div>
-        {incoming.length > 1 && (
-          <button className="mt-2 w-full text-center text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => { later(); onNavigate('friends'); }}>
-            See all {incoming.length} requests →
-          </button>
-        )}
+        <button className="rounded-lg p-1 text-slate-400 hover:bg-slate-100" onClick={later} aria-label="Later"><X size={16} /></button>
       </div>
+      <div className="mt-3 flex items-center gap-2">
+        <button className="btn-primary flex-1 justify-center" disabled={busy} onClick={() => act(true)}><Check size={15} /> Accept</button>
+        <button className="btn-ghost flex-1 justify-center" disabled={busy} onClick={() => act(false)}>Decline</button>
+      </div>
+      {incoming.length > 1 && (
+        <button className="mt-2 w-full text-center text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => { later(); onNavigate('friends'); }}>
+          See all {incoming.length} requests →
+        </button>
+      )}
     </div>
   );
 }

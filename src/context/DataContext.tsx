@@ -132,8 +132,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
         .catch(() => setShared([])),
     [backend, athlete.id],
   );
+  // Teammates can tag you at any time: check again when the app comes back into view and every minute.
   useEffect(() => {
     loadShared();
+    const onVisible = () => document.visibilityState === 'visible' && loadShared();
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = setInterval(loadShared, 60_000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(timer);
+    };
   }, [loadShared]);
 
   useEffect(() => {
