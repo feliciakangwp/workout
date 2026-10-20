@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react';
 import { Card, DemoBadge, EmptyState, Modal, PageHeader, TypeBadge } from '../components/ui';
 import { IntensityBar, WorkoutDetail } from '../components/WorkoutDetail';
 import { useData } from '../context/DataContext';
-import { DATA_START } from '../data/mockData';
 import { MUSCLE_BY_ID } from '../data/muscles';
 import type { WorkoutType } from '../data/types';
 import { workoutMuscles } from '../lib/analytics';
@@ -16,7 +15,8 @@ const PAGE = 20;
 export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
   const { workouts, today, removeWorkout, readOnly } = useData();
   const [type, setType] = useState<WorkoutType | 'all'>('all');
-  const [from, setFrom] = useState(DATA_START);
+  // No start date by default: every logged workout is listed, however old.
+  const [from, setFrom] = useState('');
   const [to, setTo] = useState(today);
   const [query, setQuery] = useState('');
   const [shown, setShown] = useState(PAGE);
@@ -32,10 +32,10 @@ export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
 
   const totalMin = filtered.reduce((a, w) => a + w.durationMin, 0);
   const open = workouts.find((w) => w.id === openId);
-  const isFiltered = type !== 'all' || from !== DATA_START || to !== today || query !== '';
+  const isFiltered = type !== 'all' || from !== '' || to !== today || query !== '';
   const reset = () => {
     setType('all');
-    setFrom(DATA_START);
+    setFrom('');
     setTo(today);
     setQuery('');
   };
@@ -63,7 +63,7 @@ export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
           </div>
           <div>
             <label className="label" htmlFor="log-from">From</label>
-            <input id="log-from" type="date" className="input" value={from} min={DATA_START} max={to} onChange={(e) => { setFrom(e.target.value || DATA_START); setShown(PAGE); }} />
+            <input id="log-from" type="date" className="input" value={from} max={to} onChange={(e) => { setFrom(e.target.value); setShown(PAGE); }} />
           </div>
           <div>
             <label className="label" htmlFor="log-to">To</label>

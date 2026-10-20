@@ -1,7 +1,6 @@
 import { CheckCircle2, ChevronDown, ChevronUp, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EXERCISES, EXERCISE_BY_NAME, entryMeasure, exerciseMeasure } from '../data/exercises';
-import { DATA_START } from '../data/mockData';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
 import { planKey, type CustomExercise, type Division, type DraftForm, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
@@ -97,7 +96,7 @@ type PlannedRef = { date: string; type: WorkoutType };
  * (draftId), planning a day's workout ahead (plan), or starting a planned
  * workout pre-filled with its plan (start).
  */
-export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: string; plan?: PlannedRef; start?: PlannedRef; onClose: () => void }) {
+export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }: { draftId?: string; date?: string; plan?: PlannedRef; start?: PlannedRef; onClose: () => void }) {
   const { addWorkout, today, goals, drafts, saveDraft, deleteDraft, workouts, customExercises, saveCustomExercises, planDetails, setPlanDetail } = useData();
   const savedCustom = (name: string) => customExercises.find((c) => c.name === name);
   /** How a row is logged: chosen for a new custom exercise, saved for a reused one, else from the library. */
@@ -113,9 +112,10 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
     if (planRef) {
       const saved = planDetails[planKey(planRef.date, planRef.type)];
       const base = saved ?? { ...blankForm(planRef.date, defaultDivision), duration: planRef.type === 'HYROX' ? '' : '60' };
-      return { ...base, type: planRef.type, date: plan ? plan.date : today };
+      // A planned workout is logged on its own day (today, or an earlier day being filled in).
+      return { ...base, type: planRef.type, date: plan ? plan.date : start && start.date < today ? start.date : today };
     }
-    return blankForm(today, defaultDivision);
+    return blankForm(forDate && forDate <= today ? forDate : today, defaultDivision);
   });
   /** Open-workout id for Save: the one being continued, or a new one. */
   const [ownId] = useState(() => draftId ?? `draft-${Date.now()}`);
@@ -218,7 +218,6 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
   const checkDate = (errs: string[]) => {
     if (!date) errs.push('Choose a workout date.');
     else if (date > today) errs.push("The date can't be in the future.");
-    else if (date < DATA_START) errs.push('Choose a date within the demonstration period (from 20 Jul 2026).');
   };
 
   const finish = (w: Omit<Workout, 'id' | 'isSample'>) => {
@@ -558,7 +557,7 @@ export function AddWorkoutModal({ draftId, plan, start, onClose }: { draftId?: s
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <label className="label" htmlFor="aw-date">Workout date</label>
-          <input id="aw-date" type="date" className="input disabled:bg-slate-50 disabled:text-slate-600" disabled={locked} value={date} min={DATA_START} max={plan ? undefined : today} onChange={(e) => setDate(e.target.value)} />
+          <input id="aw-date" type="date" className="input disabled:bg-slate-50 disabled:text-slate-600" disabled={locked} value={date} max={plan ? undefined : today} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div>
           <label className="label" htmlFor="aw-type">Workout type</label>

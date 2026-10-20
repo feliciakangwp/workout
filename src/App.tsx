@@ -54,7 +54,7 @@ function Dashboard() {
    * null = closed. Otherwise: a blank form, an open workout being continued (draftId),
    * a planned workout's exercises being planned (plan), or a planned workout being started (start).
    */
-  const [adding, setAdding] = useState<{ draftId?: string; plan?: PlannedRef; start?: PlannedRef; key: number } | null>(null);
+  const [adding, setAdding] = useState<{ draftId?: string; date?: string; plan?: PlannedRef; start?: PlannedRef; key: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -71,7 +71,7 @@ function Dashboard() {
   }, []);
 
   // A friend's dashboard is view-only: nothing opens an editor.
-  const openAdd = useCallback((draftId?: string) => !readOnly && setAdding({ draftId, key: Date.now() }), [readOnly]);
+  const openAdd = useCallback((draftId?: string, date?: string) => !readOnly && setAdding({ draftId, date, key: Date.now() }), [readOnly]);
   const ui = useMemo(
     () => ({
       openAddWorkout: openAdd,
@@ -106,7 +106,7 @@ function Dashboard() {
         {page === 'body' && <BodyComposition />}
         {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
       </Layout>
-      {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} plan={adding.plan} start={adding.start} onClose={() => setAdding(null)} />}
+      {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} date={adding.date} plan={adding.plan} start={adding.start} onClose={() => setAdding(null)} />}
       <AthleteProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
       {toast && (
         <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg lg:bottom-5" role="status">

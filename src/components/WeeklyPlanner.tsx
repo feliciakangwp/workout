@@ -2,7 +2,6 @@ import { CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, Clipboard
 import { useMemo, useRef, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
-import { DATA_START } from '../data/mockData';
 import { planKey, type DraftForm, type Workout, type WorkoutType } from '../data/types';
 import { simLabel } from '../data/stations';
 import { runs, sessionLoad } from '../lib/analytics';
@@ -27,8 +26,8 @@ export function planSummary(f: DraftForm) {
 const WEEKS_AHEAD = 4;
 
 /**
- * Weekly calendar the athlete plans themselves. Today and future days are
- * editable; past days are read-only and show what was logged.
+ * Weekly calendar the athlete plans themselves. Every day is editable:
+ * plan ahead, or fill in workouts on past days.
  */
 export function WeeklyPlanner({ className = '' }: { className?: string }) {
   const { workouts, today, plan, readOnly, planDetails } = useData();
@@ -43,7 +42,8 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
     return m;
   }, [workouts]);
 
-  const minWeek = startOfWeek(DATA_START);
+  // Go back up to a year to fill in past training.
+  const minWeek = addDays(thisWeek, -7 * 52);
   const maxWeek = addDays(thisWeek, 7 * WEEKS_AHEAD);
   const canPrev = weekStart > minWeek;
   const canNext = weekStart < maxWeek;
@@ -75,7 +75,7 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
         }
       />
       <p className="px-4 pt-1 text-[11px] text-slate-500 sm:px-5">
-        {readOnly ? 'View only.' : 'Tap a day to plan it. Past days are view-only.'} <span className="sm:hidden">Swipe right for last week, left for next week.</span>
+        {readOnly ? 'View only.' : 'Tap a day to plan it or log a workout, including past days.'} <span className="sm:hidden">Swipe right for last week, left for next week.</span>
       </p>
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="grid grid-cols-1 gap-1.5 p-4 sm:grid-cols-4 sm:gap-2 sm:p-5 lg:grid-cols-7 xl:grid-cols-4 2xl:grid-cols-7">
         {days.map((d, i) => {
@@ -96,7 +96,6 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
                 <span className={`block text-xs font-semibold ${isToday ? 'text-blue-600' : 'text-slate-500'}`}>{WEEKDAYS_SHORT[i]}</span>
                 <span className={`block text-[11px] ${isToday ? 'font-semibold text-blue-600' : 'text-slate-400'}`}>
                   {isToday ? 'Today' : fmtShort(d)}
-                  {past && <Lock size={10} className="ml-1 inline -translate-y-px" />}
                 </span>
               </div>
               <div className="min-w-0 flex-1 sm:mt-2">
@@ -142,10 +141,12 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
 }
 
 function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout[]; onClose: () => void }) {
-  const { plan, setDayPlan, today, readOnly, planDetails, drafts } = useData();
+  const { plan, setDayPlan, today, readOnly, planDetails, drafts, removeWorkout } = useData();
   const { openAddWorkout, openPlanEditor, startPlannedWorkout } = useUI();
   const planned = plan[date] ?? [];
-  const editable = !readOnly && date >= today;
+  // Every day can be changed, so past training can be filled in later.
+  const editable = !readOnly;
+  const past = date < today;
   const toggle = (t: WorkoutType) => setDayPlan(date, planned.includes(t) ? planned.filter((x) => x !== t) : WORKOUT_TYPES.filter((x) => x === t || planned.includes(x)));
   const weekday = WEEKDAYS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7];
 
@@ -206,13 +207,13 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
                     <button className="btn-ghost py-1.5 text-xs" onClick={() => { onClose(); openPlanEditor(date, t); }}>
                       <ClipboardList size={14} /> {detail ? 'Edit plan' : 'Plan exercises'}
                     </button>
-                    {date === today && !done && !started && (
+                    {date <= today && !done && !started && (
                       <button className="btn-primary py-1.5 text-xs" onClick={() => { onClose(); startPlannedWorkout(date, t); }}>
-                        <Play size={14} /> Start workout
+                        <Play size={14} /> {past ? 'Log this workout' : 'Start workout'}
                       </button>
                     )}
                     {started && <span className="text-xs font-medium text-blue-700">In progress</span>}
-                    {done && date === today && <span className="text-xs font-medium text-emerald-700">Done today</span>}
+                    {done && date <= today && <span className="text-xs font-medium text-emerald-700">{past ? 'Done' : 'Done today'}</span>}
                   </div>
                 );
               })}
@@ -225,11 +226,15 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
           {workouts.length === 0 ? (
             <p className="text-sm text-slate-500">{date > today ? 'This day is still ahead.' : date === today ? 'Nothing logged yet today.' : 'No workout was logged on this day.'}</p>
           ) : (
-            <div className="space-y-6">{workouts.map((w) => <WorkoutDetail key={w.id} workout={w} />)}</div>
+            <div className="space-y-6">
+              {workouts.map((w) => (
+                <WorkoutDetail key={w.id} workout={w} onRemove={readOnly ? undefined : () => window.confirm(`Delete ${w.title}?`) && removeWorkout(w.id)} />
+              ))}
+            </div>
           )}
-          {date === today && !readOnly && (
-            <button className="btn-primary mt-3" onClick={() => { onClose(); openAddWorkout(); }}>
-              <Plus size={15} /> Log a workout
+          {date <= today && !readOnly && (
+            <button className="btn-primary mt-3" onClick={() => { onClose(); openAddWorkout(undefined, date); }}>
+              <Plus size={15} /> {past ? 'Add a past workout' : 'Log a workout'}
             </button>
           )}
         </section>

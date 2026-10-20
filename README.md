@@ -105,8 +105,10 @@ you add your own.
   previous one (what improved, what slowed, per-segment changes).
 - **Muscle focus**: solo and doubles races focus every muscle group; while all upcoming races are relays, their primary
   muscle groups are shown in bold on Muscle Analysis.
-- **Weekly training plan** (Overview): starts empty; plan F45, HYROX, HYROX Engine, Recovery, Running or Strength for
-  today and future days. Past days are view-only. Swipe right for earlier weeks, left for later ones.
+- **Weekly training plan** (Overview): starts empty; plan F45, HYROX, HYROX Engine, Recovery, Running or Strength on
+  any day. Past days stay editable: *Add a past workout* (or *Log this workout* for a planned one) fills in training you
+  did earlier, and logged workouts can be deleted from the day. Go back up to a year: swipe right for earlier weeks,
+  left for later ones. Add workout also accepts any past date.
 - **Plan ahead**: on a planned day, *Plan exercises* fills in the workout (exercises, sets, reps, target weights, runs)
   and *Save plan* keeps it. On the day, a *Today's plan → Start workout* bar opens the workout pre-filled from the plan.
   *+ Add workout* is for unplanned (ad-hoc) sessions.
