@@ -20,7 +20,11 @@ interface DemoStore {
   data: Record<string, UserData>;
   sharedRaces: SharedRace[];
   session: string | null;
+  /** Version of the demo athletes' starting data; older stores get it refreshed. */
+  seedVersion?: number;
 }
+
+const SEED_VERSION = 2;
 
 const KEY = 'hyrox-dashboard.demo.v1';
 
@@ -60,6 +64,7 @@ function seedStore(): DemoStore {
     data: { 'demo-felicia': FELICIA_DATA, 'demo-fiona': fiona, 'demo-jordan': jordan },
     sharedRaces: [],
     session: null,
+    seedVersion: SEED_VERSION,
   };
 }
 
@@ -71,6 +76,13 @@ export function createDemoBackend(): Backend {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const stored = JSON.parse(raw) as DemoStore;
+        if ((stored.seedVersion ?? 1) < SEED_VERSION) {
+          // Refresh the demo athletes (Felicia, Fiona, Jordan); keep accounts people created.
+          const fresh = seedStore();
+          const upgraded = { ...stored, data: { ...stored.data, ...fresh.data }, seedVersion: SEED_VERSION };
+          save(upgraded);
+          return { ...upgraded, sharedRaces: upgraded.sharedRaces ?? [] };
+        }
         return { ...stored, sharedRaces: stored.sharedRaces ?? [] };
       }
     } catch {

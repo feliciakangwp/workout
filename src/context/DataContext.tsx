@@ -227,7 +227,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const sampleKey = data ? JSON.stringify(data.sample) : '';
   // Demonstration athletes get generated workouts; real accounts start with none.
-  const sample = useMemo(() => (!sampleKey ? null : sampleKey === 'null' ? { workouts: [] } : generateSample(JSON.parse(sampleKey))), [sampleKey]);
+  const sample = useMemo(() => (!sampleKey ? null : sampleKey === 'null' ? { workouts: [] } : generateSample(JSON.parse(sampleKey), today)), [sampleKey, today]);
 
   const value = useMemo<DataContextValue | null>(
     () =>

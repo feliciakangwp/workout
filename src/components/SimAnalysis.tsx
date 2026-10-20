@@ -23,7 +23,7 @@ const teammateCache = new Map<string, Promise<UserData | null>>();
 
 /** A tagged partner's sims and completed races. */
 function partnerPerformances(data: UserData, partnerId: string, myRaces: Race[], today: string): Performance[] {
-  const workouts = [...(data.sample ? generateSample(data.sample).workouts : []), ...data.added];
+  const workouts = [...(data.sample ? generateSample(data.sample, today).workouts : []), ...data.added];
   // Their own races, plus completed shared races with them that you can see.
   const races = [...data.goals.races, ...myRaces.filter((r) => r.shared && r.teammates?.some((t) => t.id === partnerId))].filter((r) => r.date < today);
   return hyroxPerformances(workouts, races);
