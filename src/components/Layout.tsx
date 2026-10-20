@@ -32,6 +32,8 @@ export const EXTRA_NAV: typeof NAV = [
   { id: 'friends', label: 'Friends', short: 'Friends', icon: Users },
 ];
 export const ALL_NAV = [...NAV, ...EXTRA_NAV];
+/** Phone tab bar: the main pages plus Race 3D after HYROX. */
+const MOBILE_NAV = [...NAV.slice(0, 5), EXTRA_NAV.find((n) => n.id === 'race3d')!, ...NAV.slice(5)];
 
 const initials = (name: string) =>
   name
@@ -354,7 +356,7 @@ export function Layout({ page, onNavigate, children }: { page: PageId; onNavigat
       {/* Mobile / tablet bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden" aria-label="Sections">
         <div className="mx-auto flex max-w-2xl">
-          {NAV.map(({ id, short, icon: Icon }) => {
+          {MOBILE_NAV.map(({ id, short, icon: Icon }) => {
             const active = id === page;
             return (
               <button key={id} onClick={() => onNavigate(id)} aria-current={active ? 'page' : undefined} className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 pb-2 pt-2 text-[10px] font-medium ${active ? 'text-blue-600' : 'text-slate-500'}`}>

@@ -391,6 +391,7 @@ export function Race3DScene({
   playKey,
   onTick,
   onDone,
+  onError,
 }: {
   rows: EstimateRow[];
   roxzoneSec: number;
@@ -400,10 +401,13 @@ export function Race3DScene({
   playKey: number;
   onTick: (raceSec: number, leg: Leg | null) => void;
   onDone: () => void;
+  /** The 3D view couldn't start or was lost (e.g. the phone ran out of graphics memory). */
+  onError: () => void;
 }) {
   const mount = useRef<HTMLDivElement>(null);
-  const play = useRef({ playing, pace, roxzoneSec, startedAt: 0, elapsed: 0, onTick, onDone });
+  const play = useRef({ playing, pace, roxzoneSec, startedAt: 0, elapsed: 0, onTick, onDone, onError });
   play.current.onTick = onTick;
+  play.current.onError = onError;
   play.current.onDone = onDone;
   play.current.roxzoneSec = roxzoneSec;
 
@@ -432,8 +436,20 @@ export function Race3DScene({
     const camera = new THREE.PerspectiveCamera(45, width() / height(), 0.1, 300);
     camera.position.set(0, 19, 27);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Phones get a lighter setup: lower resolution and smaller shadow maps.
+    const small = Math.min(window.innerWidth, window.innerHeight) < 700;
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: !small, powerPreference: 'default' });
+    } catch {
+      onError();
+      return;
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, small ? 1.5 : 2));
+    renderer.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      play.current.onError();
+    });
     renderer.setSize(width(), height());
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -456,7 +472,7 @@ export function Race3DScene({
     const key = new THREE.DirectionalLight(0xffffff, 1.8);
     key.position.set(10, 30, 16);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.set(small ? 1024 : 2048, small ? 1024 : 2048);
     Object.assign(key.shadow.camera, { left: -32, right: 32, top: 20, bottom: -20, far: 80 });
     scene.add(key);
     const stageA = new THREE.PointLight(0x3b82f6, 60, 40);
@@ -677,7 +693,7 @@ export function Race3DScene({
       const narrow = camera.aspect < 0.9;
       camera.fov = narrow ? 62 : 42;
       // Portrait: look along the arena's long side so it runs top to bottom.
-      if (narrow && camera.position.z > 0) camera.position.set(36, 46, 0);
+      if (narrow && camera.position.z > 0) camera.position.set(24, 64, 0.01);
       camera.updateProjectionMatrix();
       renderer.setSize(width(), height());
       labels.setSize(width(), height());

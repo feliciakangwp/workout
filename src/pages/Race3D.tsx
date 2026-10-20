@@ -77,6 +77,8 @@ function RaceView({ race, label }: { race: Race; label: string }) {
   const [clock, setClock] = useState<{ sec: number; what: string } | null>(null);
   const [finished, setFinished] = useState(false);
   const hasWebgl = useMemo(webglAvailable, []);
+  const [failed, setFailed] = useState(false);
+  const [sceneKey, setSceneKey] = useState(0);
   const e = team?.estimate;
   // Rebuild the 3D scene only when the numbers change.
   const key = e ? JSON.stringify([e.rows, e.roxzone]) : '';
@@ -111,7 +113,7 @@ function RaceView({ race, label }: { race: Race; label: string }) {
             {loading ? ' · loading partner…' : ''}
           </p>
         </div>
-        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+        <div className="hidden rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200 sm:block">
           <p className="text-xs text-slate-500">Race clock{clock ? ` · ${clock.what}` : ''}</p>
           <p className="mt-1 font-mono text-3xl font-semibold tabular-nums text-slate-900">{fmtTime(clock?.sec ?? 0)}</p>
           <p className="text-xs text-slate-500">Replay at {pace === 'best' ? 'best' : 'average'} pace · finish {fmtTime(finish(pace))}</p>
@@ -127,14 +129,26 @@ function RaceView({ race, label }: { race: Race; label: string }) {
           </button>
           <button className="btn-ghost py-1.5 text-xs" onClick={reset} aria-label="Restart replay"><RotateCcw size={14} /> Reset</button>
           <Segmented value={pace} onChange={(p) => { setPace(p); reset(); }} options={[{ value: 'best', label: 'Best pace' }, { value: 'avg', label: 'Average pace' }]} />
+          {/* Phones: compact race clock here, so the arena sits higher on the screen. */}
+          <span className="ml-auto text-right sm:hidden">
+            <span className="block font-mono text-lg font-semibold tabular-nums text-slate-900">{fmtTime(clock?.sec ?? 0)}</span>
+            <span className="block text-[10px] text-slate-500">{clock?.what ?? `finish ${fmtTime(finish(pace))}`}</span>
+          </span>
           <span className="ml-auto hidden items-center gap-3 text-[11px] text-slate-500 sm:flex">
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> You (replay)</span>
             <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" /><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Station edge: gap avg vs best</span>
           </span>
         </div>
         <div className="h-[520px] sm:h-[560px]">
-          {hasWebgl ? (
+          {failed ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-slate-500">
+              <p>The 3D view couldn't start on this device. Close other tabs or apps and try again. The table below has the same times.</p>
+              <button className="btn-ghost" onClick={() => { setFailed(false); setSceneKey((k) => k + 1); }}>Try again</button>
+            </div>
+          ) : hasWebgl ? (
             <Race3DScene
+              key={sceneKey}
+              onError={() => { setPlaying(false); setFailed(true); }}
               rows={rows}
               roxzoneSec={replayRoxzone}
               pace={pace}
