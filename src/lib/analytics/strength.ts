@@ -1,4 +1,3 @@
-import { TRACKED_LIFTS } from '../../data/exercises';
 import type { Workout } from '../../data/types';
 import { sortByDate } from './common';
 
@@ -18,9 +17,11 @@ export const e1rm = (weight: number, reps: number) => weight * (1 + reps / 30);
 /** Strength measure used for progression: e1RM, or load per hand for carries. */
 export const liftStrength = (s: LiftSession) => (s.reps > 20 ? s.weightKg : s.e1rm);
 
-export function liftHistory(workouts: Workout[], name: string): LiftSession[] {
+/** Sessions of one weighted exercise; `strengthOnly` keeps just Strength workouts. */
+export function liftHistory(workouts: Workout[], name: string, strengthOnly = false): LiftSession[] {
   const byDate = new Map<string, LiftSession>();
-  for (const w of workouts)
+  for (const w of workouts) {
+    if (strengthOnly && w.type !== 'Strength') continue;
     for (const e of w.exercises) {
       if (e.name !== name || !e.weightKg) continue;
       const s: LiftSession = {
@@ -35,7 +36,21 @@ export function liftHistory(workouts: Workout[], name: string): LiftSession[] {
       const prev = byDate.get(w.date);
       if (!prev || s.weightKg > prev.weightKg) byDate.set(w.date, prev ? { ...s, volume: s.volume + prev.volume } : s);
     }
+  }
   return sortByDate([...byDate.values()]);
+}
+
+/**
+ * Exercises the athlete has done with weights in Strength workouts, most
+ * recently trained first: nothing is tracked until it has been logged.
+ */
+export function strengthExercises(workouts: Workout[]): string[] {
+  const last = new Map<string, string>();
+  for (const w of workouts) {
+    if (w.type !== 'Strength') continue;
+    for (const e of w.exercises) if (e.weightKg && (last.get(e.name) ?? '') < w.date) last.set(e.name, w.date);
+  }
+  return [...last.entries()].sort((a, b) => b[1].localeCompare(a[1]) || a[0].localeCompare(b[0])).map(([name]) => name);
 }
 
 export interface LiftSummary {
@@ -48,8 +63,8 @@ export interface LiftSummary {
   changeVsPreviousPct: number;
 }
 
-export function liftSummary(workouts: Workout[], name: string): LiftSummary {
-  const history = liftHistory(workouts, name);
+export function liftSummary(workouts: Workout[], name: string, strengthOnly = false): LiftSummary {
+  const history = liftHistory(workouts, name, strengthOnly);
   const latest = history[history.length - 1];
   const previous = history[history.length - 2];
   const first = history[0];
@@ -59,13 +74,13 @@ export function liftSummary(workouts: Workout[], name: string): LiftSummary {
 }
 
 /**
- * Strength index on a given date: mean of each tracked lift's most recent strength
- * relative to its first recorded session (100 = baseline).
+ * Strength index on a given date: mean of each strength exercise's most recent
+ * strength relative to its first recorded session (100 = baseline).
  */
 export function strengthIndexAt(workouts: Workout[], date: string): number | null {
   const ratios: number[] = [];
-  for (const name of TRACKED_LIFTS) {
-    const h = liftHistory(workouts, name);
+  for (const name of strengthExercises(workouts)) {
+    const h = liftHistory(workouts, name, true);
     const upTo = h.filter((s) => s.date <= date);
     if (!h.length || !upTo.length) continue;
     ratios.push(liftStrength(upTo[upTo.length - 1]) / liftStrength(h[0]));

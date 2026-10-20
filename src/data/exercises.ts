@@ -69,4 +69,3 @@ export const EXERCISE_BY_NAME: Record<string, ExerciseInfo> = Object.fromEntries
   EXERCISES.map((e) => [e.name, e]),
 );
 
-export const TRACKED_LIFTS = EXERCISES.filter((e) => e.tracked).map((e) => e.name);

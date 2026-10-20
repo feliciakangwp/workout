@@ -1,12 +1,11 @@
 import { addDays, diffDays, startOfWeek, weekdayIndex } from '../dates';
 import { fmtPace } from '../format';
-import { TRACKED_LIFTS } from '../../data/exercises';
 import { DEMO_TODAY } from '../../data/mockData';
 import type { Workout } from '../../data/types';
 import { buildBuckets, type RangeKey, workoutsBetween } from './common';
 import { muscleCoverage } from './muscles';
 import { avgPace, best5kPace, runs, totalKm } from './running';
-import { liftSummary, strengthIndexAt } from './strength';
+import { liftSummary, strengthExercises, strengthIndexAt } from './strength';
 
 export interface PeriodStats {
   workouts: number;
@@ -76,7 +75,7 @@ export interface Insight {
 
 /** Rule-based prototype insights computed from the shared data. */
 export function trainingInsights(workouts: Workout[], today = DEMO_TODAY): Insight[] {
-  const lifts = TRACKED_LIFTS.map((n) => liftSummary(workouts, n)).filter((l) => l.history.length > 1);
+  const lifts = strengthExercises(workouts).map((n) => liftSummary(workouts, n, true)).filter((l) => l.history.length > 1);
   const topLift = [...lifts].sort((a, b) => b.changeSinceStartPct - a.changeSinceStartPct)[0];
   const allRuns = runs(workouts.filter((w) => w.date <= today));
   const recentRuns = allRuns.filter((r) => r.date > addDays(today, -28));

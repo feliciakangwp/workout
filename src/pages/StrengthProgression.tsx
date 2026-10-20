@@ -3,8 +3,7 @@ import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Bar, BarChart } from 'recharts';
 import { Card, CardHeader, ChartTooltip, DemoBadge, EmptyState, PageHeader, Segmented, StatCard, TrendBadge } from '../components/ui';
 import { useData } from '../context/DataContext';
-import { TRACKED_LIFTS } from '../data/exercises';
-import { type LiftSession, liftStrength, liftSummary } from '../lib/analytics';
+import { type LiftSession, liftStrength, liftSummary, strengthExercises } from '../lib/analytics';
 import { fmtLong, fmtShort } from '../lib/dates';
 import { fmtPct, pctChange } from '../lib/format';
 import { AXIS, GRID, SERIES } from '../lib/theme';
@@ -16,10 +15,19 @@ const volUnit = (name: string) => (isCarry(name) ? 'kg·m' : 'kg');
 
 export function StrengthProgression() {
   const { workouts } = useData();
-  const [exercise, setExercise] = useState(TRACKED_LIFTS[0]);
+  const [picked, setExercise] = useState<string | null>(null);
   const [metric, setMetric] = useState<Metric>('weight');
-  const summaries = useMemo(() => TRACKED_LIFTS.map((n) => liftSummary(workouts, n)), [workouts]);
-  const s = summaries.find((x) => x.name === exercise)!;
+  // Only exercises actually done with weights in Strength workouts, most recent first.
+  const summaries = useMemo(() => strengthExercises(workouts).map((n) => liftSummary(workouts, n, true)), [workouts]);
+  const s = summaries.find((x) => x.name === picked) ?? summaries[0];
+  if (!s)
+    return (
+      <div>
+        <PageHeader title="Strength Progression" subtitle="Every exercise from your Strength workouts, with the weights you lifted." />
+        <EmptyState title="No strength sessions yet" text="Log a Strength workout with weights and each exercise appears here with its progress." />
+      </div>
+    );
+  const exercise = s.name;
   const { latest, previous, pr, history } = s;
   const carry = isCarry(exercise);
   const chartData = history.map((h) => ({ ...h, strength: Math.round(liftStrength(h) * 10) / 10 }));
@@ -32,7 +40,7 @@ export function StrengthProgression() {
 
   return (
     <div>
-      <PageHeader title="Strength Progression" subtitle="Tracked lifts from the Wednesday strength sessions and any workouts you add." actions={<DemoBadge />} />
+      <PageHeader title="Strength Progression" subtitle="Every exercise from your Strength workouts, with the weights you lifted. Most recent first." actions={<DemoBadge />} />
 
       <div className="-mx-1 mb-5 flex gap-2 overflow-x-auto px-1 pb-1">
         {summaries.map((x) => (
@@ -133,7 +141,7 @@ export function StrengthProgression() {
       )}
 
       <Card className="mt-5 overflow-hidden">
-        <CardHeader icon={Dumbbell} title="All tracked exercises" subtitle="Tap an exercise to analyse it" />
+        <CardHeader icon={Dumbbell} title="All strength exercises" subtitle="Tap an exercise to analyse it" />
         <ul className="mt-3 divide-y divide-slate-100 md:hidden">
           {summaries.map((x) => (
             <li key={x.name}>
