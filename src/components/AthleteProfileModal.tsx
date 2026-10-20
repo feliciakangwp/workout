@@ -8,6 +8,7 @@ import { raceStations, raceSummary, raceTypeLabel } from '../lib/analytics';
 import { addDays, diffDays, fmtLong } from '../lib/dates';
 import { fmtTime, parseTime } from '../lib/format';
 import { Modal, Segmented } from './ui';
+import type { ProfileTarget } from '../context/UIContext';
 
 let raceKey = 0;
 const newRace = (date: string): Race => ({ id: `race-new-${raceKey++}`, name: '', date, format: 'solo', category: 'open', relayStations: [] });
@@ -54,7 +55,7 @@ function liveTotals(race: Race, inp: ResultInputs) {
   return { run, station, rox, missing, auto, total: auto ? run + station + rox : parse(inp.total) };
 }
 
-export function AthleteProfileModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AthleteProfileModal({ open, target, onClose }: { open: boolean; target?: ProfileTarget; onClose: () => void }) {
   const { goals, updateGoals, today, athlete } = useData();
   const { backend } = useAuth();
   const [friends, setFriends] = useState<Profile[]>([]);
@@ -67,14 +68,37 @@ export function AthleteProfileModal({ open, onClose }: { open: boolean; onClose:
   const [results, setResults] = useState<Record<string, ResultInputs>>({});
   const [errors, setErrors] = useState<string[]>([]);
 
+  /** Race to scroll to and highlight: a new one, or the one being edited. */
+  const [focusId, setFocusId] = useState<string | null>(null);
+
   // Start from the saved profile each time the editor opens.
   useEffect(() => {
     if (!open) return;
     setSex(goals.athleteSex);
-    setRaces(goals.races.map((r) => ({ ...r, relayStations: [...r.relayStations] })));
-    setResults(Object.fromEntries(goals.races.map((r) => [r.id, toInputs(r.result)])));
+    const list = goals.races.map((r) => ({ ...r, relayStations: [...r.relayStations] }));
+    let focus: string | null = null;
+    if (target && 'addRace' in target) {
+      const race = newRace(target.addRace === 'past' ? addDays(today, -1) : today);
+      list.push(race);
+      focus = race.id;
+    } else if (target) focus = target.raceId;
+    setRaces(list);
+    setResults(Object.fromEntries(list.map((r) => [r.id, toInputs(r.result)])));
+    setFocusId(focus);
     setErrors([]);
-  }, [open, goals]);
+    // Only when opening, not on every change to the saved goals.
+  }, [open]);
+
+  // Bring the new or chosen race into view, name field ready.
+  useEffect(() => {
+    if (!open || !focusId) return;
+    const t = setTimeout(() => {
+      const input = document.getElementById(`rn-${focusId}`) as HTMLInputElement | null;
+      input?.closest('.rounded-xl')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (input && !input.value) input.focus({ preventScroll: true });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [open, focusId]);
 
   const update = (id: string, patch: Partial<Race>) => setRaces((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   const updateResult = (id: string, patch: Partial<ResultInputs>) => setResults((rs) => ({ ...rs, [id]: { ...(rs[id] ?? toInputs()), ...patch } }));
@@ -123,7 +147,7 @@ export function AthleteProfileModal({ open, onClose }: { open: boolean; onClose:
     const summary = raceSummary(r, sex);
     const days = diffDays(r.date, today);
     return (
-      <div key={r.id} className="rounded-xl border border-slate-200 p-3 sm:p-4">
+      <div key={r.id} className={`scroll-mt-2 rounded-xl border p-3 sm:p-4 ${r.id === focusId ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200'}`}>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_170px_auto]">
           <div>
             <label className="label" htmlFor={`rn-${r.id}`}>Race name</label>

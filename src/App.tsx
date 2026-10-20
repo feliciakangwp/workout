@@ -8,7 +8,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { FriendRequestPrompt } from './components/FriendRequestPrompt';
 import { FriendRequestsProvider } from './context/FriendRequestsContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { UIProvider } from './context/UIContext';
+import { UIProvider, type ProfileTarget } from './context/UIContext';
 import { DataProvider, useData } from './context/DataContext';
 import { Overview } from './pages/Overview';
 import { MuscleAnalysis } from './pages/MuscleAnalysis';
@@ -60,7 +60,8 @@ function Dashboard() {
    */
   const [adding, setAdding] = useState<{ draftId?: string; date?: string; plan?: PlannedRef; start?: PlannedRef; key: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
+  /** null = closed; otherwise what the Athlete & races editor should open on. */
+  const [profile, setProfile] = useState<ProfileTarget | 'all' | null>(null);
 
   useEffect(() => {
     const onHash = () => setPage(readHash());
@@ -81,7 +82,7 @@ function Dashboard() {
       openAddWorkout: openAdd,
       openPlanEditor: (date: string, type: WorkoutType) => !readOnly && setAdding({ plan: { date, type }, key: Date.now() }),
       startPlannedWorkout: (date: string, type: WorkoutType) => !readOnly && setAdding({ start: { date, type }, key: Date.now() }),
-      openProfile: () => !readOnly && setProfileOpen(true),
+      openProfile: (target?: ProfileTarget) => !readOnly && setProfile(target ?? 'all'),
       notify: setToast,
     }),
     [openAdd, readOnly],
@@ -112,7 +113,7 @@ function Dashboard() {
           {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
         </Layout>
         {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} date={adding.date} plan={adding.plan} start={adding.start} onClose={() => setAdding(null)} />}
-        <AthleteProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
+        <AthleteProfileModal open={profile !== null} target={profile === 'all' || profile === null ? undefined : profile} onClose={() => setProfile(null)} />
         {!readOnly && <FriendRequestPrompt onNavigate={navigate} />}
         {toast && (
           <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg lg:bottom-5" role="status">

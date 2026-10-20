@@ -86,13 +86,13 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
         <div className="space-y-2 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming races · {goals.athleteSex === 'female' ? 'Female' : 'Male'}</p>
-            {!readOnly && <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={openProfile}>Manage races →</button>}
+            {!readOnly && <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => openProfile()}>Manage races →</button>}
           </div>
           {races.length === 0 && <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-500">No upcoming race planned.</p>}
           {races.map((race) => {
             const days = diffDays(race.date, today);
             return (
-              <button key={race.id} onClick={openProfile} className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 text-left hover:bg-blue-50">
+              <button key={race.id} onClick={() => openProfile({ raceId: race.id })} className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 text-left hover:bg-blue-50">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-slate-800">{race.name}</p>
                   <p className="truncate text-xs text-slate-500">{raceTypeLabel(race, goals.athleteSex)} · {fmtShort(race.date)} {race.date.slice(0, 4)}</p>

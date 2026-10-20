@@ -1,4 +1,4 @@
-import { CalendarClock, Flag, Footprints, Pencil, Users } from 'lucide-react';
+import { CalendarClock, Flag, Footprints, Pencil, Plus, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
@@ -44,7 +44,7 @@ export function NoRaces() {
     <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center">
       <p className="text-sm font-medium text-slate-700">No upcoming race planned</p>
       <p className="mt-1 text-xs text-slate-500">That's fine — train as usual. If you enter a race later, its demands and muscle focus will appear here.</p>
-      {!readOnly && <button className="btn-ghost mt-3" onClick={openProfile}>Add a race</button>}
+      {!readOnly && <button className="btn-ghost mt-3" onClick={() => openProfile({ addRace: 'upcoming' })}><Plus size={14} /> Add a race</button>}
     </div>
   );
 }
@@ -78,13 +78,20 @@ export function RacePlan() {
 
   return (
     <Card>
-      <CardHeader icon={Flag} title="Race plan" subtitle="What your race demands from you, and where to focus training" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={openProfile}><Pencil size={13} /> Edit races</button>} />
+      <CardHeader icon={Flag} title="Race plan" subtitle="What your race demands from you, and where to focus training" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openProfile({ addRace: 'upcoming' })}><Plus size={14} /> Add race</button>} />
       <div className="space-y-5 p-4 sm:p-5">
         <RaceTabs races={races} race={race} onChange={setRaceId} />
 
         <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 p-3 sm:p-4">
           <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
-            <p className="text-base font-semibold text-slate-900">{race.name}</p>
+            <div className="flex items-start gap-1.5">
+              <p className="min-w-0 text-base font-semibold text-slate-900">{race.name}</p>
+              {!readOnly && (
+                <button className="-my-1 shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-blue-600" onClick={() => openProfile({ raceId: race.id })} aria-label={`Edit ${race.name}`} title="Edit this race">
+                  <Pencil size={15} />
+                </button>
+              )}
+            </div>
             <p className="text-sm text-slate-600">{raceTypeLabel(race, sex)}</p>
             {teamLabel(race) && <p className="text-sm font-medium text-violet-700">{teamLabel(race)}</p>}
             <p className="mt-0.5 text-xs text-slate-500">{fmtLong(race.date)}</p>

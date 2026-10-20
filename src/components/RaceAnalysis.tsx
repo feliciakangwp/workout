@@ -1,4 +1,4 @@
-import { Pencil, Trophy, TrendingDown, TrendingUp } from 'lucide-react';
+import { Pencil, Plus, Trophy, TrendingDown, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useData } from '../context/DataContext';
@@ -43,12 +43,12 @@ export function RaceAnalysis() {
 
   return (
     <Card>
-      <CardHeader icon={Trophy} title="Completed race analysis" subtitle="What improved and what slowed compared with your previous race" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={openProfile}><Pencil size={13} /> Edit results</button>} />
+      <CardHeader icon={Trophy} title="Completed race analysis" subtitle="What improved and what slowed compared with your previous race" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openProfile({ addRace: 'past' })}><Plus size={14} /> Add past race</button>} />
       <div className="space-y-5 p-4 sm:p-5">
         {!race ? (
           <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
             <p>Completed races appear here once their date has passed.</p>
-            {!readOnly && <button className="btn-ghost mt-3" onClick={openProfile}>Add a past race</button>}
+            {!readOnly && <button className="btn-ghost mt-3" onClick={() => openProfile({ addRace: 'past' })}>Add a past race</button>}
           </div>
         ) : (
           <>
@@ -82,7 +82,14 @@ function RaceResultView({ race, previous }: { race: Race; previous?: Race }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-50 p-3 sm:p-4">
         <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
-          <p className="text-base font-semibold text-slate-900">{race.name}</p>
+          <div className="flex items-start gap-1.5">
+            <p className="min-w-0 text-base font-semibold text-slate-900">{race.name}</p>
+            {!readOnly && (
+              <button className="-my-1 shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-blue-600" onClick={() => openProfile({ raceId: race.id })} aria-label={`Edit ${race.name} results`} title="Edit this race and its results">
+                <Pencil size={15} />
+              </button>
+            )}
+          </div>
           <p className="text-sm text-slate-600">{raceTypeLabel(race, goals.athleteSex)}</p>
           {teamLabel(race) && <p className="text-sm font-medium text-violet-700">{teamLabel(race)}</p>}
           <p className="text-xs text-slate-500">{fmtLong(race.date)}</p>
@@ -97,7 +104,7 @@ function RaceResultView({ race, previous }: { race: Race; previous?: Race }) {
       {!totals.totalSec && !totals.hasSplits && (
         <div className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center">
           <p className="text-sm text-slate-600">No result entered for this race yet.</p>
-          {!readOnly && <button className="btn-primary mt-3" onClick={openProfile}>Add finish time</button>}
+          {!readOnly && <button className="btn-primary mt-3" onClick={() => openProfile({ raceId: race.id })}>Add finish time</button>}
         </div>
       )}
 

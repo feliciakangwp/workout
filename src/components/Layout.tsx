@@ -101,7 +101,7 @@ function AthleteCard() {
   const next = upcomingRaces(goals, today)[0];
   return (
     <button
-      onClick={readOnly ? undefined : openProfile}
+      onClick={readOnly ? undefined : () => openProfile()}
       disabled={readOnly}
       className="mb-3 w-full rounded-xl bg-slate-50 p-3 text-left text-xs text-slate-600 ring-1 ring-inset ring-transparent transition enabled:hover:bg-blue-50 enabled:hover:ring-blue-200"
     >

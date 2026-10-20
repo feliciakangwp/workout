@@ -62,7 +62,7 @@ export default function Race3D() {
           <Users className="mx-auto text-slate-300" size={32} />
           <p className="mt-2 text-sm font-medium text-slate-800">No doubles race with a partner yet</p>
           <p className="mt-1 text-sm text-slate-500">Add an upcoming Doubles race and tag your partner (a friend) to see your team's times here.</p>
-          {!readOnly && <button className="btn-primary mt-4" onClick={openProfile}>Athlete & races</button>}
+          {!readOnly && <button className="btn-primary mt-4" onClick={() => openProfile()}>Athlete & races</button>}
         </Card>
       )}
     </div>

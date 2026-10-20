@@ -8,9 +8,12 @@ interface UIContextValue {
   openPlanEditor: (date: string, type: WorkoutType) => void;
   /** Start today's planned workout, pre-filled with its planned exercises. */
   startPlannedWorkout: (date: string, type: WorkoutType) => void;
-  openProfile: () => void;
+  /** Athlete & races: optionally with a new race ready to fill in, or scrolled to one race. */
+  openProfile: (target?: ProfileTarget) => void;
   notify: (message: string) => void;
 }
+
+export type ProfileTarget = { addRace: 'upcoming' | 'past' } | { raceId: string };
 
 const UIContext = createContext<UIContextValue | null>(null);
 
