@@ -1,5 +1,5 @@
-import { X, TrendingDown, TrendingUp, Minus, FlaskConical } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import { ChevronDown, X, TrendingDown, TrendingUp, Minus, FlaskConical } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { LucideIcon } from 'lucide-react';
 import type { WorkoutType } from '../data/types';
@@ -26,6 +26,85 @@ export function CardHeader({ title, subtitle, action, icon: Icon }: { title: str
       </div>
       {action}
     </div>
+  );
+}
+
+const openKey = (id: string) => `hyrox-dashboard.open.${id}`;
+
+/** Opens a collapsible card from elsewhere (e.g. a link that scrolls to it). */
+export const openSection = (id: string) => window.dispatchEvent(new CustomEvent('open-section', { detail: id }));
+
+/**
+ * A card that starts collapsed to a short summary, for one-page overviews.
+ * Tap the header or summary to open it; the choice is remembered on this device.
+ */
+export function CollapsibleCard({
+  id,
+  title,
+  subtitle,
+  icon: Icon,
+  action,
+  summary,
+  children,
+  className = '',
+}: {
+  id: string;
+  title: string;
+  subtitle?: string;
+  icon?: LucideIcon;
+  action?: ReactNode;
+  summary: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(openKey(id)) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggle = (next = !open) => {
+    setOpen(next);
+    try {
+      localStorage.setItem(openKey(id), next ? '1' : '0');
+    } catch {
+      /* storage unavailable */
+    }
+  };
+  useEffect(() => {
+    const onOpen = (e: Event) => (e as CustomEvent<string>).detail === id && toggle(true);
+    window.addEventListener('open-section', onOpen);
+    return () => window.removeEventListener('open-section', onOpen);
+  });
+  return (
+    <Card className={`scroll-mt-20 ${className}`} id={id}>
+      <div className="flex items-start gap-2 px-4 pt-4 sm:px-5 sm:pt-5">
+        <button className="flex min-w-0 flex-1 items-start gap-2.5 text-left" onClick={() => toggle()} aria-expanded={open}>
+          {Icon && (
+            <span className="mt-0.5 rounded-lg bg-blue-50 p-1.5 text-blue-600">
+              <Icon size={16} />
+            </span>
+          )}
+          <span className="min-w-0">
+            <span className="block text-[15px] font-semibold text-slate-900">{title}</span>
+            {open && subtitle && <span className="mt-0.5 block text-xs text-slate-500">{subtitle}</span>}
+          </span>
+        </button>
+        {action}
+        <button className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" onClick={() => toggle()} aria-label={open ? `Collapse ${title}` : `Expand ${title}`}>
+          <ChevronDown size={18} className={`transition ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+      {open ? (
+        children
+      ) : (
+        <button className="block w-full px-4 pb-4 pt-2 text-left sm:px-5" onClick={() => toggle(true)}>
+          {summary}
+          <span className="mt-1.5 block text-xs font-medium text-blue-600">Show details</span>
+        </button>
+      )}
+    </Card>
   );
 }
 

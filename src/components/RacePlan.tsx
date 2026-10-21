@@ -6,7 +6,7 @@ import type { MuscleGroup, Race } from '../data/types';
 import { COVERAGE_META, legName, type FocusLevel, muscleCoverage, raceMuscleFocus, raceSegments, raceSummary, raceTypeLabel, teamLabel, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong } from '../lib/dates';
 import { BodyFigure } from './BodyMap';
-import { Card, CardHeader, Legend } from './ui';
+import { Card, CollapsibleCard, Legend } from './ui';
 import { EstimateLine } from './SimAnalysis';
 
 export const FOCUS_META: Record<FocusLevel, { label: string; color: string }> = {
@@ -60,10 +60,9 @@ export function RacePlan() {
 
   if (!race) {
     return (
-      <Card>
-        <CardHeader icon={Flag} title="Race plan" subtitle="Race demands and muscle focus" />
+      <CollapsibleCard id="race-plan" icon={Flag} title="Race plan" subtitle="Race demands and muscle focus" summary={<p className="text-sm text-slate-500">No upcoming race planned.</p>}>
         <div className="p-5"><NoRaces /></div>
-      </Card>
+      </CollapsibleCard>
     );
   }
 
@@ -77,8 +76,29 @@ export function RacePlan() {
   const days = diffDays(race.date, today);
 
   return (
-    <Card>
-      <CardHeader icon={Flag} title="Race plan" subtitle="What your race demands from you, and where to focus training" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openProfile({ addRace: 'upcoming' })}><Plus size={14} /> Add race</button>} />
+    <CollapsibleCard
+      id="race-plan"
+      icon={Flag}
+      title="Race plan"
+      subtitle="What your race demands from you, and where to focus training"
+      action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openProfile({ addRace: 'upcoming' })}><Plus size={14} /> Add race</button>}
+      summary={
+        <ul className="space-y-1.5">
+          {races.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-slate-900">{r.name}</span>
+                <span className="block truncate text-xs text-slate-500">{raceTypeLabel(r, sex)} · {fmtLong(r.date)}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block text-lg font-semibold leading-none text-blue-700">{Math.max(0, diffDays(r.date, today))}</span>
+                <span className="text-[11px] text-slate-500">days to go</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      }
+    >
       <div className="space-y-5 p-4 sm:p-5">
         <RaceTabs races={races} race={race} onChange={setRaceId} />
 
@@ -176,7 +196,7 @@ export function RacePlan() {
           </ul>
         </div>
       </div>
-    </Card>
+    </CollapsibleCard>
   );
 }
 

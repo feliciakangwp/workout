@@ -8,7 +8,7 @@ import type { Profile, Race, UserData, Workout } from '../data/types';
 import { type Best, type Performance, type RaceEstimate, combineEstimates, compareSim, completedRaces, hyroxPerformances, raceEstimate, raceTypeLabel, sortByDate, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong } from '../lib/dates';
 import { fmtTime } from '../lib/format';
-import { Card, CardHeader, MiniStat, TrendBadge } from './ui';
+import { CollapsibleCard, MiniStat, TrendBadge, openSection } from './ui';
 
 const signed = (sec: number) => `${sec > 0 ? '+' : sec < 0 ? '−' : '±'}${fmtTime(Math.abs(sec))}`;
 
@@ -144,8 +144,13 @@ export function SimAnalysisCard() {
   const [id, setId] = useState<string | null>(null);
   const sim = sims.find((w) => w.id === id) ?? sims[0];
   return (
-    <Card>
-      <CardHeader icon={Timer} title="HYROX sim analysis" subtitle="Each run and station against your best from any sim or race" />
+    <CollapsibleCard
+      id="sim-analysis"
+      icon={Timer}
+      title="HYROX sim analysis"
+      subtitle="Each run and station against your best from any sim or race"
+      summary={sim ? <SimSummary workout={sim} /> : <p className="text-sm text-slate-500">No HYROX sims logged yet.</p>}
+    >
       <div className="space-y-4 p-4 sm:p-5">
         {!sim ? (
           <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">Log a HYROX workout (Half, ¾ or Full Sim) to see it compared with your bests.</p>
@@ -164,7 +169,24 @@ export function SimAnalysisCard() {
           </>
         )}
       </div>
-    </Card>
+    </CollapsibleCard>
+  );
+}
+
+/** Collapsed view of the sim analysis: the latest sim's three time boxes. */
+function SimSummary({ workout }: { workout: Workout }) {
+  const performances = usePerformances();
+  const c = useMemo(() => compareSim(workout, performances), [workout, performances]);
+  const scaled = workout.hyrox!.sim !== 'full';
+  return (
+    <div>
+      <p className="mb-2 text-xs text-slate-500">Latest: {simLabel(workout.hyrox!.sim)} · {fmtLong(workout.date)}</p>
+      <div className="grid grid-cols-3 gap-2">
+        <MiniStat label={scaled ? 'Full sim estimate' : 'Runs + stations'} value={c.estimatedSec ? fmtTime(c.estimatedSec) : '—'} />
+        <MiniStat label="Best full effort" value={c.bestFull ? fmtTime(c.bestFull.sec) : '—'} />
+        <MiniStat label="All bests combined" value={c.combinedBest ? fmtTime(c.combinedBest) : '—'} />
+      </div>
+    </div>
   );
 }
 
@@ -175,8 +197,19 @@ export function RaceEstimateCard() {
   const [id, setId] = useState<string | null>(null);
   const race = races.find((r) => r.id === id) ?? races[0];
   return (
-    <Card className="scroll-mt-20" id="race-estimate">
-      <CardHeader icon={Flag} title="Race time estimate" subtitle="From your HYROX sims and races: average to best time for every run and station" />
+    <CollapsibleCard
+      id="race-estimate"
+      icon={Flag}
+      title="Race time estimate"
+      subtitle="From your HYROX sims and races: average to best time for every run and station"
+      summary={
+        races.length ? (
+          <ul className="space-y-1.5">{races.map((r) => <EstimateSummaryRow key={r.id} race={r} />)}</ul>
+        ) : (
+          <p className="text-sm text-slate-500">No upcoming solo or doubles race.</p>
+        )
+      }
+    >
       <div className="space-y-4 p-4 sm:p-5">
         {!race ? (
           <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">Add an upcoming solo or doubles race under Athlete & races to see an estimated finish time.</p>
@@ -195,7 +228,20 @@ export function RaceEstimateCard() {
           </>
         )}
       </div>
-    </Card>
+    </CollapsibleCard>
+  );
+}
+
+/** Collapsed view of the estimate: one line per race. */
+function EstimateSummaryRow({ race }: { race: Race }) {
+  const team = useRaceEstimate(race);
+  if (!team) return null;
+  const e = team.estimate;
+  return (
+    <li className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+      <span className="min-w-0 truncate text-sm font-medium text-slate-900">{race.name}</span>
+      <span className="shrink-0 text-sm font-semibold text-blue-700">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</span>
+    </li>
   );
 }
 
@@ -273,7 +319,7 @@ export function EstimateLine({ race }: { race: Race }) {
   const e = team.estimate;
   const combined = team.partners.some((p) => p.estimate);
   return (
-    <a href="#race-estimate" onClick={(ev) => { ev.preventDefault(); document.getElementById('race-estimate')?.scrollIntoView({ behavior: 'smooth' }); }} className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-sm text-blue-800 hover:bg-blue-100">
+    <a href="#race-estimate" onClick={(ev) => { ev.preventDefault(); openSection('race-estimate'); setTimeout(() => document.getElementById('race-estimate')?.scrollIntoView({ behavior: 'smooth' }), 50); }} className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-sm text-blue-800 hover:bg-blue-100">
       <Timer size={14} className="shrink-0" />
       {combined ? 'Team estimate' : 'Estimated finish'} <b className="font-semibold">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</b>
     </a>

@@ -9,7 +9,7 @@ import { compareRaces, legName, resultStations, completedRaces, previousRace, ra
 import { fmtLong, fmtShort } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 import { AXIS } from '../lib/theme';
-import { Card, CardHeader, Legend, TrendBadge } from './ui';
+import { CollapsibleCard, Legend, TrendBadge } from './ui';
 
 const FASTER = '#22a35a';
 const SLOWER = '#e34948';
@@ -42,8 +42,23 @@ export function RaceAnalysis() {
   const race = races.find((r) => r.id === raceId) ?? races[0];
 
   return (
-    <Card>
-      <CardHeader icon={Trophy} title="Completed race analysis" subtitle="What improved and what slowed compared with your previous race" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openProfile({ addRace: 'past' })}><Plus size={14} /> Add past race</button>} />
+    <CollapsibleCard
+      id="race-analysis"
+      icon={Trophy}
+      title="Completed race analysis"
+      subtitle="What improved and what slowed compared with your previous race"
+      action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openProfile({ addRace: 'past' })}><Plus size={14} /> Add past race</button>}
+      summary={
+        races.length ? (
+          <p className="text-sm text-slate-700">
+            <b className="font-semibold text-slate-900">{races.length} completed race{races.length === 1 ? '' : 's'}</b>
+            <span className="text-slate-500"> · latest {races[0].name}{resultTotals(races[0]).totalSec ? ` in ${fmtTime(resultTotals(races[0]).totalSec!)}` : ''} ({fmtShort(races[0].date)} {races[0].date.slice(0, 4)})</span>
+          </p>
+        ) : (
+          <p className="text-sm text-slate-500">No completed races yet.</p>
+        )
+      }
+    >
       <div className="space-y-5 p-4 sm:p-5">
         {!race ? (
           <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
@@ -73,7 +88,7 @@ export function RaceAnalysis() {
           </>
         )}
       </div>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
