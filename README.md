@@ -117,8 +117,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   any day. Past days stay editable: *Add a past workout* (or *Log this workout* for a planned one) fills in training you
   did earlier, and logged workouts can be deleted from the day. Go back up to a year: swipe right for earlier weeks,
   left for later ones. Add workout also accepts any past date.
-- **Planned = done**: a workout planned for today or an earlier day counts as done even if it wasn't logged (using
-  any exercises written into the plan; *Log this workout* adds the details). A planned Recovery day is a rest day
+- **Planned = done**: a workout planned for an earlier day counts as done even if it wasn't logged (using
+  any exercises written into the plan; *Log this workout* adds the details). Today's plan counts once you tap
+  Completed (or from tomorrow if it wasn't logged). A planned Recovery day is a rest day
   unless exercises were planned for it.
 - **Plan ahead**: on a planned day, *Plan exercises* fills in the workout (exercises, sets, reps, target weights, runs)
   and *Save plan* keeps it. On the day, a *Today's plan → Start workout* bar opens the workout pre-filled from the plan.

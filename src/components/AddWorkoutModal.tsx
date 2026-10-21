@@ -28,7 +28,8 @@ const emptySplits = () => Object.fromEntries(STATIONS.map((s) => [s.id, { run: '
 
 /** Row keys are saved with open workouts and plans, so they must not restart at 0 on each visit. */
 let rowKey = Date.now();
-const newRow = (name = 'Squat'): ExerciseRow => ({ key: rowKey++, name, customName: '', customMuscles: [], customMeasure: 'weight', saveTo: [], sets: '3', reps: '10', weight: '', distance: '', time: '' });
+/** A new exercise row starts with no exercise chosen. */
+const newRow = (name = ''): ExerciseRow => ({ key: rowKey++, name, customName: '', customMuscles: [], customMeasure: 'weight', saveTo: [], sets: '3', reps: '10', weight: '', distance: '', time: '' });
 /** Workout types a custom exercise can be saved to. */
 const SAVE_TO_TYPES: WorkoutType[] = ['HYROX Engine', 'Strength'];
 const newRunRow = (): RunRow => ({ key: rowKey++, km: '', time: '' });
@@ -312,7 +313,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
   };
 
   const isEmptyRun = (r: RunRow) => !r.km.trim() && !r.time.trim();
-  const isEmptyExercise = (r: ExerciseRow) => !r.reps && !r.weight && !r.distance && !r.time && !(r.name === CUSTOM && r.customName.trim());
+  // No exercise chosen yet counts as an empty row (sets and reps have starting values).
+  const isEmptyExercise = (r: ExerciseRow) => !r.name || (!r.reps && !r.weight && !r.distance && !r.time && !(r.name === CUSTOM && r.customName.trim()));
 
   /** Builds the run (one or more runs / intervals) for Running and HYROX Engine. */
   const buildRun = (errs: string[]): RunData | undefined => {
@@ -423,14 +425,15 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
           <div className="col-span-2 sm:col-span-1">
             <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
-            <select id={`ex-${r.key}`} className="input" value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })}>
+            <select id={`ex-${r.key}`} className={`input ${r.name ? '' : 'text-slate-400'}`} value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })}>
+              <option value="" disabled>Choose an exercise…</option>
               {options.map((name) => (
-                <option key={name} value={name}>
+                <option key={name} value={name} className="text-slate-900">
                   {name}
                   {savedCustom(name) ? ' (my exercise)' : ''}
                 </option>
               ))}
-              <option value={CUSTOM}>Custom exercise…</option>
+              <option value={CUSTOM} className="text-slate-900">Custom exercise…</option>
             </select>
           </div>
           <div>

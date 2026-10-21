@@ -47,14 +47,16 @@ function fromPlanForm(form: DraftForm | undefined, customs: CustomExercise[]): {
 }
 
 /**
- * Planned workouts on today or earlier days that weren't logged count as done,
+ * Planned workouts on earlier days that weren't logged count as done (today's
+ * plan counts only once the workout is logged with Completed),
  * using any exercises written into the plan. A Recovery day stays a rest day
  * unless exercises were planned for it.
  */
 export function plannedAsDone(plan: WeekPlan, details: Record<string, DraftForm>, logged: Workout[], drafts: WorkoutDraft[], customs: CustomExercise[], today: string): Workout[] {
   const out: Workout[] = [];
   for (const [date, types] of Object.entries(plan)) {
-    if (date > today) continue;
+    // Today's plan only counts once logged (it may be trained later today); earlier days count anyway.
+    if (date >= today) continue;
     for (const type of types) {
       const key = planKey(date, type);
       if (logged.some((w) => w.date === date && w.type === type)) continue;
