@@ -2,6 +2,7 @@ import { CheckCircle2, ChevronDown, ChevronUp, Plus, Save, Trash2 } from 'lucide
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EXERCISES, EXERCISE_BY_NAME, entryMeasure, exerciseMeasure } from '../data/exercises';
 import { DEFAULT_TITLE } from '../lib/workoutTitles';
+import { F45_MINUTES, functionalF45 } from '../lib/f45';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
 import { planKey, type CustomExercise, type Division, type DraftForm, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
@@ -124,7 +125,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
     if (draft) return draft.form;
     if (planRef) {
       const saved = planDetails[planKey(planRef.date, planRef.type)];
-      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), duration: planRef.type === 'HYROX' ? '' : '60' };
+      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), duration: planRef.type === 'HYROX' ? '' : planRef.type === 'F45' ? String(F45_MINUTES) : '60' };
       // A planned workout is logged on its own day (today, or an earlier day being filled in).
       return { ...base, type: planRef.type, date: plan ? plan.date : start && start.date < today ? start.date : today };
     }
@@ -247,7 +248,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
     if (t === 'HYROX') {
       setDivision(defaultDivision);
       setDuration(''); // derived from the sim's total time unless entered
-    } else if (!duration) setDuration('60');
+    } else if (t === 'F45' && (!duration || duration === '60')) setDuration(String(F45_MINUTES));
+    else if (!duration) setDuration('60');
   };
 
   const submit = () => (type === 'HYROX' ? submitHyrox() : submitGeneral());
@@ -392,13 +394,16 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
             return rr && !isEmptyRun(rr) ? ['run'] : [];
           })
         : undefined;
+    // F45 completed without exercises: a full-body functional class at 80% of best weights.
+    const assumed = type === 'F45' && exercises.length === 0;
     finish({
       date,
       type,
       title: isRunning ? `${runKind} Run` : title.trim() || DEFAULT_TITLE[type],
       durationMin: Math.max(1, dur),
       intensity,
-      exercises,
+      exercises: assumed ? functionalF45(workouts) : exercises,
+      assumedExercises: assumed || undefined,
       run,
       sequence,
       notes: notes.trim() || undefined,

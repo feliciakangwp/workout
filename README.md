@@ -126,6 +126,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   *+ Add workout* is for unplanned (ad-hoc) sessions.
 - **Open workouts**: *Save* keeps a workout open (shown in a bar at the top of every page) so you can keep logging;
   only *Completed* adds it to the workout log and charts.
+- **F45 without exercises**: an F45 class completed (or planned and past) with no exercises counts as a full-body
+  functional workout: 9 typical moves covering every muscle group at 80% of your best weight for each (a typical
+  starting weight if never logged), 45 minutes unless you set the duration.
 - **Exercise logging**: lifts use sets × reps × weight, with your best previous effort shown in grey. Plank is logged
   by time; SkiErg, Row Erg, Assault Bike and Bike Erg by distance and time (not offered in Strength sessions).
 - **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). In HYROX Engine, runs

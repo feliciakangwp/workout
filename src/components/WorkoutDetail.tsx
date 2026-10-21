@@ -104,6 +104,9 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
       {workout.exercises.length > 0 && !workout.hyrox && !workout.sequence && (
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Exercises</h4>
+          {workout.assumedExercises && (
+            <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">No exercises were logged, so this F45 class is counted as a full-body functional workout at about 80% of your best weights.</p>
+          )}
           <div className="overflow-hidden rounded-xl border border-slate-200">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">

@@ -2,6 +2,7 @@ import { exerciseMeasure } from '../data/exercises';
 import { planKey, type CustomExercise, type DraftForm, type ExerciseEntry, type RunData, type WeekPlan, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
 import { DEFAULT_TITLE } from './workoutTitles';
 import { parseTime } from './format';
+import { F45_MINUTES, functionalF45 } from './f45';
 
 const CUSTOM = '__custom__';
 const num = (s: string) => {
@@ -14,7 +15,7 @@ const secs = (s: string) => {
 };
 
 /** Typical length of a session when the plan doesn't give one. */
-const DEFAULT_MINUTES: Record<WorkoutType, number> = { F45: 50, Strength: 60, HYROX: 75, 'HYROX Engine': 60, Running: 45, Recovery: 45 };
+const DEFAULT_MINUTES: Record<WorkoutType, number> = { F45: F45_MINUTES, Strength: 60, HYROX: 75, 'HYROX Engine': 60, Running: 45, Recovery: 45 };
 
 /** The exercises and runs written into a plan, as a workout would record them. */
 function fromPlanForm(form: DraftForm | undefined, customs: CustomExercise[]): { exercises: ExerciseEntry[]; run?: RunData } {
@@ -62,8 +63,12 @@ export function plannedAsDone(plan: WeekPlan, details: Record<string, DraftForm>
       if (logged.some((w) => w.date === date && w.type === type)) continue;
       if (drafts.some((d) => d.fromPlan === key)) continue; // being logged right now
       const form = details[key];
-      const { exercises, run } = fromPlanForm(form, customs);
-      if (type === 'Recovery' && !exercises.length) continue; // rest day
+      const planned = fromPlanForm(form, customs);
+      const { run } = planned;
+      if (type === 'Recovery' && !planned.exercises.length) continue; // rest day
+      // F45 without planned exercises: a full-body functional class at 80% of best weights.
+      const assumed = type === 'F45' && !planned.exercises.length;
+      const exercises = assumed ? functionalF45(logged) : planned.exercises;
       const minutes = num(form?.duration ?? '') ?? (run && type === 'Running' ? Math.ceil((run.distanceKm * run.paceSecPerKm) / 60) : DEFAULT_MINUTES[type]);
       out.push({
         id: `plan:${key}`,
@@ -77,6 +82,7 @@ export function plannedAsDone(plan: WeekPlan, details: Record<string, DraftForm>
         notes: form?.notes?.trim() || undefined,
         isSample: false,
         fromPlan: true,
+        assumedExercises: assumed || undefined,
       });
     }
   }

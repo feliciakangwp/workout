@@ -107,6 +107,8 @@ export interface Workout {
   isSample: boolean;
   /** Not logged: planned for a day that has come, so counted as done from the plan. */
   fromPlan?: boolean;
+  /** F45 without exercises: a typical full-body session at 80% of best weights was assumed. */
+  assumedExercises?: boolean;
 }
 
 export interface Race {
