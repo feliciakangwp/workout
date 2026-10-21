@@ -145,8 +145,17 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     },
     async saveSharedRace(race) {
       const { id, ownerId, ...data } = race;
-      const { error } = await db.from('shared_races').upsert({ id, owner: ownerId, members: race.members.map((m) => m.id), data, updated_at: new Date().toISOString() });
+      const row = { members: race.members.map((m) => m.id), data, updated_at: new Date().toISOString() };
+      if (ownerId === (await userId())) {
+        const { error } = await db.from('shared_races').upsert({ id, owner: ownerId, ...row });
+        if (error) throw new Error(error.message);
+        return;
+      }
+      // A tagged teammate edits the creator's race. An upsert would be checked as a new race owned by
+      // someone else and refused, so update the existing row.
+      const { data: updated, error } = await db.from('shared_races').update(row).eq('id', id).select('id');
       if (error) throw new Error(error.message);
+      if (!updated?.length) throw new Error(`"${race.race.name}" was deleted by its creator, or you were untagged`);
     },
     async deleteSharedRace(id) {
       const { error } = await db.from('shared_races').delete().eq('id', id);

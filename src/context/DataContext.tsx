@@ -65,6 +65,10 @@ function fromShared(s: SharedRace, viewerId: string): Race {
   };
 }
 
+/** JSON with sorted keys and no undefined values: the database returns keys in its own order. */
+const stableJson = (v: unknown): string =>
+  JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().filter((k) => x[k] !== undefined).map((k) => [k, x[k]])) : x));
+
 /** Builds the shared record for a race edited by `me`; only the owner's edits change the members. */
 function toShared(r: Race, me: Profile, existing?: SharedRace): SharedRace {
   const isOwner = !existing || existing.ownerId === me.id;
@@ -303,7 +307,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const ops: Promise<void>[] = [];
       for (const old of shared)
         if (!nextShared.some((x) => x.id === old.id)) ops.push(old.ownerId === athlete.id ? backend.deleteSharedRace(old.id) : backend.leaveSharedRace(old.id));
-      nextShared.forEach((x) =>
+      // Only races that changed: re-saving the rest could overwrite a teammate's newer edit.
+      const unchanged = (x: SharedRace) => {
+        const old = shared.find((y) => y.id === x.id);
+        return !!old && stableJson(old) === stableJson(x);
+      };
+      nextShared.filter((x) => !unchanged(x)).forEach((x) =>
         ops.push(
           backend.saveSharedRace(x).catch((e: Error) => {
             // Never lose a race because sharing it failed: keep it in your own races (tags kept, so it is shared on the next save).
