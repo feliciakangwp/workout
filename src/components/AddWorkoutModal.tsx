@@ -8,7 +8,7 @@ import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec,
 import { planKey, type CustomExercise, type Division, type DraftForm, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
-import { raceDivision, upcomingRaces } from '../lib/analytics';
+import { isHyrox, raceDivision, upcomingRaces } from '../lib/analytics';
 import { fmtShort } from '../lib/dates';
 import { fmtPace, fmtTime, parseTime } from '../lib/format';
 import { WORKOUT_TYPES } from '../lib/theme';
@@ -115,7 +115,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
   /** How a row is logged: chosen for a new custom exercise, saved for a reused one, else from the library. */
   const rowMeasure = (r: ExerciseRow): ExerciseMeasure => (r.name === CUSTOM ? r.customMeasure : savedCustom(r.name)?.measure ?? exerciseMeasure(r.name));
   const { notify } = useUI();
-  const nextRace = upcomingRaces(goals, today)[0];
+  const nextRace = upcomingRaces(goals, today).find(isHyrox);
   const defaultDivision: Division = nextRace ? raceDivision(nextRace, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' };
   const draft = drafts.find((d) => d.id === draftId);
   const planRef = plan ?? start;
@@ -262,7 +262,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
   const finish = (w: Omit<Workout, 'id' | 'isSample'>) => {
     addWorkout(w);
     deleteDraft(ownId); // no-op when the workout was never saved open
-    notify(w.hyrox ? `${w.title} completed. See how it compares with your bests on HYROX Performance.` : `${w.title} completed — added to the workout log.`);
+    notify(w.hyrox ? `${w.title} completed. See how it compares with your bests on Race Performance.` : `${w.title} completed — added to the workout log.`);
     onClose();
   };
 

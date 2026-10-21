@@ -111,10 +111,19 @@ export interface Workout {
   assumedExercises?: boolean;
 }
 
+/** Kind of race: HYROX (the default for races saved before kinds existed), Redline, a running race, or anything else. */
+export type RaceKind = 'hyrox' | 'redline' | 'marathon' | 'other';
+export type RedlineDivision = 'women' | 'men' | 'mixed';
+
 export interface Race {
   id: string;
   name: string;
   date: string;
+  kind?: RaceKind;
+  /** Running races (kind 'marathon'): distance in km. */
+  distanceKm?: number;
+  /** Redline: division and, for singles, level 1 (beginner) – 3 (advanced). */
+  redline?: { division: RedlineDivision; level: 1 | 2 | 3 };
   format: RaceFormat;
   /** Ignored for relays, which always use open weights. */
   category: WeightCategory;
@@ -139,7 +148,7 @@ export interface SharedRace {
   ownerId: string;
   /** Everyone in the race, including the owner. */
   members: Profile[];
-  race: { name: string; date: string; format: RaceFormat; category: WeightCategory; result?: RaceResult; legs?: Race['legs'] };
+  race: { name: string; date: string; kind?: RaceKind; distanceKm?: number; redline?: Race['redline']; format: RaceFormat; category: WeightCategory; result?: RaceResult; legs?: Race['legs'] };
   /** Each member's own relay legs. */
   memberStations: Record<string, StationId[]>;
 }

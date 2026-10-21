@@ -5,9 +5,9 @@ import { useData } from '../context/DataContext';
 import { generateSample } from '../data/mockData';
 import { STATION_BY_ID, simLabel } from '../data/stations';
 import type { Profile, Race, UserData, Workout } from '../data/types';
-import { type Best, type Performance, type RaceEstimate, combineEstimates, compareSim, completedRaces, hyroxPerformances, raceEstimate, raceTypeLabel, sortByDate, upcomingRaces } from '../lib/analytics';
+import { type Best, type Performance, type RaceEstimate, combineEstimates, compareSim, completedRaces, hyroxPerformances, isHyrox, raceEstimate, raceKind, raceTypeLabel, runRaceEstimate, sortByDate, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong } from '../lib/dates';
-import { fmtTime } from '../lib/format';
+import { fmtRange, fmtTime } from '../lib/format';
 import { CollapsibleCard, MiniStat, TrendBadge, openSection } from './ui';
 
 const signed = (sec: number) => `${sec > 0 ? '+' : sec < 0 ? '−' : '±'}${fmtTime(Math.abs(sec))}`;
@@ -37,6 +37,15 @@ interface TeamEstimate {
 }
 
 /** Race estimate; for doubles with a tagged partner, the average of both athletes' estimates. */
+/** Running race (marathon, half, 10K…): finish time from the athlete's runs. */
+export function useRunEstimate(race: Race) {
+  const { workouts, today } = useData();
+  return useMemo(() => (raceKind(race) === 'marathon' && race.distanceKm ? runRaceEstimate(workouts, race.distanceKm, today) : null), [race.kind, race.distanceKm, workouts, today]);
+}
+
+/** Races with a finish-time estimate: HYROX solo / doubles, and running races with a distance. */
+export const hasEstimate = (r: Race) => (isHyrox(r) && r.format !== 'relay') || (raceKind(r) === 'marathon' && !!r.distanceKm);
+
 export function useRaceEstimate(race: Race): TeamEstimate | null {
   const { backend } = useAuth();
   const { goals, athlete, today } = useData();
@@ -58,7 +67,7 @@ export function useRaceEstimate(race: Race): TeamEstimate | null {
     };
   }, [backend, key]);
   return useMemo(() => {
-    if (race.format === 'relay') return null;
+    if (race.format === 'relay' || !isHyrox(race)) return null;
     const mine = raceEstimate(race, performances);
     const team = partners.map((profile) => {
       const d = loaded[profile.id];
@@ -193,7 +202,7 @@ function SimSummary({ workout }: { workout: Workout }) {
 /** Finish-time range for upcoming solo and doubles races. */
 export function RaceEstimateCard() {
   const { goals, today } = useData();
-  const races = upcomingRaces(goals, today).filter((r) => r.format !== 'relay');
+  const races = upcomingRaces(goals, today).filter(hasEstimate);
   const [id, setId] = useState<string | null>(null);
   const race = races.find((r) => r.id === id) ?? races[0];
   return (
@@ -201,18 +210,18 @@ export function RaceEstimateCard() {
       id="race-estimate"
       icon={Flag}
       title="Race time estimate"
-      subtitle="From your HYROX sims and races: average to best time for every run and station"
+      subtitle="HYROX from your sims and races; running races from your runs"
       summary={
         races.length ? (
           <ul className="space-y-1.5">{races.map((r) => <EstimateSummaryRow key={r.id} race={r} />)}</ul>
         ) : (
-          <p className="text-sm text-slate-500">No upcoming solo or doubles race.</p>
+          <p className="text-sm text-slate-500">No upcoming HYROX solo / doubles race or running race.</p>
         )
       }
     >
       <div className="space-y-4 p-4 sm:p-5">
         {!race ? (
-          <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">Add an upcoming solo or doubles race under Athlete & races to see an estimated finish time.</p>
+          <p className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">Add an upcoming HYROX solo or doubles race, or a marathon, under Athlete & races to see an estimated finish time.</p>
         ) : (
           <>
             {races.length > 1 && (
@@ -224,7 +233,7 @@ export function RaceEstimateCard() {
                 ))}
               </div>
             )}
-            <Estimate race={race} />
+            {isHyrox(race) ? <Estimate race={race} /> : <RunEstimate race={race} />}
           </>
         )}
       </div>
@@ -235,13 +244,38 @@ export function RaceEstimateCard() {
 /** Collapsed view of the estimate: one line per race. */
 function EstimateSummaryRow({ race }: { race: Race }) {
   const team = useRaceEstimate(race);
-  if (!team) return null;
-  const e = team.estimate;
+  const run = useRunEstimate(race);
+  const e = team?.estimate ?? run;
+  if (!e) return null;
   return (
     <li className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
       <span className="min-w-0 truncate text-sm font-medium text-slate-900">{race.name}</span>
-      <span className="shrink-0 text-sm font-semibold text-blue-700">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</span>
+      <span className="shrink-0 text-sm font-semibold text-blue-700">{fmtRange(e.fastSec, e.typicalSec)}</span>
     </li>
+  );
+}
+
+/** Running race estimate: Riegel from the athlete's runs. */
+function RunEstimate({ race }: { race: Race }) {
+  const { goals, today } = useData();
+  const e = useRunEstimate(race);
+  const km = race.distanceKm ?? 0;
+  const pace = (sec: number) => `${fmtTime(Math.round(sec / km))}/km`;
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-white">
+        <p className="text-xs text-blue-100">{raceTypeLabel(race, goals.athleteSex)} · {fmtLong(race.date)} · {diffDays(race.date, today)} days to go</p>
+        <p className="mt-1 text-2xl font-semibold tracking-tight">{e ? fmtRange(e.fastSec, e.typicalSec) : '—'}</p>
+        <p className="text-xs text-blue-100">{e ? `best run → recent average pace · from ${e.basis}` : 'Log a run of 3 km or more to see an estimate.'}</p>
+      </div>
+      {e && (
+        <div className="grid grid-cols-2 gap-2">
+          <MiniStat label="Pace at best" value={pace(e.fastSec)} />
+          <MiniStat label="Pace at average" value={pace(e.typicalSec)} />
+        </div>
+      )}
+      <p className="text-[11px] text-slate-500">Estimated with Riegel's formula (time × (distance ratio)^1.06) from your logged runs. Longer training runs make longer-race estimates more reliable.</p>
+    </div>
   );
 }
 
@@ -254,7 +288,7 @@ function Estimate({ race }: { race: Race }) {
     <div className="space-y-4">
       <div className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 px-4 py-3 text-white">
         <p className="text-xs text-blue-100">{raceTypeLabel(race, goals.athleteSex)} · {fmtLong(race.date)} · {diffDays(race.date, today)} days to go</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</p>
+        <p className="mt-1 text-2xl font-semibold tracking-tight">{fmtRange(e.fastSec, e.typicalSec)}</p>
         <p className="text-xs text-blue-100">
           {combined
             ? `Team estimate: average of both best times → average of both average times`
@@ -315,13 +349,14 @@ function Estimate({ race }: { race: Race }) {
 /** One-line estimated finish range for the race plan summary (solo and doubles only). */
 export function EstimateLine({ race }: { race: Race }) {
   const team = useRaceEstimate(race);
-  if (!team) return null;
-  const e = team.estimate;
-  const combined = team.partners.some((p) => p.estimate);
+  const run = useRunEstimate(race);
+  const e = team?.estimate ?? run;
+  if (!e) return null;
+  const combined = !!team?.partners.some((p) => p.estimate);
   return (
     <a href="#race-estimate" onClick={(ev) => { ev.preventDefault(); openSection('race-estimate'); setTimeout(() => document.getElementById('race-estimate')?.scrollIntoView({ behavior: 'smooth' }), 50); }} className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2 py-1 text-sm text-blue-800 hover:bg-blue-100">
       <Timer size={14} className="shrink-0" />
-      {combined ? 'Team estimate' : 'Estimated finish'} <b className="font-semibold">{fmtTime(e.fastSec)} – {fmtTime(e.typicalSec)}</b>
+      {combined ? 'Team estimate' : 'Estimated finish'} <b className="font-semibold">{fmtRange(e.fastSec, e.typicalSec)}</b>
     </a>
   );
 }

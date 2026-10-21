@@ -3,11 +3,12 @@ import { useMemo, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import type { MuscleGroup, Race } from '../data/types';
-import { COVERAGE_META, legName, type FocusLevel, muscleCoverage, raceMuscleFocus, raceSegments, raceSummary, raceTypeLabel, teamLabel, upcomingRaces } from '../lib/analytics';
+import { COVERAGE_META, isHyrox, legName, type FocusLevel, muscleCoverage, raceKind, raceMuscleFocus, raceSegments, raceSummary, raceTypeLabel, redlineFor, teamLabel, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong } from '../lib/dates';
 import { BodyFigure } from './BodyMap';
 import { Card, CollapsibleCard, Legend } from './ui';
 import { EstimateLine } from './SimAnalysis';
+import { REDLINE_STATIONS } from '../data/redline';
 
 export const FOCUS_META: Record<FocusLevel, { label: string; color: string }> = {
   primary: { label: 'Primary focus', color: '#1c5cab' },
@@ -16,9 +17,9 @@ export const FOCUS_META: Record<FocusLevel, { label: string; color: string }> = 
 };
 
 /** Race picker shared by pages that show race-specific content. */
-export function useRaceSelection() {
+export function useRaceSelection(only?: (r: Race) => boolean) {
   const { goals, today } = useData();
-  const races = upcomingRaces(goals, today);
+  const races = upcomingRaces(goals, today).filter((r) => !only || only(r));
   const [raceId, setRaceId] = useState<string | null>(null);
   const race = races.find((r) => r.id === raceId) ?? races[0];
   return { races, race, setRaceId };
@@ -60,7 +61,7 @@ export function RacePlan() {
 
   if (!race) {
     return (
-      <CollapsibleCard id="race-plan" icon={Flag} title="Race plan" subtitle="Race demands and muscle focus" summary={<p className="text-sm text-slate-500">No upcoming race planned.</p>}>
+      <CollapsibleCard id="race-plan" icon={Flag} title="Race plan" subtitle="Race demands and muscle focus" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openProfile({ addRace: 'upcoming' })}><Plus size={14} /> Add race</button>} summary={<p className="text-sm text-slate-500">No upcoming race planned.</p>}>
         <div className="p-5"><NoRaces /></div>
       </CollapsibleCard>
     );
@@ -74,6 +75,7 @@ export function RacePlan() {
   const focusList = focus.filter((f) => f.level !== 'low');
   const active = focus.find((f) => f.id === (hovered ?? selected));
   const days = diffDays(race.date, today);
+  const kind = raceKind(race);
 
   return (
     <CollapsibleCard
@@ -119,12 +121,14 @@ export function RacePlan() {
           </div>
           <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto">
             <Pill icon={CalendarClock} value={String(Math.max(0, days))} label="days to go" />
-            <Pill icon={Footprints} value={`${summary.runKm} km`} label="your running" />
-            <Pill icon={Users} value={String(summary.stations)} label={race.format === 'doubles' ? 'shared stations' : 'stations'} />
+            {summary.runKm > 0 && <Pill icon={Footprints} value={`${summary.runKm} km`} label={kind === 'marathon' ? 'distance' : 'your running'} />}
+            {summary.stations > 0 && <Pill icon={Users} value={String(summary.stations)} label={race.format === 'doubles' ? 'shared stations' : 'stations'} />}
           </div>
-          <p className="w-full text-xs text-slate-600">{summary.note}</p>
+          {summary.note && <p className="w-full text-xs text-slate-600">{summary.note}</p>}
         </div>
 
+        {kind === 'redline' && <RedlineStations race={race} />}
+        {kind === 'hyrox' && (<>
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <div>
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Race segments</h4>
@@ -195,8 +199,40 @@ export function RacePlan() {
             })}
           </ul>
         </div>
+        </>)}
       </div>
     </CollapsibleCard>
+  );
+}
+
+/** Redline: the 12 stations with this category's work. */
+function RedlineStations({ race }: { race: Race }) {
+  const { goals } = useData();
+  const { config } = redlineFor(race, goals.athleteSex);
+  return (
+    <div>
+      <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Redline stations · {config.label}
+        {config.estimated && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-amber-800">estimated loads</span>}
+      </h4>
+      <RedlineList spec={config.spec} />
+      {config.note && <p className="mt-2 text-xs text-slate-500">{config.note}</p>}
+      {config.estimated && <p className="mt-1 text-xs text-amber-700">Men's and mixed loads are estimates until the official Redline numbers are added.</p>}
+    </div>
+  );
+}
+
+export function RedlineList({ spec }: { spec: readonly string[] }) {
+  return (
+    <ol className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+      {REDLINE_STATIONS.map((name, i) => (
+        <li key={name} className="flex items-center gap-3 px-3 py-2">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-rose-600 text-[11px] font-semibold text-white">{i + 1}</span>
+          <span className="min-w-0 flex-1 text-sm font-medium text-slate-900">{name}</span>
+          <span className="shrink-0 text-right text-xs text-slate-600">{spec[i]}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -212,7 +248,8 @@ function Pill({ icon: Icon, value, label }: { icon: typeof Flag; value: string; 
 /** Compact race focus summary for the Muscle Analysis page. */
 export function RaceFocusStrip({ onSelect }: { onSelect: (m: MuscleGroup) => void }) {
   const { goals, workouts, today } = useData();
-  const { races, race, setRaceId } = useRaceSelection();
+  // Muscle focus comes from the HYROX stations.
+  const { races, race, setRaceId } = useRaceSelection(isHyrox);
   const coverage = useMemo(() => muscleCoverage(workouts, '4w', today), [workouts, today]);
   if (!race) return null;
   const focus = raceMuscleFocus(race, goals.athleteSex).filter((f) => f.level !== 'low');

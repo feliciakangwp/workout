@@ -6,7 +6,7 @@ import { useRaceEstimate } from '../components/SimAnalysis';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import type { Race } from '../data/types';
-import { raceTypeLabel, upcomingRaces } from '../lib/analytics';
+import { isHyrox, raceTypeLabel, upcomingRaces } from '../lib/analytics';
 import { fmtShort } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 
@@ -17,7 +17,7 @@ export default function Race3D() {
   const { goals, today, athlete, readOnly } = useData();
   const { openProfile } = useUI();
   const [format, setFormat] = useState<Format>('solo');
-  const upcoming = upcomingRaces(goals, today);
+  const upcoming = upcomingRaces(goals, today).filter(isHyrox);
   // Doubles races with a tagged partner give a team estimate.
   const doublesRaces = upcoming.filter((r) => r.format === 'doubles' && r.teammates?.some((t) => t.id !== athlete.id));
   const [raceId, setRaceId] = useState<string | null>(null);

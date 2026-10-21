@@ -5,7 +5,7 @@ import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { STATION_BY_ID } from '../data/stations';
 import type { Race } from '../data/types';
-import { compareRaces, legName, resultStations, completedRaces, previousRace, raceTypeLabel, resultTotals, teamLabel, type SegmentDelta } from '../lib/analytics';
+import { RACE_KIND_LABEL, compareRaces, isHyrox, raceKind, legName, resultStations, completedRaces, previousRace, raceTypeLabel, resultTotals, teamLabel, type SegmentDelta } from '../lib/analytics';
 import { fmtLong, fmtShort } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 import { AXIS } from '../lib/theme';
@@ -76,7 +76,7 @@ export function RaceAnalysis() {
                     <optgroup key={year} label={year}>
                       {races.filter((r) => r.date.startsWith(year)).map((r) => (
                         <option key={r.id} value={r.id}>
-                          {r.name} · {fmtShort(r.date)} · {r.format === 'solo' ? 'Solo' : r.format === 'doubles' ? 'Doubles' : 'Relay'}
+                          {r.name} · {fmtShort(r.date)} · {isHyrox(r) ? (r.format === 'solo' ? 'Solo' : r.format === 'doubles' ? 'Doubles' : 'Relay') : RACE_KIND_LABEL[raceKind(r)]}
                         </option>
                       ))}
                     </optgroup>

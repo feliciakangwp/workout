@@ -2,12 +2,15 @@ import { ChevronDown, Flag, LogOut, Plus, Trash2, Trophy, UserPlus, Users, X } f
 import { useEffect, useState } from 'react';
 import { useData } from '../context/DataContext';
 import { STATIONS } from '../data/stations';
-import { OTHER_LEG, type Profile, type Race, type RaceFormat, type RaceResult, type Sex, type StationId, type WeightCategory } from '../data/types';
+import { OTHER_LEG, type Profile, type Race, type RaceFormat, type RaceKind, type RaceResult, type RedlineDivision, type Sex, type StationId, type WeightCategory } from '../data/types';
+import { REDLINE_LEVELS } from '../data/redline';
 import { useAuth } from '../context/AuthContext';
-import { legName, raceSummary, raceTypeLabel, resultStations } from '../lib/analytics';
+import { RACE_KIND_LABEL, RUN_DISTANCES, isHyrox, legName, raceKind, raceSummary, raceTypeLabel, redlineFor, resultStations } from '../lib/analytics';
 import { addDays, diffDays, fmtLong } from '../lib/dates';
-import { fmtTime, parseTime } from '../lib/format';
+import { fmtRange, fmtTime, parseTime } from '../lib/format';
 import { Modal, Segmented } from './ui';
+import { RedlineList } from './RacePlan';
+import { useRunEstimate } from './SimAnalysis';
 import type { ProfileTarget } from '../context/UIContext';
 
 /** Unique across visits: a per-visit counter restarted at 0 and gave a new race the id of one saved earlier. */
@@ -123,13 +126,21 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
       const n = r.name.trim() || `Race ${i + 1}`;
       if (!r.name.trim()) errs.push(`Race ${i + 1}: enter a race name.`);
       if (!r.date) errs.push(`${n}: choose a date.`);
-      if (r.format === 'relay' && r.relayStations.length === 0) errs.push(`${n}: assign at least one relay station to yourself.`);
+      const kind = raceKind(r);
+      if (kind === 'hyrox' && r.format === 'relay' && r.relayStations.length === 0) errs.push(`${n}: assign at least one relay station to yourself.`);
+      if (kind === 'marathon' && !(r.distanceKm && r.distanceKm > 0 && r.distanceKm <= 400)) errs.push(`${n}: enter the race distance in km.`);
       const team = r.teammates?.length ?? 0;
       if (r.format === 'doubles' && team > 1) errs.push(`${n}: a doubles race has one partner — remove the extra teammate.`);
       if (r.format === 'relay' && team > 3) errs.push(`${n}: a relay team has up to 3 teammates besides you.`);
-      const race: Race = { ...r, name: r.name.trim(), result: undefined };
+      const race: Race = { ...r, name: r.name.trim(), result: undefined, ...kindFields(r, sex) };
       const inp = results[r.id];
       if (r.date >= today || !inp) return race;
+      if (kind !== 'hyrox') {
+        // Redline, running and other races: the finish time only.
+        const totalSec = inp.total.trim() ? parse(inp.total) : undefined;
+        if (totalSec !== undefined && !(totalSec >= 60 && totalSec <= 48 * 3600)) errs.push(`${n}: finish time should be a time like ${kind === 'marathon' ? '3:45:00' : '1:05:30'}.`);
+        return totalSec ? { ...race, result: { totalSec, splits: [] } } : race;
+      }
       // Completed race: turn the text inputs into a result.
       const check = (text: string, label: string, min: number, max: number) => {
         if (!text.trim()) return undefined;
@@ -188,6 +199,25 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
           </div>
         </div>
 
+        <div className="mt-3">
+          <p className="label">Race type</p>
+          {isOwner(r) ? (
+            <Segmented<RaceKind>
+              size="md"
+              value={raceKind(r)}
+              onChange={(kind) => update(r.id, { kind, ...(kind === 'marathon' && !r.distanceKm ? { distanceKm: 42.195 } : {}) })}
+              options={(['hyrox', 'redline', 'marathon', 'other'] as const).map((k) => ({ value: k, label: k === 'other' ? 'Other' : RACE_KIND_LABEL[k] }))}
+            />
+          ) : (
+            <p className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm text-slate-600">{RACE_KIND_LABEL[raceKind(r)]}</p>
+          )}
+        </div>
+
+        {raceKind(r) === 'redline' && <RedlineFields race={r} sex={sex} owner={isOwner(r)} onChange={(patch) => update(r.id, patch)} />}
+        {raceKind(r) === 'marathon' && <DistanceFields race={r} onChange={(distanceKm) => update(r.id, { distanceKm })} />}
+        {raceKind(r) === 'other' && <p className="mt-3 text-xs text-slate-500">Any other race: the name and date go on your race plan, and you can add your finish time once it's done.</p>}
+
+        {isHyrox(r) && (<>
         <div className="mt-3 flex flex-wrap items-end gap-x-5 gap-y-3">
           <div>
             <p className="label">Format</p>
@@ -211,15 +241,23 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
         {r.format !== 'solo' && <TeamFields race={r} friends={friends} owner={isOwner(r)} onChange={(teammates) => update(r.id, { teammates })} />}
 
         {r.format === 'relay' && <RelayLegs race={r} me={athlete} onChange={(legs) => update(r.id, { legs, relayStations: STATIONS.filter((s) => legs[s.id] === athlete.id).map((s) => s.id) })} />}
-        {r.format === 'solo' && (r.teammates?.length ?? 0) > 0 && <p className="mt-3 text-xs text-amber-700">Solo races have no teammates — your tagged friends will be removed when you save.</p>}
+        </>)}
+        {raceKind(r) === 'redline' && r.format !== 'solo' && <TeamFields race={r} friends={friends} owner={isOwner(r)} onChange={(teammates) => update(r.id, { teammates })} />}
+        {(r.teammates?.length ?? 0) > 0 && (r.format === 'solo' || raceKind(r) === 'marathon' || raceKind(r) === 'other') && (
+          <p className="mt-3 text-xs text-amber-700">{isHyrox(r) || raceKind(r) === 'redline' ? 'Solo races' : 'This race type'} has no teammates — your tagged friends will be removed when you save.</p>
+        )}
 
         <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-          <b className="font-semibold">{raceTypeLabel(r, sex)}</b> · {summary.runKm} km running · {summary.stations} station{summary.stations === 1 ? '' : 's'}
+          <b className="font-semibold">{raceTypeLabel(r, sex)}</b>
+          {isHyrox(r) && <> · {summary.runKm} km running · {summary.stations} station{summary.stations === 1 ? '' : 's'}</>}
+          {raceKind(r) === 'redline' && <> · {summary.stations} stations</>}
           {r.date ? (days >= 0 ? ` · ${days} days to go` : ` · raced ${fmtLong(r.date)}`) : ''}
-          {!done && <span className="block text-blue-700/80">{summary.note}</span>}
+          {!done && summary.note && <span className="block text-blue-700/80">{summary.note}</span>}
+          {!done && raceKind(r) === 'marathon' && <RunEstimateHint race={r} />}
         </p>
 
-        {done && <ResultFields race={r} me={athlete} inputs={results[r.id] ?? toInputs()} onChange={(patch) => updateResult(r.id, patch)} />}
+        {done && !isHyrox(r) && <FinishTimeField race={r} value={results[r.id]?.total ?? ''} onChange={(total) => updateResult(r.id, { total })} />}
+        {done && isHyrox(r) && <ResultFields race={r} me={athlete} inputs={results[r.id] ?? toInputs()} onChange={(patch) => updateResult(r.id, patch)} />}
       </div>
     );
   };
@@ -274,11 +312,123 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
             <Plus size={14} /> Add past race
           </button>
         </div>
-        <p className="mb-2 mt-1 text-xs text-slate-500">Races move here automatically once their date has passed. Add past races with their date and finish time to see the race analysis on the HYROX page.</p>
+        <p className="mb-2 mt-1 text-xs text-slate-500">Races move here automatically once their date has passed. Add past races with their date and finish time to see the race analysis on the Race page.</p>
         {completed.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">No completed races yet.</p>}
         <div className="space-y-3">{completed.map((r) => raceCard(r, races.indexOf(r), true))}</div>
       </section>
     </Modal>
+  );
+}
+
+/** Fields that only belong to some race kinds are cleared, so a race changed from HYROX to a marathon doesn't keep relay legs. */
+function kindFields(r: Race, sex: Sex): Partial<Race> {
+  const kind = raceKind(r);
+  const teamless = kind === 'marathon' || kind === 'other' || r.format === 'solo';
+  const base: Partial<Race> = {
+    distanceKm: kind === 'marathon' ? r.distanceKm : undefined,
+    redline: kind === 'redline' ? (({ division, level }) => ({ division, level }))(redlineFor(r, sex)) : undefined,
+    teammates: teamless ? undefined : r.teammates,
+  };
+  if (kind === 'hyrox') return base;
+  return { ...base, format: kind === 'redline' ? r.format : 'solo', category: 'open', relayStations: [], legs: undefined };
+}
+
+/** Redline: format, level (singles) and division, with the station work for that category. */
+function RedlineFields({ race, sex, owner, onChange }: { race: Race; sex: Sex; owner: boolean; onChange: (patch: Partial<Race>) => void }) {
+  const { division, level, config } = redlineFor(race, sex);
+  const set = (patch: Partial<NonNullable<Race['redline']>>) => onChange({ redline: { division, level, ...patch } });
+  const solo = race.format === 'solo';
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+        <div>
+          <p className="label">Format</p>
+          <Segmented<RaceFormat>
+            size="md"
+            value={race.format}
+            onChange={(format) => onChange({ format, ...(format === 'solo' && division === 'mixed' ? { redline: { division: sex === 'female' ? 'women' : 'men', level } } : {}) })}
+            options={[...(owner ? [{ value: 'solo' as const, label: 'Singles' }] : []), { value: 'doubles', label: 'Doubles' }, { value: 'relay', label: 'Team relay' }]}
+          />
+        </div>
+        <div>
+          <p className="label">Category</p>
+          <Segmented<RedlineDivision>
+            size="md"
+            value={division}
+            onChange={(d) => set({ division: d })}
+            options={[{ value: 'women', label: 'Women' }, { value: 'men', label: 'Men' }, ...(solo ? [] : [{ value: 'mixed' as const, label: 'Mixed' }])]}
+          />
+        </div>
+        {solo && (
+          <div>
+            <p className="label">Level</p>
+            <Segmented<string> size="md" value={String(level)} onChange={(l) => set({ level: Number(l) as 1 | 2 | 3 })} options={REDLINE_LEVELS.map((l) => ({ value: String(l.level), label: l.label.replace('Level ', 'L').replace(' · ', ' ') }))} />
+          </div>
+        )}
+      </div>
+      <details className="mt-3 rounded-xl bg-rose-50/60 p-3" open>
+        <summary className="cursor-pointer text-xs font-semibold text-rose-900">
+          {config.label}: 12 stations
+          {config.estimated && <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">estimated loads</span>}
+        </summary>
+        <div className="mt-2"><RedlineList spec={config.spec} /></div>
+        {config.note && <p className="mt-1.5 text-[11px] text-slate-600">{config.note}</p>}
+      </details>
+    </div>
+  );
+}
+
+/** Running race distance: quick picks or any distance in km. */
+function DistanceFields({ race, onChange }: { race: Race; onChange: (km: number | undefined) => void }) {
+  const [text, setText] = useState(race.distanceKm ? String(race.distanceKm) : '');
+  // Follow quick picks, but leave half-typed text like "21." alone.
+  useEffect(() => setText((t) => (parseFloat(t.replace(',', '.')) === race.distanceKm ? t : race.distanceKm ? String(race.distanceKm) : '')), [race.distanceKm]);
+  return (
+    <div className="mt-3">
+      <label className="label" htmlFor={`rk-${race.id}`}>Distance</label>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {RUN_DISTANCES.map((d) => (
+          <button
+            key={d.km}
+            type="button"
+            onClick={() => onChange(d.km)}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${race.distanceKm && Math.abs(race.distanceKm - d.km) < 0.01 ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}
+          >
+            {d.label}
+          </button>
+        ))}
+        <span className="inline-flex items-center gap-1.5">
+          <input
+            id={`rk-${race.id}`}
+            inputMode="decimal"
+            className="input h-8 w-24 py-0 text-sm"
+            placeholder="km"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              const km = parseFloat(e.target.value.replace(',', '.'));
+              onChange(km > 0 ? km : undefined);
+            }}
+          />
+          <span className="text-xs text-slate-500">km</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function RunEstimateHint({ race }: { race: Race }) {
+  const e = useRunEstimate(race);
+  return <span className="block text-blue-700/80">{e ? `Estimated finish from your runs: ${fmtRange(e.fastSec, e.typicalSec)}` : 'Log a run of 3 km or more to see an estimated finish time.'}</span>;
+}
+
+function FinishTimeField({ race, value, onChange }: { race: Race; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="mt-3 rounded-xl bg-slate-50 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Result</p>
+      <label className="label mt-2" htmlFor={`rt-${race.id}`}>Finish time</label>
+      <input id={`rt-${race.id}`} inputMode="decimal" className="input" placeholder={raceKind(race) === 'marathon' ? '3:45:00' : '1:05:30'} value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
   );
 }
 

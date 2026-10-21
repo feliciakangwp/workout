@@ -23,7 +23,7 @@ export const NAV: { id: PageId; label: string; short: string; icon: LucideIcon }
   { id: 'muscles', label: 'Muscle Analysis', short: 'Muscles', icon: Activity },
   { id: 'strength', label: 'Strength Progression', short: 'Strength', icon: Dumbbell },
   { id: 'running', label: 'Running Performance', short: 'Running', icon: Footprints },
-  { id: 'hyrox', label: 'HYROX Performance', short: 'HYROX', icon: Trophy },
+  { id: 'hyrox', label: 'Race Performance', short: 'Race', icon: Trophy },
   { id: 'log', label: 'Workout Log', short: 'Log', icon: ListChecks },
 ];
 
@@ -34,7 +34,7 @@ export const EXTRA_NAV: typeof NAV = [
   { id: 'friends', label: 'Friends', short: 'Friends', icon: Users },
 ];
 export const ALL_NAV = [...NAV, ...EXTRA_NAV];
-/** Phone tab bar: the main pages plus Race 3D after HYROX. */
+/** Phone tab bar: the main pages plus Race 3D after Race. */
 const MOBILE_NAV = [...NAV.slice(0, 5), EXTRA_NAV.find((n) => n.id === 'race3d')!, ...NAV.slice(5)];
 
 const initials = (name: string) =>

@@ -8,7 +8,7 @@ import { RacePlan } from '../components/RacePlan';
 import { RaceAnalysis } from '../components/RaceAnalysis';
 import { RaceEstimateCard, SimAnalysisCard } from '../components/SimAnalysis';
 import type { StationId } from '../data/types';
-import { raceDivision, stationSummaries, upcomingRaces } from '../lib/analytics';
+import { isHyrox, raceDivision, stationSummaries, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtLong, fmtShort } from '../lib/dates';
 import { fmtTime } from '../lib/format';
 import { AXIS, GRID, SERIES } from '../lib/theme';
@@ -38,7 +38,7 @@ export function HyroxPerformance() {
   const totalFirst = withData.reduce((a, s) => a + s.first!.timeSec, 0);
   const totalTarget = withData.reduce((a, s) => a + STATION_BY_ID[s.id].targetSec, 0);
   const onTarget = withData.filter((s) => s.latest!.score >= 95).length;
-  const nextComp = upcomingRaces(goals, today)[0];
+  const nextComp = upcomingRaces(goals, today).find(isHyrox);
   const division = nextComp ? raceDivision(nextComp, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' as const };
 
   const narrow = window.innerWidth < 640;
@@ -46,7 +46,7 @@ export function HyroxPerformance() {
 
   return (
     <div>
-      <PageHeader title="HYROX Performance" subtitle="Station results from simulations and station practice. Half and ¾ sim times are scaled to full distance for comparison." actions={<DemoBadge />} />
+      <PageHeader title="Race Performance" subtitle="Your races, plus HYROX station results from simulations and station practice. Half and ¾ sim times are scaled to full distance for comparison." actions={<DemoBadge />} />
 
       <div className="mb-5 space-y-5">
         <RacePlan />

@@ -52,7 +52,7 @@ export function hyroxPerformances(workouts: Workout[], races: Race[]): Performan
     out.push({ id: w.id, source: 'sim', label: `${simLabel(w.hyrox.sim)} · ${fmtShort(w.date)}`, date: w.date, category: w.hyrox.division.category, sim: w.hyrox.sim, splits });
   }
   for (const r of races) {
-    if (!r.result?.splits.length) continue;
+    if ((r.kind ?? 'hyrox') !== 'hyrox' || !r.result?.splits.length) continue;
     const splits: Performance['splits'] = {};
     // A relay result is the team's: only the athlete's own legs count as their efforts.
     for (const s of r.result.splits)

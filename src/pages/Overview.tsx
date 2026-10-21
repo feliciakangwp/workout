@@ -243,7 +243,7 @@ function Insights({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const meta = {
     improving: { icon: Sparkles, tone: 'text-emerald-600 bg-emerald-50', link: 'strength' as PageId, linkLabel: 'View strength' },
     attention: { icon: TriangleAlert, tone: 'text-amber-600 bg-amber-50', link: 'muscles' as PageId, linkLabel: 'View muscle analysis' },
-    focus: { icon: Lightbulb, tone: 'text-blue-600 bg-blue-50', link: 'hyrox' as PageId, linkLabel: 'View HYROX performance' },
+    focus: { icon: Lightbulb, tone: 'text-blue-600 bg-blue-50', link: 'hyrox' as PageId, linkLabel: 'View race performance' },
   };
   return (
     <div className="mt-5">

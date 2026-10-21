@@ -78,7 +78,7 @@ function toShared(r: Race, me: Profile, existing?: SharedRace): SharedRace {
     id: existing?.id ?? `sr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ownerId: existing?.ownerId ?? me.id,
     members,
-    race: { name: r.name, date: r.date, format: r.format, category: r.category, result: r.result, legs: r.format === 'relay' ? r.legs : undefined },
+    race: { name: r.name, date: r.date, kind: r.kind, distanceKm: r.distanceKm, redline: r.redline, format: r.format, category: r.category, result: r.result, legs: r.format === 'relay' ? r.legs : undefined },
     memberStations,
   };
 }

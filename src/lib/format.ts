@@ -35,3 +35,6 @@ export const parseTime = (text: string) => {
 };
 
 export const round = (v: number, step: number) => Math.round(v / step) * step;
+
+/** "1:52:10 – 1:58:40", or one time when both ends match. */
+export const fmtRange = (a: number, b: number) => (Math.round(a) === Math.round(b) ? fmtTime(a) : `${fmtTime(a)} – ${fmtTime(b)}`);

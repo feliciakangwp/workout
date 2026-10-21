@@ -1,12 +1,48 @@
 import { EXERCISE_BY_NAME } from '../../data/exercises';
 import { MUSCLES } from '../../data/muscles';
 import { STATIONS, stationSpec, stationWeight } from '../../data/stations';
-import type { Division, Goals, MuscleGroup, Profile, Race, Sex, StationId } from '../../data/types';
+import { REDLINE_STATIONS, redlineConfig } from '../../data/redline';
+import type { Division, Goals, MuscleGroup, Profile, Race, RaceKind, Sex, StationId, Workout } from '../../data/types';
+import { avgPace, predictTime, runs } from './running';
 
 /** Relays always race at the athlete's open weights. */
 export const raceDivision = (race: Race, sex: Sex): Division => ({ sex, category: race.format === 'relay' ? 'open' : race.category });
 
+/** Races saved before race kinds existed are HYROX races. */
+export const raceKind = (race: Pick<Race, 'kind'>): RaceKind => race.kind ?? 'hyrox';
+export const isHyrox = (race: Pick<Race, 'kind'>) => raceKind(race) === 'hyrox';
+
+export const RACE_KIND_LABEL: Record<RaceKind, string> = { hyrox: 'HYROX', redline: 'Redline', marathon: 'Marathon', other: 'Other race' };
+
+/** Running race distances to pick from; anything else is entered in km. */
+export const RUN_DISTANCES = [
+  { km: 5, label: '5K' },
+  { km: 10, label: '10K' },
+  { km: 21.0975, label: 'Half marathon' },
+  { km: 42.195, label: 'Marathon' },
+];
+
+export const distanceLabel = (km?: number) => {
+  if (!km) return 'distance not set';
+  const named = RUN_DISTANCES.find((d) => Math.abs(d.km - km) < 0.01);
+  return named ? `${named.label} · ${Math.round(km * 10) / 10} km` : `${Math.round(km * 100) / 100} km`;
+};
+
+/** Redline category for a race, with the athlete's sex as the default division. */
+export const redlineFor = (race: Race, sex: Sex) => {
+  const division = race.redline?.division ?? (sex === 'female' ? 'women' : 'men');
+  const level = race.redline?.level ?? 1;
+  return { division, level, config: redlineConfig(race.format, division, level) };
+};
+
 export function raceTypeLabel(race: Race, sex: Sex) {
+  const kind = raceKind(race);
+  if (kind === 'marathon') {
+    const named = RUN_DISTANCES.some((d) => race.distanceKm && Math.abs(d.km - race.distanceKm) < 0.01);
+    return named ? distanceLabel(race.distanceKm) : `Running race · ${distanceLabel(race.distanceKm)}`;
+  }
+  if (kind === 'other') return 'Other race';
+  if (kind === 'redline') return `Redline · ${redlineFor(race, sex).config.label}`;
   const who = sex === 'female' ? "Women's" : "Men's";
   if (race.format === 'relay') return `Relay · ${sex === 'female' ? "women's" : "men's"} open weights`;
   const cat = race.category === 'pro' ? 'Pro' : 'Open';
@@ -54,6 +90,15 @@ export function raceSegments(race: Race, sex: Sex): RaceSegment[] {
 }
 
 export function raceSummary(race: Race, sex: Sex) {
+  const kind = raceKind(race);
+  if (kind === 'marathon') return { runKm: Math.round((race.distanceKm ?? 0) * 10) / 10, stations: 0, note: 'One continuous run.' };
+  if (kind === 'other') return { runKm: 0, stations: 0, note: '' };
+  if (kind === 'redline')
+    return {
+      runKm: 0,
+      stations: REDLINE_STATIONS.length,
+      note: race.format === 'doubles' ? 'Station work is shared with your partner.' : race.format === 'relay' ? 'Stations are split across the team.' : 'You complete all 12 stations on your own.',
+    };
   const segs = raceSegments(race, sex).filter((s) => s.included);
   return {
     runKm: segs.reduce((a, s) => a + s.runKm, 0),
@@ -116,7 +161,7 @@ export function raceMuscleFocus(race: Race, sex: Sex): MuscleFocus[] {
  * every upcoming race is a relay, since full races already demand every group.
  */
 export function relayFocusMuscles(goals: Goals, today: string): Set<MuscleGroup> {
-  const races = upcomingRaces(goals, today);
+  const races = upcomingRaces(goals, today).filter(isHyrox);
   if (!races.length || races.some((r) => r.format !== 'relay')) return new Set();
   return new Set(races.flatMap((r) => raceMuscleFocus(r, goals.athleteSex).filter((f) => f.level === 'primary').map((f) => f.id)));
 }
@@ -173,7 +218,8 @@ export interface SegmentDelta {
 
 /** Most recent earlier completed race with a time, preferring the same format. */
 export function previousRace(race: Race, completed: Race[]) {
-  const earlier = completed.filter((r) => r.date < race.date && resultTotals(r).totalSec);
+  const sameKind = (r: Race) => raceKind(r) === raceKind(race) && (raceKind(race) !== 'marathon' || Math.abs((r.distanceKm ?? 0) - (race.distanceKm ?? 0)) < 0.01);
+  const earlier = completed.filter((r) => r.date < race.date && resultTotals(r).totalSec && sameKind(r));
   return earlier.find((r) => r.format === race.format) ?? earlier[0];
 }
 
@@ -196,4 +242,35 @@ export function compareRaces(current: Race, previous: Race): { segments: Segment
   }
   add('roxzone', 'Roxzone', a.roxzoneSec, b.roxzoneSec);
   return { segments, totals };
+}
+
+// ---------------------------------------------------------------------------
+// Running race estimate
+// ---------------------------------------------------------------------------
+
+export interface RunRaceEstimate {
+  fastSec: number;
+  typicalSec: number;
+  /** Runs used for the estimate. */
+  n: number;
+  basis: string;
+}
+
+/**
+ * Finish time for a running race from the athlete's runs (Riegel): the fast end
+ * from the best run of 3 km or more, the typical end from the average pace of
+ * the last 8 weeks of runs.
+ */
+export function runRaceEstimate(workouts: Workout[], distanceKm: number, today: string): RunRaceEstimate | null {
+  if (!distanceKm) return null;
+  const all = runs(workouts).filter((r) => r.date <= today && r.paceSecPerKm > 0);
+  const long = all.filter((r) => r.distanceKm >= 3);
+  if (!long.length) return null;
+  const fastSec = Math.min(...long.map((r) => predictTime(r.durationSec, r.distanceKm, distanceKm)));
+  const cutoff = new Date(Date.parse(today) - 56 * 86400000).toISOString().slice(0, 10);
+  const recent = long.filter((r) => r.date >= cutoff);
+  const pool = recent.length ? recent : long;
+  const km = pool.reduce((a, r) => a + r.distanceKm, 0) / pool.length;
+  const typicalSec = Math.max(fastSec, predictTime(avgPace(pool) * km, km, distanceKm));
+  return { fastSec, typicalSec, n: pool.length, basis: `${long.length} run${long.length === 1 ? '' : 's'} of 3 km or more` };
 }

@@ -28,7 +28,7 @@ src/
   lib/analytics/   pure functions deriving every metric from the workout list
   context/         DataContext: sample + session-added workouts, editable goals
   components/      layout, UI primitives, body map, workout detail, add-workout form
-  pages/           Overview, Muscle Analysis, Strength, Running, HYROX, Workout Log, Body Composition, Friends
+  pages/           Overview, Muscle Analysis, Strength, Running, Race, Workout Log, Body Composition, Friends
 ```
 
 ### Accounts and friends
@@ -107,9 +107,21 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 
 - **Athlete & races** (sidebar card on laptop, profile icon on mobile): choose the athlete's sex and upcoming races —
   Solo, Doubles (stations shared, every run done yourself) or Relay (1 km run + only your chosen stations, open weights),
-  each with Open or Pro weights. The HYROX page shows each race's segments and the muscle groups to focus on.
+  each with Open or Pro weights. The Race page (formerly HYROX) shows each race's segments and the muscle groups to focus on.
+- **Race types**: *Add race* offers HYROX, Redline, Marathon and Other.
+  - HYROX: the 8 stations, formats and weights above.
+  - Redline: Singles (Level 1–3), Doubles or Team relay in the Women's, Men's or Mixed category (no Mixed singles), with
+    the work for all 12 stations (`src/data/redline.ts`). Women's values follow the Redline guide; doubles use the
+    Level 3 work and relays the Level 2 work. **Men's and mixed loads are estimates** (marked in the app) until the
+    official numbers are added.
+  - Marathon: any running race. Pick 5K, 10K, half or full marathon, or type a distance in km. The finish-time
+    estimate uses Riegel's formula (time × (distance ratio)^1.06), from your best run of 3 km or more (fast end) to
+    your recent average pace (typical end).
+  - Other: name, date and finish time only.
+  Non-HYROX races take a finish time when completed and are compared with your previous race of the same type
+  (and the same distance for running races). HYROX-only features (sim analysis, Race 3D, muscle focus) use HYROX races only.
 - **Completed races**: races move under *Completed* once their date passes. Enter the finish time, or fill the optional
-  run / station splits plus the Roxzone time to calculate it automatically. The HYROX page compares each race with the
+  run / station splits plus the Roxzone time to calculate it automatically. The Race page compares each race with the
   previous one (what improved, what slowed, per-segment changes).
 - **Muscle focus**: solo and doubles races focus every muscle group; while all upcoming races are relays, their primary
   muscle groups are shown in bold on Muscle Analysis.
@@ -138,7 +150,7 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   your best from any other sim, solo race or relay leg, with new bests flagged. Half and ¾ sims are scaled to a full
   sim (station time ÷ distance share, plus a fatigue allowance of +4% / +2% on stations and +2% / +1% on runs) and
   compared with your best full effort (runs + stations, Roxzone excluded).
-- **Race time estimate** (HYROX page): for upcoming solo and doubles races, a finish-time range from the best to the
+- **Race time estimate** (Race page): for upcoming running races (see above) and HYROX solo and doubles races, a finish-time range from the best to the
   average of every run, station and Roxzone across your sims and races (Pro / Open weights matched when possible).
   Doubles use your doubles race splits when you have them, otherwise solo station times × 0.55.
   With a friend tagged as your doubles partner, the range is the team average: the average of both partners' best
