@@ -15,11 +15,11 @@ export interface PeriodStats {
   musclesOnTarget: number;
 }
 
-/** This week so far (Mon → today) vs the same days of the previous week. */
+/** This week so far (Mon → today) and all of last week (Mon → Sun). */
 export function weekComparison(workouts: Workout[], today = DEMO_TODAY) {
   const thisFrom = startOfWeek(today);
   const lastFrom = addDays(thisFrom, -7);
-  const lastTo = addDays(today, -7);
+  const lastTo = addDays(thisFrom, -1); // all of last week
   const stats = (from: string, to: string): PeriodStats => {
     const ws = workoutsBetween(workouts, from, to);
     return {

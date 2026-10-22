@@ -16,18 +16,20 @@ export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const { workouts, today } = useData();
   const cmp = useMemo(() => weekComparison(workouts, today), [workouts, today]);
   const { current: c, previous: p } = cmp;
-  const vs = `vs ${cmp.daysElapsed === 7 ? 'last week' : 'same point last week'}`;
+  // Totals still adding up this week: only show the change once it's level with or past last week, or the week is over.
+  const weekOver = cmp.daysElapsed === 7;
+  const shown = (d: number) => (weekOver || d >= 0 ? d : undefined);
 
   return (
     <div>
-      <PageHeader title="Training Overview" subtitle={`This week so far (${cmp.daysElapsed} of 7 days) compared with the same days last week.`} actions={<DemoBadge />} />
+      <PageHeader title="Training Overview" subtitle={`This week so far (${cmp.daysElapsed} of 7 days), with last week's totals.`} actions={<DemoBadge />} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <StatCard icon={CalendarDays} label="Workouts this week" value={String(c.workouts)} unit={`/ ${cmp.daysElapsed} days`} delta={c.workouts - p.workouts} deltaLabel={`${c.workouts - p.workouts >= 0 ? '+' : ''}${c.workouts - p.workouts}`} comparison={`${p.workouts} ${vs}`} />
-        <StatCard icon={Clock} label="Training duration" value={fmtDuration(c.minutes)} delta={c.minutes - p.minutes} deltaLabel={fmtPct(pctChange(c.minutes, p.minutes))} comparison={`${fmtDuration(p.minutes)} ${vs}`} accent="sky" />
-        <StatCard icon={Footprints} label="Running distance" value={c.runKm.toFixed(1)} unit="km" delta={c.runKm - p.runKm} deltaLabel={fmtPct(pctChange(c.runKm, p.runKm))} comparison={`${p.runKm.toFixed(1)} km ${vs}`} accent="violet" />
-        <StatCard icon={Dumbbell} label="Strength index" value={c.strengthIndex.toFixed(1)} unit="pts" delta={c.strengthIndex - p.strengthIndex} deltaLabel={`${c.strengthIndex - p.strengthIndex >= 0 ? '+' : ''}${(c.strengthIndex - p.strengthIndex).toFixed(1)}`} comparison={`${p.strengthIndex.toFixed(1)} last week · 100 = block start`} accent="amber" />
-        <StatCard icon={Activity} label="Muscle coverage" value={`${c.musclesOnTarget}/10`} unit="on target" delta={c.musclesOnTarget - p.musclesOnTarget} deltaLabel={`${c.musclesOnTarget - p.musclesOnTarget >= 0 ? '+' : ''}${c.musclesOnTarget - p.musclesOnTarget}`} comparison={`${p.musclesOnTarget}/10 last week (rolling 7 days)`} accent="emerald" />
+        <StatCard icon={CalendarDays} label="Workouts this week" value={String(c.workouts)} unit={`/ ${cmp.daysElapsed} days`} delta={shown(c.workouts - p.workouts)} deltaLabel={`${c.workouts - p.workouts >= 0 ? '+' : ''}${c.workouts - p.workouts}`} comparison={`Last week: ${p.workouts}`} />
+        <StatCard icon={Clock} label="Training duration" value={fmtDuration(c.minutes)} delta={shown(c.minutes - p.minutes)} deltaLabel={fmtPct(pctChange(c.minutes, p.minutes))} comparison={`Last week: ${fmtDuration(p.minutes)}`} accent="sky" />
+        <StatCard icon={Footprints} label="Running distance" value={c.runKm.toFixed(1)} unit="km" delta={shown(c.runKm - p.runKm)} deltaLabel={fmtPct(pctChange(c.runKm, p.runKm))} comparison={`Last week: ${p.runKm.toFixed(1)} km`} accent="violet" />
+        <StatCard icon={Dumbbell} label="Strength index" value={c.strengthIndex.toFixed(1)} unit="pts" delta={c.strengthIndex - p.strengthIndex} deltaLabel={`${c.strengthIndex - p.strengthIndex >= 0 ? '+' : ''}${(c.strengthIndex - p.strengthIndex).toFixed(1)}`} comparison={`Last week: ${p.strengthIndex.toFixed(1)} · 100 = block start`} accent="amber" />
+        <StatCard icon={Activity} label="Muscle coverage" value={`${c.musclesOnTarget}/10`} unit="on target" delta={c.musclesOnTarget - p.musclesOnTarget} deltaLabel={`${c.musclesOnTarget - p.musclesOnTarget >= 0 ? '+' : ''}${c.musclesOnTarget - p.musclesOnTarget}`} comparison={`Last week: ${p.musclesOnTarget}/10`} accent="emerald" />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
