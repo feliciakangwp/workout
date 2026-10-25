@@ -143,6 +143,8 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   starting weight if never logged), 45 minutes unless you set the duration.
 - **Exercise logging**: lifts use sets × reps × weight, with your best previous effort shown in grey. Plank is logged
   by time; SkiErg, Row Erg, Assault Bike and Bike Erg by distance and time (not offered in Strength sessions).
+- **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
+  duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). In HYROX Engine, runs
   and exercises sit in one list in the order you do them; the arrows move a run before, after or between exercises. On the Running page,
   pure runs are *Running* and runs inside HYROX / HYROX Engine sessions are *Hyrox Run*.

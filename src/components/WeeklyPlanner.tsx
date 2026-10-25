@@ -143,7 +143,7 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
 
 function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout[]; onClose: () => void }) {
   const { plan, setDayPlan, today, readOnly, planDetails, drafts, removeWorkout } = useData();
-  const { openAddWorkout, openPlanEditor, startPlannedWorkout } = useUI();
+  const { openAddWorkout, openPlanEditor, startPlannedWorkout, openEditWorkout } = useUI();
   const planned = plan[date] ?? [];
   // Every day can be changed, so past training can be filled in later.
   const editable = !readOnly;
@@ -231,7 +231,7 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
           ) : (
             <div className="space-y-6">
               {workouts.map((w) => (
-                <WorkoutDetail key={w.id} workout={w} onRemove={readOnly ? undefined : () => window.confirm(`Delete ${w.title}?`) && removeWorkout(w.id)} />
+                <WorkoutDetail key={w.id} workout={w} onEdit={readOnly ? undefined : () => { onClose(); openEditWorkout(w); }} onRemove={readOnly ? undefined : () => window.confirm(`Delete ${w.title}?`) && removeWorkout(w.id)} />
               ))}
             </div>
           )}

@@ -1,4 +1,4 @@
-import { Clock, Flame, Gauge, HeartPulse, Route, Trash2 } from 'lucide-react';
+import { Clock, Flame, Gauge, HeartPulse, Route, Trash2, Pencil } from 'lucide-react';
 import { EXERCISE_BY_NAME, entryMeasure } from '../data/exercises';
 import { MUSCLE_BY_ID } from '../data/muscles';
 import { STATION_BY_ID, divisionLabel, simFraction, simLabel, stationSpec } from '../data/stations';
@@ -42,7 +42,7 @@ export function IntensityBar({ value }: { value: number }) {
   );
 }
 
-export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemove?: () => void }) {
+export function WorkoutDetail({ workout, onRemove, onEdit }: { workout: Workout; onRemove?: () => void; onEdit?: () => void }) {
   const muscles = workoutMuscles(workout);
   return (
     <div className="space-y-5">
@@ -161,10 +161,20 @@ export function WorkoutDetail({ workout, onRemove }: { workout: Workout; onRemov
         </div>
       )}
 
-      {onRemove && !workout.isSample && (
-        <button onClick={onRemove} className="btn-ghost text-rose-600 hover:bg-rose-50">
-          <Trash2 size={15} /> {workout.fromPlan ? 'Remove from plan' : 'Remove this workout'}
-        </button>
+      {!workout.isSample && (onEdit || onRemove) && (
+        <div className="flex flex-wrap gap-2">
+          {/* Workouts counted from the plan aren't logged yet, so there is nothing to edit. */}
+          {onEdit && !workout.fromPlan && (
+            <button onClick={onEdit} className="btn-ghost text-blue-700 hover:bg-blue-50">
+              <Pencil size={15} /> Edit workout
+            </button>
+          )}
+          {onRemove && (
+            <button onClick={onRemove} className="btn-ghost text-rose-600 hover:bg-rose-50">
+              <Trash2 size={15} /> {workout.fromPlan ? 'Remove from plan' : 'Remove this workout'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

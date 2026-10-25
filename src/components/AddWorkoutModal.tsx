@@ -70,6 +70,54 @@ const blankForm = (today: string, division: Division): DraftForm => ({
 
 export { DEFAULT_TITLE };
 
+/** A logged workout back in the form, for editing. */
+function workoutToForm(w: Workout, division: Division): DraftForm {
+  const t = (sec?: number) => (sec ? fmtTime(sec) : '');
+  // F45 logged without exercises keeps its assumed session unless exercises are added.
+  const rows = w.assumedExercises
+    ? [newRow()]
+    : w.exercises.map((e) => ({
+        ...newRow(e.name),
+        customMuscles: e.customMuscles ?? [],
+        sets: String(e.sets),
+        reps: e.reps !== undefined ? String(e.reps) : '',
+        weight: e.weightKg !== undefined ? String(e.weightKg) : '',
+        distance: e.distanceM !== undefined ? String(e.distanceM) : '',
+        time: t(e.durationSec),
+      }));
+  const segments = w.run?.segments?.length ? w.run.segments : w.run ? [{ distanceKm: w.run.distanceKm, timeSec: w.run.distanceKm * w.run.paceSecPerKm }] : [];
+  const runRows = w.type === 'HYROX' ? [newRunRow()] : segments.length ? segments.map((s) => ({ key: rowKey++, km: String(s.distanceKm), time: t(Math.round(s.timeSec)) })) : [newRunRow()];
+  // HYROX Engine: runs and exercises in the order they were done.
+  let order: number[] | undefined;
+  if (w.type === 'HYROX Engine' && w.sequence) {
+    let ex = 0;
+    let run = 0;
+    order = w.sequence.map((s) => (s === 'run' ? runRows[run++]?.key : rows[ex++]?.key)).filter((k): k is number => k !== undefined);
+  }
+  const splits = emptySplits();
+  for (const s of w.hyrox?.splits ?? []) splits[s.station] = { run: t(s.runSec), station: t(s.stationSec) };
+  // A HYROX duration that came from the split times stays automatic, so added splits count.
+  const splitSec = (w.hyrox?.splits ?? []).reduce((a, s) => a + (s.runSec ?? 0) + (s.stationSec ?? 0), 0);
+  const autoDuration = !!w.hyrox && w.durationMin === Math.ceil(splitSec / 60);
+  return {
+    date: w.date,
+    type: w.type,
+    title: DEFAULT_TITLE[w.type] === w.title ? '' : w.title,
+    duration: autoDuration ? '' : String(w.durationMin),
+    intensity: w.intensity,
+    rows: rows.length ? rows : [newRow()],
+    runKind: w.type === 'Running' && w.run && RUN_KINDS.includes(w.run.kind) ? w.run.kind : 'Easy',
+    runRows,
+    runHr: w.run?.avgHr ? String(w.run.avgHr) : '',
+    order,
+    sim: w.hyrox?.sim ?? 'full',
+    division: w.hyrox?.division ?? division,
+    splits,
+    simHr: w.hyrox && w.run?.avgHr ? String(w.run.avgHr) : '',
+    notes: w.notes ?? '',
+  };
+}
+
 /** Best previous effort per exercise, shown in grey while logging. */
 interface Best {
   label: string;
@@ -109,8 +157,8 @@ type PlannedRef = { date: string; type: WorkoutType };
  * (draftId), planning a day's workout ahead (plan), or starting a planned
  * workout pre-filled with its plan (start).
  */
-export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }: { draftId?: string; date?: string; plan?: PlannedRef; start?: PlannedRef; onClose: () => void }) {
-  const { addWorkout, today, goals, drafts, saveDraft, deleteDraft, workouts, customExercises, saveCustomExercises, planDetails, setPlanDetail } = useData();
+export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onClose }: { draftId?: string; date?: string; plan?: PlannedRef; start?: PlannedRef; edit?: Workout; onClose: () => void }) {
+  const { addWorkout, updateWorkout, today, goals, drafts, saveDraft, deleteDraft, workouts, customExercises, saveCustomExercises, planDetails, setPlanDetail } = useData();
   const savedCustom = (name: string) => customExercises.find((c) => c.name === name);
   /** How a row is logged: chosen for a new custom exercise, saved for a reused one, else from the library. */
   const rowMeasure = (r: ExerciseRow): ExerciseMeasure => (r.name === CUSTOM ? r.customMeasure : savedCustom(r.name)?.measure ?? exerciseMeasure(r.name));
@@ -122,6 +170,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
   // Initial values: the open workout being continued, the saved plan, or a blank form.
   const [init] = useState<DraftForm>(() => withFreshKeys(initialForm()));
   function initialForm(): DraftForm {
+    if (edit) return workoutToForm(edit, defaultDivision);
     if (draft) return draft.form;
     if (planRef) {
       const saved = planDetails[planKey(planRef.date, planRef.type)];
@@ -260,6 +309,11 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
   };
 
   const finish = (w: Omit<Workout, 'id' | 'isSample'>) => {
+    if (edit) {
+      updateWorkout(edit.id, w);
+      notify(`${w.title} updated.`);
+      return onClose();
+    }
     addWorkout(w);
     deleteDraft(ownId); // no-op when the workout was never saved open
     notify(w.hyrox ? `${w.title} completed. See how it compares with your bests on Race Performance.` : `${w.title} completed — added to the workout log.`);
@@ -355,7 +409,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
         const name = isCustom ? r.customName.trim() : r.name;
         const measure = rowMeasure(r);
         // Saved custom exercises carry their muscle groups on every entry.
-        const muscles = isCustom ? r.customMuscles : savedCustom(r.name)?.muscles;
+        // An edited entry keeps the muscle groups it was logged with.
+        const muscles = isCustom ? r.customMuscles : savedCustom(r.name)?.muscles ?? (r.customMuscles.length ? r.customMuscles : undefined);
         const n = `Exercise ${i + 1}${name ? ` (${name})` : ''}`;
         if (isEmptyExercise(r)) return;
         const sets = Number(r.sets);
@@ -418,6 +473,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
     [
       ...EXERCISES.filter((e) => type !== 'Strength' || e.measure !== 'distanceTime' || e.name === current).map((e) => e.name),
       ...customExercises.filter((c) => c.types.includes(type) || c.name === current).map((c) => c.name),
+      // A logged exercise no longer in the lists (e.g. a removed custom one) stays selectable when editing.
+      ...(current && current !== CUSTOM && !EXERCISE_BY_NAME[current] && !savedCustom(current) ? [current] : []),
     ].sort((a, b) => a.localeCompare(b));
 
   const renderExercise = (r: ExerciseRow, i: number, controls?: ReactNode) => {
@@ -559,12 +616,16 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
     <Modal
       open
       onClose={onClose}
-      title={plan ? `Plan ${plan.type} · ${fmtShort(plan.date)}` : draft ? 'Continue workout' : start ? `Start ${start.type}` : 'Add workout'}
+      title={edit ? `Edit workout · ${fmtShort(edit.date)}` : plan ? `Plan ${plan.type} · ${fmtShort(plan.date)}` : draft ? 'Continue workout' : start ? `Start ${start.type}` : 'Add workout'}
       wide
       footer={
         <>
           <button className="btn-ghost mr-auto" onClick={onClose}>Close</button>
-          {plan ? (
+          {edit ? (
+            <button className="btn-primary" onClick={submit}>
+              <CheckCircle2 size={15} /> Save changes
+            </button>
+          ) : plan ? (
             <button className="btn-primary" onClick={savePlan}>
               <Save size={15} /> Save plan
             </button>
@@ -581,7 +642,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, onClose }
         </>
       }
     >
-      {plan ? (
+      {edit ? (
+        <p className="mb-4 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">Fix anything in this logged workout, such as the duration or a set you forgot, then tap <b className="font-semibold">Save changes</b>.</p>
+      ) : plan ? (
         <p className="mb-4 rounded-lg bg-violet-50 px-3 py-2 text-xs text-violet-800">
           Plan the exercises, sets, reps and target weights (or runs and times) for this workout. On the day, tap <b className="font-semibold">Start workout</b> at the top of the app to log it from this plan.
         </p>

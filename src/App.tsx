@@ -22,7 +22,7 @@ import { BodyComposition } from './pages/BodyComposition';
 
 // Three.js is large: load the 3D page only when it is opened.
 const Race3D = lazy(() => import('./pages/Race3D'));
-import type { WorkoutType } from './data/types';
+import type { Workout, WorkoutType } from './data/types';
 
 type PlannedRef = { date: string; type: WorkoutType };
 
@@ -59,7 +59,7 @@ function Dashboard() {
    * null = closed. Otherwise: a blank form, an open workout being continued (draftId),
    * a planned workout's exercises being planned (plan), or a planned workout being started (start).
    */
-  const [adding, setAdding] = useState<{ draftId?: string; date?: string; plan?: PlannedRef; start?: PlannedRef; key: number } | null>(null);
+  const [adding, setAdding] = useState<{ draftId?: string; date?: string; plan?: PlannedRef; start?: PlannedRef; edit?: Workout; key: number } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   /** null = closed; otherwise what the Athlete & races editor should open on. */
   const [profile, setProfile] = useState<ProfileTarget | 'all' | null>(null);
@@ -83,6 +83,7 @@ function Dashboard() {
       openAddWorkout: openAdd,
       openPlanEditor: (date: string, type: WorkoutType) => !readOnly && setAdding({ plan: { date, type }, key: Date.now() }),
       startPlannedWorkout: (date: string, type: WorkoutType) => !readOnly && setAdding({ start: { date, type }, key: Date.now() }),
+      openEditWorkout: (w: Workout) => !readOnly && setAdding({ edit: w, key: Date.now() }),
       openProfile: (target?: ProfileTarget) => !readOnly && setProfile(target ?? 'all'),
       notify: setToast,
     }),
@@ -113,7 +114,7 @@ function Dashboard() {
           {page === 'body' && <BodyComposition />}
           {page === 'friends' && <Friends onOpenDashboard={() => navigate('overview')} />}
         </Layout>
-        {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} date={adding.date} plan={adding.plan} start={adding.start} onClose={() => setAdding(null)} />}
+        {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} date={adding.date} plan={adding.plan} start={adding.start} edit={adding.edit} onClose={() => setAdding(null)} />}
         <AthleteProfileModal open={profile !== null} target={profile === 'all' || profile === null ? undefined : profile} onClose={() => setProfile(null)} />
         {/* Pop-ups: friend requests and races you were tagged in, stacked above the tab bar. */}
         <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[45] flex flex-col items-center gap-2 px-3 lg:bottom-6 lg:items-end lg:px-6">

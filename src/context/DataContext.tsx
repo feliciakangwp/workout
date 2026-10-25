@@ -22,6 +22,8 @@ interface DataContextValue {
   today: string;
   addWorkout: (w: Omit<Workout, 'id' | 'isSample'>) => Workout;
   removeWorkout: (id: string) => void;
+  /** Replaces a logged workout with an edited version (same id). */
+  updateWorkout: (id: string, w: Omit<Workout, 'id' | 'isSample'>) => void;
   updateGoals: (g: Goals) => void;
   /** Planned workouts per date for the weekly calendar (starts empty). */
   plan: WeekPlan;
@@ -271,6 +273,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     },
     [update],
   );
+  const updateWorkout = useCallback(
+    (id: string, w: Omit<Workout, 'id' | 'isSample'>) => update((d) => ({ ...d, added: d.added.map((x) => (x.id === id ? { ...w, id, isSample: false } : x)) })),
+    [update],
+  );
   const removeWorkout = useCallback(
     (id: string) =>
       update((d) => {
@@ -422,6 +428,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             today,
             addWorkout,
             removeWorkout,
+            updateWorkout,
             updateGoals,
             plan: data.plan,
             setDayPlan,
@@ -439,7 +446,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             removeWeighIn,
           }
         : null,
-    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, weighIns, latestWeight, addWeighIn, removeWeighIn],
+    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, weighIns, latestWeight, addWeighIn, removeWeighIn],
   );
 
   if (!value)

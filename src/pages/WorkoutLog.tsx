@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Card, DemoBadge, EmptyState, Modal, PageHeader, TypeBadge } from '../components/ui';
 import { IntensityBar, WorkoutDetail } from '../components/WorkoutDetail';
 import { useData } from '../context/DataContext';
+import { useUI } from '../context/UIContext';
 import { MUSCLE_BY_ID } from '../data/muscles';
 import type { WorkoutType } from '../data/types';
 import { workoutMuscles } from '../lib/analytics';
@@ -14,6 +15,7 @@ const PAGE = 20;
 
 export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
   const { workouts, today, removeWorkout, readOnly } = useData();
+  const { openEditWorkout } = useUI();
   const [type, setType] = useState<WorkoutType | 'all'>('all');
   // No start date by default: every logged workout is listed, however old.
   const [from, setFrom] = useState('');
@@ -169,7 +171,7 @@ export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
       )}
 
       <Modal open={!!open} onClose={() => setOpenId(null)} title="Workout details" wide>
-        {open && <WorkoutDetail workout={open} onRemove={readOnly ? undefined : () => { removeWorkout(open.id); setOpenId(null); }} />}
+        {open && <WorkoutDetail workout={open} onEdit={readOnly ? undefined : () => { setOpenId(null); openEditWorkout(open); }} onRemove={readOnly ? undefined : () => { removeWorkout(open.id); setOpenId(null); }} />}
       </Modal>
     </div>
   );
