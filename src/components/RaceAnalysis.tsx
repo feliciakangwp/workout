@@ -40,13 +40,18 @@ export function RaceAnalysis() {
   const races = completedRaces(goals, today);
   const [raceId, setRaceId] = useState<string | null>(null);
   const race = races.find((r) => r.id === raceId) ?? races[0];
+  /** Race picked to compare with, per race ('none' = no comparison); unset = the previous race of the same type. */
+  const [compareTo, setCompareTo] = useState<Record<string, string>>({});
+  const others = race ? races.filter((r) => r.id !== race.id && resultTotals(r).totalSec) : [];
+  const chosen = race && compareTo[race.id];
+  const previous = !race ? undefined : chosen === 'none' ? undefined : (others.find((r) => r.id === chosen) ?? previousRace(race, races));
 
   return (
     <CollapsibleCard
       id="race-analysis"
       icon={Trophy}
       title="Completed race analysis"
-      subtitle="What improved and what slowed compared with your previous race"
+      subtitle="What improved and what slowed compared with your previous race, or one you choose"
       action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openProfile({ addRace: 'past' })}><Plus size={14} /> Add past race</button>}
       summary={
         races.length ? (
@@ -84,7 +89,24 @@ export function RaceAnalysis() {
                 </select>
               </div>
             )}
-            <RaceResultView race={race} previous={previousRace(race, races)} />
+            {others.length > 0 && (
+              <div>
+                <label className="label" htmlFor="race-compare">Compare with</label>
+                <select id="race-compare" className="input" value={chosen === 'none' ? 'none' : (previous?.id ?? 'none')} onChange={(e) => setCompareTo((c) => ({ ...c, [race.id]: e.target.value }))}>
+                  <option value="none">No comparison</option>
+                  {[...new Set(others.map((r) => r.date.slice(0, 4)))].map((year) => (
+                    <optgroup key={year} label={year}>
+                      {others.filter((r) => r.date.startsWith(year)).map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name} · {fmtShort(r.date)} · {fmtTime(resultTotals(r).totalSec!)}{r.id === previousRace(race, races)?.id ? ' (previous race)' : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            )}
+            <RaceResultView race={race} previous={previous} />
           </>
         )}
       </div>
@@ -145,8 +167,8 @@ function RaceResultView({ race, previous }: { race: Race; previous?: Race }) {
         </div>
       )}
 
-      {previous && previous.format !== race.format && <p className="text-xs text-amber-700">Compared with {previous.name} ({raceTypeLabel(previous, goals.athleteSex)}) — a different format, so treat differences with care.</p>}
-      {!previous && (totals.totalSec || totals.hasSplits) && <p className="text-xs text-slate-500">This is your first recorded race — add another completed race to see what improved and what slowed.</p>}
+      {previous && (previous.format !== race.format || raceKind(previous) !== raceKind(race)) && <p className="text-xs text-amber-700">Compared with {previous.name} ({raceTypeLabel(previous, goals.athleteSex)}) — a different {raceKind(previous) !== raceKind(race) ? 'race type' : 'format'}, so treat differences with care.</p>}
+      {!previous && (totals.totalSec || totals.hasSplits) && <p className="text-xs text-slate-500">Not compared with another race. Choose one under <b className="font-medium">Compare with</b>, or add another completed race, to see what improved and what slowed.</p>}
 
       {cmp && cmp.segments.length > 0 && (
         <>
@@ -176,7 +198,7 @@ function RaceResultView({ race, previous }: { race: Race; previous?: Race }) {
                       return (
                         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
                           <p className="font-medium text-slate-900">{d.label}</p>
-                          <p className="text-slate-600">{fmtTime(d.currentSec)} now · {fmtTime(d.previousSec)} before</p>
+                          <p className="text-slate-600">{fmtTime(d.currentSec)} this race · {fmtTime(d.previousSec)} {previous!.name}</p>
                           <p className={d.deltaSec <= 0 ? 'text-emerald-700' : 'text-rose-700'}>{signed(d.deltaSec)}</p>
                         </div>
                       );
