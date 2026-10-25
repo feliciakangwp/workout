@@ -30,7 +30,8 @@ export const FELICIA_DATA: UserData = {
   version: 1,
   sample: DEFAULT_SAMPLE,
   added: [],
-  goals: DEFAULT_GOALS,
+  // The demo athlete's example running goal; real accounts start without one.
+  goals: { ...DEFAULT_GOALS, runGoal: { distanceKm: 10, paceSecPerKm: 300 } },
   plan: {},
   drafts: [],
   customExercises: [],

@@ -148,6 +148,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   estimate: timed exercises (sets × time) plus runs; reps-based work and rest aren't timed.
 - **Time inputs** everywhere take m:ss or h:mm:ss; a dot works like a colon (5.30 = 5:30) and a plain number is
   minutes (5 = 5:00).
+- **Running goal** (Overview → Goals & races → Edit): empty until the athlete sets one. Pick 1K, 5K, 10K, half or
+  marathon, or type any distance from 1 to 42.2 km, plus an optional target pace. The estimate for that distance uses
+  Riegel's formula from the athlete's best standalone run (3 km or more, or 1 km+ for shorter goals).
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). In HYROX Engine, runs

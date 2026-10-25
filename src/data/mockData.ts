@@ -27,8 +27,6 @@ function raceResult(runs: number[], stations: number[], roxzoneSec: number): Rac
 export const DEFAULT_GOALS: Goals = {
   currentWeightKg: 55,
   targetWeightKg: 52,
-  runGoalDistanceKm: 10,
-  runGoalPaceSecPerKm: 300,
   weeklySessionsTarget: 6,
   weeklyRunKmTarget: 18,
   athleteSex: 'female',

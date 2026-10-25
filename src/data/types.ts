@@ -224,8 +224,12 @@ export const planKey = (date: string, type: WorkoutType) => `${date}|${type}`;
 export interface Goals {
   currentWeightKg: number;
   targetWeightKg: number;
-  runGoalDistanceKm: number;
-  runGoalPaceSecPerKm: number;
+  /** The athlete's own running goal: any distance from 1 km to a marathon, with an optional target pace. Unset until they add one. */
+  runGoal?: { distanceKm: number; paceSecPerKm?: number };
+  /** @deprecated Old example goal (10 km @ 5:00/km) given to everyone; no longer used. */
+  runGoalDistanceKm?: number;
+  /** @deprecated See runGoalDistanceKm. */
+  runGoalPaceSecPerKm?: number;
   weeklySessionsTarget: number;
   weeklyRunKmTarget: number;
   athleteSex: Sex;

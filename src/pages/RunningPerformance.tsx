@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis } from 'recharts';
 import { Card, CardHeader, ChartTooltip, DemoBadge, EmptyState, Legend, PageHeader, RANGE_OPTIONS, Segmented, StatCard } from '../components/ui';
 import { useData } from '../context/DataContext';
-import { type RangeKey, RANGE_DAYS, avgHr, avgPace, best5kPace, buildBuckets, predictTime, rangeStart, runs, totalKm, type RunRecord } from '../lib/analytics';
+import { type RangeKey, RANGE_DAYS, avgHr, avgPace, best5kPace, buildBuckets, goalDistanceLabel, predictFromBestRun, rangeStart, runs, totalKm, type RunRecord } from '../lib/analytics';
 import { addDays, fmtLong, fmtShort } from '../lib/dates';
 import { fmtPace, fmtTime } from '../lib/format';
 import { AXIS, GRID, SERIES } from '../lib/theme';
@@ -62,10 +62,11 @@ export function RunningPerformance() {
     .filter((b) => b.to >= from)
     .map((b) => ({ key: b.key, km: totalKm(cur.filter((r) => r.date >= b.from && r.date <= b.to)) }));
 
-  // 10 km prediction always uses pure running, whichever category is shown.
-  const bestAll = best5kPace(everyRun);
-  const predicted = bestAll ? predictTime(bestAll * 5, 5, goals.runGoalDistanceKm) : 0;
-  const goalTime = goals.runGoalPaceSecPerKm * goals.runGoalDistanceKm;
+  // The goal estimate always uses pure running, whichever category is shown.
+  const goal = goals.runGoal;
+  const prediction = goal ? predictFromBestRun(workouts, goal.distanceKm, today) : null;
+  const predicted = prediction?.sec ?? 0;
+  const goalTime = goal?.paceSecPerKm ? goal.paceSecPerKm * goal.distanceKm : 0;
 
   const paceTicks = (v: number) => fmtPace(v);
   const runTooltip = ({ active, payload }: { active?: boolean; payload?: { payload?: unknown }[] }) => {
@@ -179,24 +180,33 @@ export function RunningPerformance() {
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
         <Card>
-          <CardHeader icon={Target} title={`${goals.runGoalDistanceKm} km goal`} subtitle="Long-term example goal (edit on Overview)" />
+          <CardHeader icon={Target} title={goal ? `${goalDistanceLabel(goal.distanceKm)} goal` : 'Running goal'} subtitle="Your own goal (edit on Overview → Goals & races)" />
           <div className="space-y-4 p-5">
-            <div className="grid grid-cols-2 gap-3 text-center">
-              <div className="rounded-xl bg-blue-50 p-3">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-blue-700">Goal</p>
-                <p className="mt-1 text-xl font-semibold text-slate-900">{fmtTime(goalTime)}</p>
-                <p className="text-xs text-slate-500">{fmtPace(goals.runGoalPaceSecPerKm)}/km</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Predicted now</p>
-                <p className="mt-1 text-xl font-semibold text-slate-900">{predicted ? fmtTime(predicted) : '—'}</p>
-                <p className="text-xs text-slate-500">{predicted ? `${fmtPace(predicted / goals.runGoalDistanceKm)}/km` : ''}</p>
-              </div>
-            </div>
-            {predicted > 0 && (
-              <p className="text-sm text-slate-600">
-                Gap to goal: <b className="font-semibold text-slate-900">{fmtTime(Math.max(0, predicted - goalTime))}</b> ({Math.max(0, Math.round((predicted - goalTime) / goals.runGoalDistanceKm))} s/km). Prediction uses the Riegel formula from the best 5 km+ standalone run.
-              </p>
+            {!goal ? (
+              <p className="rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">No running goal yet. Set one on the Overview page: any distance from 1 km to a marathon, with a target pace.</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 text-center">
+                  <div className="rounded-xl bg-blue-50 p-3">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-blue-700">Goal</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900">{goalTime ? fmtTime(goalTime) : '—'}</p>
+                    <p className="text-xs text-slate-500">{goal.paceSecPerKm ? `${fmtPace(goal.paceSecPerKm)}/km` : 'no target pace'}</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Estimated now</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-900">{predicted ? fmtTime(predicted) : '—'}</p>
+                    <p className="text-xs text-slate-500">{predicted ? `${fmtPace(predicted / goal.distanceKm)}/km` : ''}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-600">
+                  {prediction
+                    ? <>
+                        {goalTime > 0 && <>Gap to goal: <b className="font-semibold text-slate-900">{fmtTime(Math.max(0, predicted - goalTime))}</b> ({Math.max(0, Math.round((predicted - goalTime) / goal.distanceKm))} s/km). </>}
+                        Estimated with the Riegel formula from your {prediction.from.distanceKm} km run on {fmtShort(prediction.from.date)}.
+                      </>
+                    : `Log a standalone run of ${Math.min(3, goal.distanceKm)} km or more to see an estimate.`}
+                </p>
+              </>
             )}
           </div>
         </Card>

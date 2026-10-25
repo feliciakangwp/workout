@@ -7,7 +7,7 @@ import { WeeklyPlanner } from '../components/WeeklyPlanner';
 import { useUI } from '../context/UIContext';
 import { useData } from '../context/DataContext';
 import type { Goals } from '../data/types';
-import { type RangeKey, trainingInsights, trainingTrends, weekComparison, best5kPace, runs, predictTime, raceTypeLabel, teamLabel, upcomingRaces } from '../lib/analytics';
+import { type RangeKey, trainingInsights, trainingTrends, weekComparison, GOAL_DISTANCES, goalDistanceLabel, predictFromBestRun, raceTypeLabel, teamLabel, upcomingRaces } from '../lib/analytics';
 import { diffDays, fmtShort } from '../lib/dates';
 import { fmtDuration, fmtPace, fmtPct, fmtTime, parseTime, pctChange } from '../lib/format';
 import { AXIS, GRID, SERIES } from '../lib/theme';
@@ -50,18 +50,18 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const { openProfile } = useUI();
   const races = upcomingRaces(goals, today);
   const [editing, setEditing] = useState(false);
-  const best = best5kPace(runs(workouts));
-  const predicted10k = best ? predictTime(best * 5, 5, goals.runGoalDistanceKm) : 0;
-  const goalTime = goals.runGoalPaceSecPerKm * goals.runGoalDistanceKm;
+  const goal = goals.runGoal;
+  const predicted = goal ? predictFromBestRun(workouts, goal.distanceKm, today) : null;
+  const goalTime = goal?.paceSecPerKm ? goal.paceSecPerKm * goal.distanceKm : 0;
   // Progress counts from the first weigh-in (or 65 kg without one).
   const startWeight = Math.max(goals.currentWeightKg, weighIns.find((w) => w.weightKg !== undefined)?.weightKg ?? 65);
   const lastWeighIn = [...weighIns].reverse().find((w) => w.weightKg !== undefined);
   const weightPct = Math.min(100, Math.max(0, ((startWeight - goals.currentWeightKg) / (startWeight - goals.targetWeightKg || 1)) * 100));
-  const runPct = predicted10k ? Math.min(100, (goalTime / predicted10k) * 100) : 0;
+  const runPct = predicted && goalTime ? Math.min(100, (goalTime / predicted.sec) * 100) : 0;
 
   return (
     <Card>
-      <CardHeader icon={Target} title="Goals & races" subtitle="Editable example goals — not measured values" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>} />
+      <CardHeader icon={Target} title="Goals & races" subtitle="Your goals and upcoming races" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>} />
       <div className="space-y-4 p-5">
         {/* Body weight is private: not shown on a friend's dashboard. */}
         {!readOnly && (
@@ -77,14 +77,21 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
           </div>
         </div>
         )}
-        <div>
-          <div className="flex items-baseline justify-between text-sm">
-            <span className="font-medium text-slate-700">{goals.runGoalDistanceKm} km @ {fmtPace(goals.runGoalPaceSecPerKm)}/km</span>
-            <span className="text-slate-500">target {fmtTime(goalTime)}</span>
+        {goal ? (
+          <div>
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="font-medium text-slate-700">Run {goalDistanceLabel(goal.distanceKm)}{goal.paceSecPerKm ? ` @ ${fmtPace(goal.paceSecPerKm)}/km` : ''}</span>
+              {goalTime > 0 && <span className="shrink-0 text-slate-500">target {fmtTime(goalTime)}</span>}
+            </div>
+            {goalTime > 0 && <div className="mt-2 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-blue-600" style={{ width: `${runPct}%` }} /></div>}
+            <p className="mt-1 text-xs text-slate-500">{predicted ? `Estimated now: ${fmtTime(predicted.sec)} (${fmtPace(predicted.sec / goal.distanceKm)}/km), from your best run` : `Log a run of ${Math.min(3, goal.distanceKm)} km or more to see an estimate.`}</p>
           </div>
-          <div className="mt-2 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-blue-600" style={{ width: `${runPct}%` }} /></div>
-          <p className="mt-1 text-xs text-slate-500">{predicted10k ? `Predicted from best 5 km+ pace: ${fmtTime(predicted10k)} (${fmtPace(predicted10k / goals.runGoalDistanceKm)}/km)` : 'Log a 5 km run to see a prediction'}</p>
-        </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+            <span className="text-sm text-slate-600">Running goal: not set</span>
+            {!readOnly && <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => setEditing(true)}>Set a running goal →</button>}
+          </div>
+        )}
         <div className="space-y-2 border-t border-slate-100 pt-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming races · {goals.athleteSex === 'female' ? 'Female' : 'Male'}</p>
@@ -115,40 +122,93 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
 }
 
 function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => void; onSave: (g: Goals) => void }) {
-  const { weighIns } = useData();
+  const { weighIns, workouts, today } = useData();
   const [draft, setDraft] = useState({
     current: String(goals.currentWeightKg),
     target: String(goals.targetWeightKg),
-    km: String(goals.runGoalDistanceKm),
-    pace: fmtPace(goals.runGoalPaceSecPerKm),
+    km: goals.runGoal ? String(goals.runGoal.distanceKm) : '',
+    pace: goals.runGoal?.paceSecPerKm ? fmtPace(goals.runGoal.paceSecPerKm) : '',
     sessions: String(goals.weeklySessionsTarget),
     runKm: String(goals.weeklyRunKmTarget),
   });
   const [error, setError] = useState('');
+  const km = Number(draft.km.replace(',', '.'));
+  const pace = draft.pace.trim() ? parseTime(draft.pace) : NaN;
+  const kmOk = km >= 1 && km <= 42.2;
+  const paceOk = pace >= 120 && pace <= 900;
+  const predicted = kmOk ? predictFromBestRun(workouts, km, today) : null;
   const save = () => {
-    const pace = parseTime(draft.pace);
-    const nums = [draft.current, draft.target, draft.km, draft.sessions, draft.runKm].map(Number);
-    if (nums.some((n) => !(n > 0)) || !(pace > 120 && pace < 900)) return setError('Enter positive numbers and a pace as m:ss.');
-    onSave({ ...goals, currentWeightKg: nums[0], targetWeightKg: nums[1], runGoalDistanceKm: nums[2], runGoalPaceSecPerKm: pace, weeklySessionsTarget: nums[3], weeklyRunKmTarget: nums[4] });
+    const nums = [draft.current, draft.target, draft.sessions, draft.runKm].map(Number);
+    if (nums.some((n) => !(n > 0))) return setError('Enter positive numbers for weight and weekly targets.');
+    if (draft.km.trim() && !kmOk) return setError('Running goal distance: enter 1 to 42.2 km.');
+    if (draft.pace.trim() && !paceOk) return setError('Running goal pace: enter a pace per km like 5:30.');
+    if (draft.pace.trim() && !draft.km.trim()) return setError('Choose a distance for your running goal.');
+    onSave({
+      ...goals,
+      currentWeightKg: nums[0],
+      targetWeightKg: nums[1],
+      runGoal: draft.km.trim() ? { distanceKm: km, paceSecPerKm: paceOk ? pace : undefined } : undefined,
+      weeklySessionsTarget: nums[2],
+      weeklyRunKmTarget: nums[3],
+    });
   };
-  const field = (key: keyof typeof draft, label: string, type = 'number') => (
+  const field = (key: keyof typeof draft, label: string, type = 'number', placeholder?: string) => (
     <div>
       <label className="label" htmlFor={`g-${key}`}>{label}</label>
-      <input id={`g-${key}`} type={type} step="0.1" className="input" value={draft[key] as string} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
+      <input id={`g-${key}`} type={type} inputMode={type === 'text' ? 'decimal' : undefined} step="0.1" className="input" placeholder={placeholder} value={draft[key] as string} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
     </div>
   );
   return (
     <Modal open onClose={onClose} title="Edit goals" footer={<><button className="btn-ghost" onClick={onClose}>Cancel</button><button className="btn-primary" onClick={save}>Save goals</button></>}>
-      {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
+      {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700" role="alert">{error}</p>}
       <div className="grid grid-cols-2 gap-3">
         {field('current', weighIns.some((w) => !w.isSample) ? 'Current weight (kg, from latest weigh-in)' : 'Current weight (kg)')}
         {field('target', 'Target weight (kg)')}
-        {field('km', 'Run goal distance (km)')}
-        {field('pace', 'Run goal pace (m:ss /km)', 'text')}
         {field('sessions', 'Weekly sessions target')}
         {field('runKm', 'Weekly running target (km)')}
       </div>
-      <p className="mt-4 text-xs text-slate-500">Races are managed under Athlete &amp; races.</p>
+
+      <div className="mt-5 rounded-xl border border-slate-200 p-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-slate-800">Running goal <span className="font-normal text-slate-500">(optional)</span></p>
+          {(draft.km || draft.pace) && <button className="text-xs font-medium text-rose-600 hover:text-rose-700" onClick={() => setDraft({ ...draft, km: '', pace: '' })}>Clear</button>}
+        </div>
+        <p className="label mt-2">Distance</p>
+        <div className="flex flex-wrap gap-1.5">
+          {GOAL_DISTANCES.map((d) => (
+            <button
+              key={d.km}
+              onClick={() => setDraft({ ...draft, km: String(d.km) })}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${Math.abs(km - d.km) < 0.01 ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}
+            >
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          {field('km', 'Distance (km, 1–42.2)', 'text', 'e.g. 10')}
+          {field('pace', 'Target pace (m:ss /km)', 'text', 'e.g. 5:30')}
+        </div>
+        <div className="mt-3 space-y-1 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-900">
+          {kmOk ? (
+            <>
+              <p>
+                <b className="font-semibold">Estimated now:</b>{' '}
+                {predicted ? `${fmtTime(predicted.sec)} (${fmtPace(predicted.sec / km)}/km), from your ${predicted.from.distanceKm} km run on ${fmtShort(predicted.from.date)}` : `log a run of ${Math.min(3, km)} km or more to see an estimate`}
+              </p>
+              {paceOk && (
+                <p>
+                  <b className="font-semibold">Target:</b> {fmtTime(pace * km)} at {fmtPace(pace)}/km
+                  {predicted && (pace * km < predicted.sec ? ` · ${fmtTime(predicted.sec - pace * km)} to find` : ' · you are already on track')}
+                </p>
+              )}
+            </>
+          ) : (
+            <p>Pick a distance to see your estimated time from your best run. Add a target pace to set a goal time.</p>
+          )}
+        </div>
+      </div>
+      <p className="mt-4 text-xs text-slate-500">Races are managed under Athlete &amp; races. Estimates use Riegel's formula from your best standalone run.</p>
     </Modal>
   );
 }
