@@ -1,4 +1,4 @@
-import type { ExerciseEntry, ExerciseMeasure, MuscleGroup } from './types';
+import type { EntryMode, ExerciseEntry, ExerciseMeasure, MuscleGroup } from './types';
 
 export interface ExerciseInfo {
   name: string;
@@ -14,11 +14,17 @@ export interface ExerciseInfo {
   measure?: ExerciseMeasure;
 }
 
+export const MODE_MEASURE: Record<EntryMode, ExerciseMeasure> = { reps: 'weight', distance: 'distanceTime', time: 'time' };
+
+/** HYROX Engine's default way to count an exercise: its usual measure (metre-based work by distance). */
+export const defaultMode = (name: string, measure: ExerciseMeasure): EntryMode =>
+  measure === 'time' ? 'time' : measure === 'distanceTime' || EXERCISE_BY_NAME[name]?.repUnit === 'm' ? 'distance' : 'reps';
+
 export const exerciseMeasure = (name: string): ExerciseMeasure => EXERCISE_BY_NAME[name]?.measure ?? 'weight';
 
 /** Measure of a logged entry; custom exercises are inferred from the fields recorded. */
 export const entryMeasure = (e: ExerciseEntry): ExerciseMeasure =>
-  EXERCISE_BY_NAME[e.name]?.measure ?? (e.distanceM ? 'distanceTime' : e.durationSec && !e.reps ? 'time' : 'weight');
+  e.mode ? MODE_MEASURE[e.mode] : EXERCISE_BY_NAME[e.name]?.measure ?? (e.distanceM ? 'distanceTime' : e.durationSec && !e.reps ? 'time' : 'weight');
 
 /**
  * Exercise → muscle mapping. A primary muscle receives 1 set of credit per set

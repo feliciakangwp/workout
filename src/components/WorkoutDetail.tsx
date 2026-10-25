@@ -20,6 +20,7 @@ export const fmtSetsReps = (e: ExerciseEntry) => {
 /** Load column: weight, or pace for distance + time machines. */
 const fmtLoad = (e: ExerciseEntry) => {
   const m = entryMeasure(e);
+  if (e.weightKg && m !== 'weight') return `${e.weightKg} kg`;
   if (m === 'distanceTime') return e.distanceM && e.durationSec ? `${fmtTime((e.durationSec / e.distanceM) * 500)} /500m` : '—';
   if (m === 'time') return '—';
   return e.weightKg ? `${e.weightKg} kg` : 'BW';

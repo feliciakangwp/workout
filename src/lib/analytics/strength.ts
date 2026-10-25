@@ -23,7 +23,8 @@ export function liftHistory(workouts: Workout[], name: string, strengthOnly = fa
   for (const w of workouts) {
     if (strengthOnly && w.type !== 'Strength') continue;
     for (const e of w.exercises) {
-      if (e.name !== name || !e.weightKg) continue;
+      // Lifts are rep sets; timed or distance work with a weight isn't a lift.
+      if (e.name !== name || !e.weightKg || (e.mode && e.mode !== 'reps')) continue;
       const s: LiftSession = {
         date: w.date,
         workoutId: w.id,

@@ -1,16 +1,16 @@
 import { CheckCircle2, ChevronDown, ChevronUp, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { EXERCISES, EXERCISE_BY_NAME, entryMeasure, exerciseMeasure } from '../data/exercises';
+import { EXERCISES, EXERCISE_BY_NAME, MODE_MEASURE, defaultMode, entryMeasure, exerciseMeasure } from '../data/exercises';
 import { DEFAULT_TITLE } from '../lib/workoutTitles';
 import { F45_MINUTES, functionalF45 } from '../lib/f45';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
-import { planKey, type CustomExercise, type Division, type DraftForm, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
+import { planKey, type CustomExercise, type Division, type DraftForm, type EntryMode, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import { isHyrox, raceDivision, upcomingRaces } from '../lib/analytics';
 import { fmtShort } from '../lib/dates';
-import { fmtPace, fmtTime, parseTime } from '../lib/format';
+import { fmtDuration, fmtPace, fmtTime, parseTime } from '../lib/format';
 import { WORKOUT_TYPES } from '../lib/theme';
 import { Modal, Segmented } from './ui';
 
@@ -22,7 +22,7 @@ const CUSTOM = '__custom__';
 const RUN_KINDS: RunKind[] = ['Easy', 'Long', 'Tempo', 'Intervals', '5K Time Trial'];
 const hasRun = (t: WorkoutType) => t === 'Running' || t === 'HYROX Engine';
 /** Accepts "4:30" or "4.30" (easier on a phone number pad). */
-const parseSplit = (text: string) => parseTime(text.trim().replace(/\./g, ':'));
+const parseSplit = parseTime;
 
 type SplitInputs = Record<StationId, { run: string; station: string }>;
 const emptySplits = () => Object.fromEntries(STATIONS.map((s) => [s.id, { run: '', station: '' }])) as SplitInputs;
@@ -30,7 +30,7 @@ const emptySplits = () => Object.fromEntries(STATIONS.map((s) => [s.id, { run: '
 /** Row keys are saved with open workouts and plans, so they must not restart at 0 on each visit. */
 let rowKey = Date.now();
 /** A new exercise row starts with no exercise chosen. */
-const newRow = (name = ''): ExerciseRow => ({ key: rowKey++, name, customName: '', customMuscles: [], customMeasure: 'weight', saveTo: [], sets: '3', reps: '10', weight: '', distance: '', time: '' });
+const newRow = (name = '', sets = '3'): ExerciseRow => ({ key: rowKey++, name, customName: '', customMuscles: [], customMeasure: 'weight', saveTo: [], sets, reps: '10', weight: '', distance: '', time: '' });
 /** Workout types a custom exercise can be saved to. */
 const SAVE_TO_TYPES: WorkoutType[] = ['HYROX Engine', 'Strength'];
 const newRunRow = (): RunRow => ({ key: rowKey++, km: '', time: '' });
@@ -79,10 +79,12 @@ function workoutToForm(w: Workout, division: Division): DraftForm {
     : w.exercises.map((e) => ({
         ...newRow(e.name),
         customMuscles: e.customMuscles ?? [],
+        mode: e.mode,
         sets: String(e.sets),
         reps: e.reps !== undefined ? String(e.reps) : '',
         weight: e.weightKg !== undefined ? String(e.weightKg) : '',
-        distance: e.distanceM !== undefined ? String(e.distanceM) : '',
+        // Metre-based work logged as "reps" before distance could be chosen.
+        distance: e.distanceM !== undefined ? String(e.distanceM) : w.type === 'HYROX Engine' && !e.mode && EXERCISE_BY_NAME[e.name]?.repUnit === 'm' && e.reps ? String(e.reps) : '',
         time: t(e.durationSec),
       }));
   const segments = w.run?.segments?.length ? w.run.segments : w.run ? [{ distanceKm: w.run.distanceKm, timeSec: w.run.distanceKm * w.run.paceSecPerKm }] : [];
@@ -98,7 +100,9 @@ function workoutToForm(w: Workout, division: Division): DraftForm {
   for (const s of w.hyrox?.splits ?? []) splits[s.station] = { run: t(s.runSec), station: t(s.stationSec) };
   // A HYROX duration that came from the split times stays automatic, so added splits count.
   const splitSec = (w.hyrox?.splits ?? []).reduce((a, s) => a + (s.runSec ?? 0) + (s.stationSec ?? 0), 0);
-  const autoDuration = !!w.hyrox && w.durationMin === Math.ceil(splitSec / 60);
+  // HYROX Engine: likewise when it came from the exercise and run times.
+  const engineSec = w.type === 'HYROX Engine' ? w.exercises.reduce((a, e) => a + e.sets * (e.durationSec ?? 0), 0) + segments.reduce((a, s) => a + s.timeSec, 0) : 0;
+  const autoDuration = (!!w.hyrox && w.durationMin === Math.ceil(splitSec / 60)) || (engineSec > 0 && w.durationMin === Math.ceil(engineSec / 60));
   return {
     date: w.date,
     type: w.type,
@@ -174,7 +178,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     if (draft) return draft.form;
     if (planRef) {
       const saved = planDetails[planKey(planRef.date, planRef.type)];
-      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), duration: planRef.type === 'HYROX' ? '' : planRef.type === 'F45' ? String(F45_MINUTES) : '60' };
+      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), rows: [newRow('', planRef.type === 'HYROX Engine' ? '1' : '3')], duration: planRef.type === 'HYROX' || planRef.type === 'HYROX Engine' ? '' : planRef.type === 'F45' ? String(F45_MINUTES) : '60' };
       // A planned workout is logged on its own day (today, or an earlier day being filled in).
       return { ...base, type: planRef.type, date: plan ? plan.date : start && start.date < today ? start.date : today };
     }
@@ -247,7 +251,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     setScrollTo(null);
   }, [scrollTo]);
   const addExercise = () => {
-    const row = newRow();
+    const row = newRow('', type === 'HYROX Engine' ? '1' : '3');
     setRows((rs) => [...rs, row]);
     setScrollTo(`ex-${row.key}`);
   };
@@ -280,6 +284,20 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     return { km: Math.round(km * 100) / 100, sec, pace: km ? sec / km : 0 };
   }, [runRows]);
 
+  /** HYROX Engine: how each exercise is counted. */
+  const rowMode = (r: ExerciseRow): EntryMode => r.mode ?? defaultMode(r.name, rowMeasure(r));
+  /** HYROX Engine: estimated time from timed exercises (sets × time) and runs; reps-based work and rest aren't timed. */
+  const engineSec = useMemo(() => {
+    if (type !== 'HYROX Engine') return 0;
+    let sec = runTotals.sec;
+    for (const r of rows) {
+      const m = rowMode(r);
+      const t = parseSplit(r.time);
+      if ((m === 'time' || m === 'distance') && t > 0) sec += t * (Number(r.sets) > 0 ? Number(r.sets) : 1);
+    }
+    return sec;
+  }, [type, rows, runTotals.sec, customExercises]);
+
   const simTotals = useMemo(() => {
     let run = 0;
     let station = 0;
@@ -294,7 +312,11 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
 
   const chooseType = (t: WorkoutType) => {
     setType(t);
-    if (t === 'HYROX') {
+    if (t === 'HYROX Engine') {
+      // One set by default, and the duration estimated from the times entered.
+      setRows((rs) => rs.map((r) => (isEmptyExercise(r) && r.sets === '3' ? { ...r, sets: '1' } : r)));
+      if (duration === '60') setDuration('');
+    } else if (t === 'HYROX') {
       setDivision(defaultDivision);
       setDuration(''); // derived from the sim's total time unless entered
     } else if (t === 'F45' && (!duration || duration === '60')) setDuration(String(F45_MINUTES));
@@ -398,8 +420,11 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     const run = hasRun(type) ? buildRun(errs) : undefined;
     const isRunning = type === 'Running';
     if (isRunning && !run && !errs.length) errs.push('Add at least one run with a distance and time.');
-    const dur = isRunning ? Math.ceil(runTotals.sec / 60) : Number(duration);
-    if (!isRunning && !(dur > 0 && dur <= 600)) errs.push('Duration must be between 1 and 600 minutes.');
+    const engine = type === 'HYROX Engine';
+    // HYROX Engine without a typed duration uses the estimate from the exercise and run times.
+    const dur = isRunning ? Math.ceil(runTotals.sec / 60) : engine && !duration.trim() ? Math.ceil(engineSec / 60) : Number(duration);
+    if (engine && !duration.trim() && !engineSec) errs.push('Enter the duration, or add exercise or run times to estimate it.');
+    else if (!isRunning && !(dur > 0 && dur <= 600)) errs.push('Duration must be between 1 and 600 minutes.');
 
     const exercises: ExerciseEntry[] = [];
     const newCustoms: CustomExercise[] = [];
@@ -407,7 +432,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
       rows.forEach((r, i) => {
         const isCustom = r.name === CUSTOM;
         const name = isCustom ? r.customName.trim() : r.name;
-        const measure = rowMeasure(r);
+        const mode = engine ? rowMode(r) : undefined;
+        const measure = mode ? MODE_MEASURE[mode] : rowMeasure(r);
         // Saved custom exercises carry their muscle groups on every entry.
         // An edited entry keeps the muscle groups it was logged with.
         const muscles = isCustom ? r.customMuscles : savedCustom(r.name)?.muscles ?? (r.customMuscles.length ? r.customMuscles : undefined);
@@ -424,15 +450,19 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           const weight = r.weight === '' ? undefined : Number(r.weight);
           if (!(reps > 0)) errs.push(`${n}: repetitions must be above 0.`);
           if (weight !== undefined && !(weight >= 0)) errs.push(`${n}: weight must be 0 or more.`);
-          exercises.push({ name, sets, reps, weightKg: weight || undefined, customMuscles: muscles });
+          exercises.push({ name, sets, reps, weightKg: weight || undefined, customMuscles: muscles, mode });
         } else {
-          const sec = parseSplit(r.time);
-          if (!(sec > 0 && sec < 3 * 3600)) errs.push(`${n}: enter a time as m:ss.`);
+          // HYROX Engine: a distance may be untimed, and either can carry a weight.
+          const timeOptional = engine && measure === 'distanceTime' && !r.time.trim();
+          const sec = timeOptional ? undefined : parseSplit(r.time);
+          if (sec !== undefined && !(sec > 0 && sec < 3 * 3600)) errs.push(`${n}: enter a time as m:ss (a plain number is minutes).`);
+          const weight = engine && r.weight.trim() ? Number(r.weight) : undefined;
+          if (weight !== undefined && !(weight >= 0)) errs.push(`${n}: weight must be 0 or more.`);
           if (measure === 'distanceTime') {
             const m = Number(r.distance);
             if (!(m > 0)) errs.push(`${n}: enter a distance in metres.`);
-            exercises.push({ name, sets, distanceM: m, durationSec: sec, customMuscles: muscles });
-          } else exercises.push({ name, sets, durationSec: sec, customMuscles: muscles });
+            exercises.push({ name, sets, distanceM: m, durationSec: sec, weightKg: weight || undefined, customMuscles: muscles, mode });
+          } else exercises.push({ name, sets, durationSec: sec, weightKg: weight || undefined, customMuscles: muscles, mode });
         }
       });
 
@@ -482,62 +512,99 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     const measure = rowMeasure(r);
     const best = isCustom ? undefined : bests[r.name];
     const options = exerciseOptions(r.name);
+    // HYROX Engine: each exercise is counted by reps, distance or time.
+    const engine = type === 'HYROX Engine';
+    const mode = rowMode(r);
+    const m = engine ? MODE_MEASURE[mode] : measure;
+    const select = (
+      <>
+        <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
+        <select id={`ex-${r.key}`} className={`input ${r.name ? '' : 'text-slate-400'}`} value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value, mode: undefined })}>
+          <option value="" disabled>Choose an exercise…</option>
+          {options.map((name) => (
+            <option key={name} value={name} className="text-slate-900">
+              {name}
+              {savedCustom(name) ? ' (my exercise)' : ''}
+            </option>
+          ))}
+          <option value={CUSTOM} className="text-slate-900">Custom exercise…</option>
+        </select>
+      </>
+    );
+    const rowControls = (
+      <>
+        {controls}
+        <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove exercise ${i + 1}`}>
+          <Trash2 size={16} />
+        </button>
+      </>
+    );
+    const weightField = (optional: boolean) => (
+      <div>
+        <label className="label" htmlFor={`w-${r.key}`}>Weight (kg{optional ? ', optional' : ''})</label>
+        <input id={`w-${r.key}`} type="number" inputMode="decimal" min={0} step={0.5} className="input placeholder:text-slate-400" placeholder={best?.weightKg ? `Best ${best.weightKg}` : optional ? '' : 'BW'} value={r.weight} onChange={(e) => updateRow(r.key, { weight: e.target.value })} />
+      </div>
+    );
+    const fields = (
+      <>
+        <div>
+          <label className="label" htmlFor={`sets-${r.key}`}>{m === 'distanceTime' && !engine ? 'Rounds' : 'Sets'}</label>
+          <input id={`sets-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
+        </div>
+        {m === 'weight' && (
+          <>
+            <div>
+              <label className="label" htmlFor={`reps-${r.key}`}>{!engine && EXERCISE_BY_NAME[r.name]?.repUnit === 'm' ? 'Distance (m)' : 'Reps'}</label>
+              <input id={`reps-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
+            </div>
+            {weightField(false)}
+          </>
+        )}
+        {m === 'distanceTime' && (
+          <div>
+            <label className="label" htmlFor={`dist-${r.key}`}>Distance (m)</label>
+            <input id={`dist-${r.key}`} type="number" inputMode="numeric" min={1} className="input" placeholder="500" value={r.distance} onChange={(e) => updateRow(r.key, { distance: e.target.value })} />
+          </div>
+        )}
+        {m !== 'weight' && (
+          <div className={m === 'time' && !engine ? 'sm:col-span-2' : ''}>
+            <label className="label" htmlFor={`time-${r.key}`}>{m === 'time' ? 'Time per set (m:ss)' : engine ? 'Time (optional)' : 'Time (m:ss)'}</label>
+            <input id={`time-${r.key}`} inputMode="decimal" className="input" placeholder={m === 'time' ? (engine ? '2:00' : '0:45') : '1:50'} value={r.time} onChange={(e) => updateRow(r.key, { time: e.target.value })} />
+          </div>
+        )}
+        {engine && m !== 'weight' && weightField(true)}
+      </>
+    );
     return (
       <div key={r.key} className="rounded-xl border border-slate-200 p-3">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-          <div className="col-span-2 sm:col-span-1">
-            <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
-            <select id={`ex-${r.key}`} className={`input ${r.name ? '' : 'text-slate-400'}`} value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value })}>
-              <option value="" disabled>Choose an exercise…</option>
-              {options.map((name) => (
-                <option key={name} value={name} className="text-slate-900">
-                  {name}
-                  {savedCustom(name) ? ' (my exercise)' : ''}
-                </option>
-              ))}
-              <option value={CUSTOM} className="text-slate-900">Custom exercise…</option>
-            </select>
-          </div>
-          <div>
-            <label className="label" htmlFor={`sets-${r.key}`}>{measure === 'distanceTime' ? 'Rounds' : 'Sets'}</label>
-            <input id={`sets-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
-          </div>
-          {measure === 'weight' && (
-            <>
-              <div>
-                <label className="label" htmlFor={`reps-${r.key}`}>{EXERCISE_BY_NAME[r.name]?.repUnit === 'm' ? 'Distance (m)' : 'Reps'}</label>
-                <input id={`reps-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
-              </div>
-              <div>
-                <label className="label" htmlFor={`w-${r.key}`}>Weight (kg)</label>
-                <input id={`w-${r.key}`} type="number" inputMode="decimal" min={0} step={0.5} className="input placeholder:text-slate-400" placeholder={best?.weightKg ? `Best ${best.weightKg}` : 'BW'} value={r.weight} onChange={(e) => updateRow(r.key, { weight: e.target.value })} />
-              </div>
-            </>
-          )}
-          {measure === 'distanceTime' && (
-            <div>
-              <label className="label" htmlFor={`dist-${r.key}`}>Distance (m)</label>
-              <input id={`dist-${r.key}`} type="number" inputMode="numeric" min={1} className="input" placeholder="500" value={r.distance} onChange={(e) => updateRow(r.key, { distance: e.target.value })} />
+        {engine ? (
+          <>
+            <div className="flex items-end gap-2">
+              <div className="min-w-0 flex-1">{select}</div>
+              {rowControls}
             </div>
-          )}
-          {measure !== 'weight' && (
-            <div className={measure === 'time' ? 'sm:col-span-2' : ''}>
-              <label className="label" htmlFor={`time-${r.key}`}>{measure === 'time' ? 'Time per set (m:ss)' : 'Time (m:ss)'}</label>
-              <input id={`time-${r.key}`} inputMode="decimal" className="input" placeholder={measure === 'time' ? '0:45' : '1:50'} value={r.time} onChange={(e) => updateRow(r.key, { time: e.target.value })} />
+            <div className="mt-2">
+              <Segmented<EntryMode>
+                size="md"
+                value={mode}
+                onChange={(v) => updateRow(r.key, { mode: v })}
+                options={[{ value: 'reps', label: 'Reps' }, { value: 'distance', label: 'Distance' }, { value: 'time', label: 'Time' }]}
+              />
             </div>
-          )}
-          <div className="flex items-end">
-            {controls}
-            <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove exercise ${i + 1}`}>
-              <Trash2 size={16} />
-            </button>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{fields}</div>
+          </>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+            <div className="col-span-2 sm:col-span-1">{select}</div>
+            {fields}
+            <div className="flex items-end">{rowControls}</div>
           </div>
-        </div>
+        )}
         {best && <p className="mt-1.5 text-xs text-slate-400">{best.label}</p>}
         {isCustom && (
           <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
             <input className="input" placeholder="Exercise name" value={r.customName} onChange={(e) => updateRow(r.key, { customName: e.target.value })} aria-label="Custom exercise name" />
-            <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {!engine && <div className="flex flex-wrap gap-x-4 gap-y-2">
               <div>
                 <p className="label">Count by</p>
                 <Segmented
@@ -558,7 +625,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
                   />
                 </div>
               )}
-            </div>
+            </div>}
             <p className="label !mb-0">Muscle groups</p>
             <div className="flex flex-wrap gap-1.5">
               {MUSCLES.map((m) => {
@@ -675,7 +742,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         {type !== 'Running' && (
           <div>
             <label className="label" htmlFor="aw-dur">Duration (min)</label>
-            <input id="aw-dur" type="number" inputMode="numeric" min={1} className="input" value={duration} placeholder={type === 'HYROX' ? `auto ${Math.max(1, Math.ceil(simTotals.total / 60))}` : undefined} onChange={(e) => setDuration(e.target.value)} />
+            <input id="aw-dur" type="number" inputMode="numeric" min={1} className="input" value={duration} placeholder={type === 'HYROX' ? `auto ${Math.max(1, Math.ceil(simTotals.total / 60))}` : type === 'HYROX Engine' ? (engineSec ? `auto ${Math.ceil(engineSec / 60)}` : 'min') : undefined} onChange={(e) => setDuration(e.target.value)} />
           </div>
         )}
         <div>
@@ -732,7 +799,17 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             {addMoreButton('Add exercise', addExercise)}
             {addMoreButton('Add run', addRun)}
           </div>
-          <p className="mt-1.5 text-[11px] text-slate-500">Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.</p>
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-blue-50 px-3 py-2.5">
+            <div>
+              <p className="text-xs font-medium text-blue-900">Estimated workout time</p>
+              <p className="text-[11px] text-blue-800/80">Timed exercises (sets × time) plus runs. Reps-based exercises and rest aren't timed.</p>
+            </div>
+            <p className="shrink-0 text-lg font-semibold text-blue-900">{engineSec ? fmtDuration(Math.ceil(engineSec / 60)) : '—'}</p>
+          </div>
+          {engineSec > 0 && duration.trim() && Number(duration) !== Math.ceil(engineSec / 60) && (
+            <button className="mt-1.5 text-xs font-medium text-blue-700 hover:underline" onClick={() => setDuration('')}>Use the estimate ({Math.ceil(engineSec / 60)} min) as the duration</button>
+          )}
+          <p className="mt-1.5 text-[11px] text-slate-500">Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries. Times are m:ss; a plain number is minutes (5 = 5:00).</p>
         </div>
       )}
 

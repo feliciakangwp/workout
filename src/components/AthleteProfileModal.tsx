@@ -48,7 +48,7 @@ const toInputs = (r?: RaceResult): ResultInputs => ({
 });
 
 /** Accepts h:mm:ss, m:ss or m.ss. */
-const parse = (t: string) => parseTime(t.trim().replace(/\./g, ':'));
+const parse = parseTime;
 
 /** Live totals from the inputs; the finish time is automatic once every split and the Roxzone are filled. */
 function liveTotals(inp: ResultInputs) {

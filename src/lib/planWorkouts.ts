@@ -1,4 +1,4 @@
-import { exerciseMeasure } from '../data/exercises';
+import { MODE_MEASURE, defaultMode, exerciseMeasure } from '../data/exercises';
 import { planKey, type CustomExercise, type DraftForm, type ExerciseEntry, type RunData, type WeekPlan, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
 import { DEFAULT_TITLE } from './workoutTitles';
 import { parseTime } from './format';
@@ -10,7 +10,7 @@ const num = (s: string) => {
   return s.trim() && Number.isFinite(n) && n > 0 ? n : undefined;
 };
 const secs = (s: string) => {
-  const t = parseTime(s.trim().replace(/\./g, ':'));
+  const t = parseTime(s);
   return t > 0 ? t : undefined;
 };
 
@@ -27,11 +27,15 @@ function fromPlanForm(form: DraftForm | undefined, customs: CustomExercise[]): {
       const sets = num(r.sets);
       if (!name || !sets) continue;
       const saved = customs.find((c) => c.name === name);
-      const measure = r.name === CUSTOM ? r.customMeasure : saved?.measure ?? exerciseMeasure(name);
+      const usual = r.name === CUSTOM ? r.customMeasure : saved?.measure ?? exerciseMeasure(name);
+      // HYROX Engine: counted by reps, distance or time as chosen.
+      const mode = form.type === 'HYROX Engine' ? r.mode ?? defaultMode(name, usual) : undefined;
+      const measure = mode ? MODE_MEASURE[mode] : usual;
       const customMuscles = r.name === CUSTOM ? r.customMuscles : saved?.muscles;
-      if (measure === 'weight' && num(r.reps)) exercises.push({ name, sets, reps: num(r.reps), weightKg: num(r.weight), customMuscles });
-      else if (measure === 'time' && secs(r.time)) exercises.push({ name, sets, durationSec: secs(r.time), customMuscles });
-      else if (measure === 'distanceTime' && num(r.distance)) exercises.push({ name, sets, distanceM: num(r.distance), durationSec: secs(r.time), customMuscles });
+      const weightKg = num(r.weight);
+      if (measure === 'weight' && num(r.reps)) exercises.push({ name, sets, reps: num(r.reps), weightKg, customMuscles, mode });
+      else if (measure === 'time' && secs(r.time)) exercises.push({ name, sets, durationSec: secs(r.time), weightKg: mode && weightKg, customMuscles, mode });
+      else if (measure === 'distanceTime' && num(r.distance)) exercises.push({ name, sets, distanceM: num(r.distance), durationSec: secs(r.time), weightKg: mode && weightKg, customMuscles, mode });
     }
   const segments = form.runRows.flatMap((r) => {
     const km = num(r.km);
@@ -69,7 +73,9 @@ export function plannedAsDone(plan: WeekPlan, details: Record<string, DraftForm>
       // F45 without planned exercises: a full-body functional class at 80% of best weights.
       const assumed = type === 'F45' && !planned.exercises.length;
       const exercises = assumed ? functionalF45(logged) : planned.exercises;
-      const minutes = num(form?.duration ?? '') ?? (run && type === 'Running' ? Math.ceil((run.distanceKm * run.paceSecPerKm) / 60) : DEFAULT_MINUTES[type]);
+      // HYROX Engine without a duration: estimated from its timed exercises and runs, like the form does.
+      const engineSec = type === 'HYROX Engine' ? exercises.reduce((a, e) => a + e.sets * (e.durationSec ?? 0), 0) + (run ? run.distanceKm * run.paceSecPerKm : 0) : 0;
+      const minutes = num(form?.duration ?? '') ?? (run && type === 'Running' ? Math.ceil((run.distanceKm * run.paceSecPerKm) / 60) : engineSec ? Math.ceil(engineSec / 60) : DEFAULT_MINUTES[type]);
       out.push({
         id: `plan:${key}`,
         date,

@@ -39,7 +39,12 @@ export interface ExerciseEntry {
   customMuscles?: MuscleGroup[];
   /** Working-set credit for muscle coverage when it differs from `sets` (HYROX sims). */
   creditSets?: number;
+  /** HYROX Engine: how this exercise was counted, chosen per exercise. */
+  mode?: EntryMode;
 }
+
+/** Reps (× weight), a distance (optionally timed), or a time per set. */
+export type EntryMode = 'reps' | 'distance' | 'time';
 
 export interface RunData {
   kind: RunKind;
@@ -183,6 +188,8 @@ export interface DraftForm {
     customMeasure: ExerciseMeasure;
     /** Workout types a new custom exercise is saved to for future use. */
     saveTo: WorkoutType[];
+    /** HYROX Engine: reps, distance or time; unset follows the exercise's usual measure. */
+    mode?: EntryMode;
     sets: string;
     reps: string;
     weight: string;
