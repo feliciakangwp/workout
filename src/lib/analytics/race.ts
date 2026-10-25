@@ -203,7 +203,8 @@ export function resultTotals(race: Race) {
     missing: stations.length - filled,
     hasSplits: filled > 0,
     auto,
-    totalSec: auto ? runSec + stationSec + r!.roxzoneSec! : r?.totalSec,
+    // The recorded finish time (official) when there is one; else the splits' sum.
+    totalSec: r?.totalSec ?? (auto ? runSec + stationSec + r!.roxzoneSec! : undefined),
   };
 }
 

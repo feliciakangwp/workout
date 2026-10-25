@@ -35,8 +35,16 @@ interface ResultInputs {
   open: boolean;
 }
 
+/** Sum of every run, station and the Roxzone, when all are recorded. */
+function splitSum(r?: RaceResult) {
+  if (!r?.roxzoneSec) return undefined;
+  const xs = STATIONS.map((s) => r.splits.find((y) => y.station === s.id));
+  return xs.every((x) => x?.runSec && x?.stationSec) ? xs.reduce((a, x) => a + x!.runSec! + x!.stationSec!, r.roxzoneSec) : undefined;
+}
+
 const toInputs = (r?: RaceResult): ResultInputs => ({
-  total: r?.totalSec ? fmtTime(r.totalSec) : '',
+  // A finish time equal to the splits' sum was calculated, not typed: keep it automatic.
+  total: r?.totalSec && r.totalSec !== splitSum(r) ? fmtTime(r.totalSec) : '',
   roxzone: r?.roxzoneSec ? fmtTime(r.roxzoneSec) : '',
   splits: Object.fromEntries(
     STATIONS.map((s) => {
@@ -66,7 +74,10 @@ function liveTotals(inp: ResultInputs) {
   const rox = parse(inp.roxzone);
   const missing = stations.length - filled;
   const auto = rox > 0 && missing === 0;
-  return { run, station, rox, missing, auto, total: auto ? run + station + rox : parse(inp.total) };
+  const sum = run + station + rox;
+  // A typed finish time (the official one) wins over the splits' sum, which can be off by a few seconds of rounding.
+  const typed = inp.total.trim() ? parse(inp.total) : NaN;
+  return { run, station, rox, missing, auto: auto && !(typed > 0), sum: auto ? sum : undefined, total: typed > 0 ? typed : auto ? sum : typed };
 }
 
 export function AthleteProfileModal({ open, target, onClose }: { open: boolean; target?: ProfileTarget; onClose: () => void }) {
@@ -155,7 +166,7 @@ export function AthleteProfileModal({ open, target, onClose }: { open: boolean; 
       }));
       const roxzoneSec = check(inp.roxzone, 'Roxzone', 10, 3600);
       const t = liveTotals(inp);
-      const totalSec = t.auto ? t.total : check(inp.total, 'finish time', 60, 6 * 3600);
+      const totalSec = inp.total.trim() ? check(inp.total, 'finish time', 60, 6 * 3600) : t.auto ? t.total : undefined;
       const hasAny = totalSec || roxzoneSec || splits.some((x) => x.runSec || x.stationSec);
       return hasAny ? { ...race, result: { totalSec, roxzoneSec, splits: splits.filter((x) => x.runSec || x.stationSec) } } : race;
     });
@@ -444,13 +455,17 @@ function ResultFields({ race, me, inputs, onChange }: { race: Race; me: Profile;
       <div className="mt-2 grid grid-cols-2 gap-2">
         <div>
           <label className="label" htmlFor={`rt-${race.id}`}>Finish time</label>
-          {t.auto ? (
-            <div id={`rt-${race.id}`} className="input flex items-center justify-between bg-blue-50 font-semibold text-slate-900">
-              {fmtTime(t.total)} <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">AUTO</span>
-            </div>
-          ) : (
-            <input id={`rt-${race.id}`} inputMode="decimal" className="input" placeholder="1:28:45" value={inputs.total} onChange={(e) => onChange({ total: e.target.value })} />
-          )}
+          <div className="relative">
+            <input
+              id={`rt-${race.id}`}
+              inputMode="decimal"
+              className={`input ${t.auto ? 'bg-blue-50 font-semibold placeholder:text-slate-900' : ''}`}
+              placeholder={t.sum ? fmtTime(t.sum) : '1:28:45'}
+              value={inputs.total}
+              onChange={(e) => onChange({ total: e.target.value })}
+            />
+            {t.auto && <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded bg-blue-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">AUTO</span>}
+          </div>
         </div>
         <div>
           <label className="label" htmlFor={`rr-${race.id}`}>Roxzone</label>
@@ -459,8 +474,12 @@ function ResultFields({ race, me, inputs, onChange }: { race: Race; me: Profile;
       </div>
       <p className="mt-1.5 text-[11px] text-slate-500">
         {t.auto
-          ? 'Finish time = runs + stations + Roxzone.'
-          : t.rox > 0
+          ? 'Finish time = runs + stations + Roxzone. Type your official time to use it instead: splits are rounded, so their sum can differ by a few seconds.'
+          : t.sum && t.total !== t.sum
+            ? `Using your entered time. The splits add up to ${fmtTime(t.sum)}; the gap is rounding in the official splits.`
+            : t.sum
+              ? 'Matches runs + stations + Roxzone.'
+              : t.rox > 0
             ? `Fill the ${t.missing} remaining split${t.missing === 1 ? '' : 's'} below to calculate the finish time automatically, or enter it yourself.`
             : 'Enter your overall time, or add every split and the Roxzone time to calculate it automatically.'}
       </p>
