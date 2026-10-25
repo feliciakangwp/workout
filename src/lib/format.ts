@@ -27,14 +27,18 @@ export const fmtPct = (v: number, digits = 0) => `${v > 0 ? '+' : ''}${v.toFixed
 
 /**
  * Parses "m:ss" or "h:mm:ss" into seconds; dots work like colons ("5.00" = 5:00, easier
- * on a phone number pad) and a plain number is minutes ("5" = 5:00). NaN when invalid.
+ * on a phone number pad; "4.3" = 4:30) and a plain number is minutes ("5" = 5:00). NaN when invalid.
  */
 export const parseTime = (text: string) => {
-  const t = text.trim().replace(/\./g, ':');
-  if (!t) return NaN;
-  const parts = t.split(':').map((p) => (p === '' ? NaN : Number(p)));
+  const raw = text.trim();
+  if (!raw) return NaN;
+  const pieces = raw.replace(/\./g, ':').split(':');
+  // "4.3" reads like "4.30": one digit after a dot is tens of seconds.
+  if (pieces.length > 1 && raw.includes('.') && /^\d$/.test(pieces[pieces.length - 1])) pieces[pieces.length - 1] += '0';
+  const parts = pieces.map((p) => (p === '' ? NaN : Number(p)));
   if (parts.some((p) => !isFinite(p) || p < 0)) return NaN;
   if (parts.length === 1) return parts[0] * 60;
+  if (parts.slice(1).some((p) => p >= 60)) return NaN; // seconds and minutes after the first part stay under 60
   return parts.reduce((acc, p) => acc * 60 + p, 0);
 };
 
