@@ -53,10 +53,13 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
   const goal = goals.runGoal;
   const predicted = goal ? predictFromBestRun(workouts, goal.distanceKm, today) : null;
   const goalTime = goal?.paceSecPerKm ? goal.paceSecPerKm * goal.distanceKm : 0;
-  // Progress counts from the first weigh-in (or 65 kg without one).
-  const startWeight = Math.max(goals.currentWeightKg, weighIns.find((w) => w.weightKg !== undefined)?.weightKg ?? 65);
+  const bw = goals.bodyWeight;
+  const current = bw?.currentKg;
+  const target = bw?.targetKg;
   const lastWeighIn = [...weighIns].reverse().find((w) => w.weightKg !== undefined);
-  const weightPct = Math.min(100, Math.max(0, ((startWeight - goals.currentWeightKg) / (startWeight - goals.targetWeightKg || 1)) * 100));
+  // Progress counts from the weight when the target was set (or the first weigh-in).
+  const startWeight = bw?.startKg ?? weighIns.find((w) => w.weightKg !== undefined)?.weightKg ?? current;
+  const weightPct = current && target && startWeight && startWeight !== target ? Math.min(100, Math.max(0, ((startWeight - current) / (startWeight - target)) * 100)) : 0;
   const runPct = predicted && goalTime ? Math.min(100, (goalTime / predicted.sec) * 100) : 0;
 
   return (
@@ -65,17 +68,24 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
       <div className="space-y-4 p-5">
         {/* Body weight is private: not shown on a friend's dashboard. */}
         {!readOnly && (
-        <div>
-          <div className="flex items-baseline justify-between text-sm">
-            <span className="font-medium text-slate-700">Body weight</span>
-            <span className="text-slate-500"><b className="font-semibold text-slate-900">{goals.currentWeightKg} kg</b> → {goals.targetWeightKg} kg</span>
+        target ? (
+          <div>
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="font-medium text-slate-700">Body weight</span>
+              <span className="text-slate-500">{current ? <><b className="font-semibold text-slate-900">{current} kg</b> → </> : 'target '}{target} kg</span>
+            </div>
+            {current !== undefined && <div className="mt-2 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-blue-600" style={{ width: `${weightPct}%` }} /></div>}
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-500">
+              <span>{current !== undefined ? `${Math.abs(current - target).toFixed(1)} kg to go${lastWeighIn ? ` · weighed in ${fmtShort(lastWeighIn.date)}` : ''}` : 'Add your current weight or a weigh-in to track progress.'}</span>
+              <button className="font-medium text-blue-600 hover:text-blue-700" onClick={() => onNavigate('body')}>Body composition →</button>
+            </div>
           </div>
-          <div className="mt-2 h-2 rounded-full bg-slate-100"><div className="h-2 rounded-full bg-blue-600" style={{ width: `${weightPct}%` }} /></div>
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-slate-500">
-            <span>{(goals.currentWeightKg - goals.targetWeightKg).toFixed(1)} kg to go{lastWeighIn ? ` · weighed in ${fmtShort(lastWeighIn.date)}` : ''}</span>
-            <button className="font-medium text-blue-600 hover:text-blue-700" onClick={() => onNavigate('body')}>Body composition →</button>
+        ) : (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+            <span className="text-sm text-slate-600">Body weight goal: not set{current ? ` · now ${current} kg` : ''}</span>
+            <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => setEditing(true)}>Set a weight goal →</button>
           </div>
-        </div>
+        )
         )}
         {goal ? (
           <div>
@@ -123,9 +133,11 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
 
 function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => void; onSave: (g: Goals) => void }) {
   const { weighIns, workouts, today } = useData();
+  /** With weigh-ins, the current weight comes from the latest one. */
+  const fromWeighIn = weighIns.some((w) => w.weightKg !== undefined);
   const [draft, setDraft] = useState({
-    current: String(goals.currentWeightKg),
-    target: String(goals.targetWeightKg),
+    current: goals.bodyWeight?.currentKg !== undefined ? String(goals.bodyWeight.currentKg) : '',
+    target: goals.bodyWeight?.targetKg !== undefined ? String(goals.bodyWeight.targetKg) : '',
     km: goals.runGoal ? String(goals.runGoal.distanceKm) : '',
     pace: goals.runGoal?.paceSecPerKm ? fmtPace(goals.runGoal.paceSecPerKm) : '',
     sessions: String(goals.weeklySessionsTarget),
@@ -138,18 +150,24 @@ function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => 
   const paceOk = pace >= 120 && pace <= 900;
   const predicted = kmOk ? predictFromBestRun(workouts, km, today) : null;
   const save = () => {
-    const nums = [draft.current, draft.target, draft.sessions, draft.runKm].map(Number);
-    if (nums.some((n) => !(n > 0))) return setError('Enter positive numbers for weight and weekly targets.');
+    const nums = [draft.sessions, draft.runKm].map(Number);
+    if (nums.some((n) => !(n > 0))) return setError('Enter positive numbers for the weekly targets.');
+    const weight = (t: string) => (t.trim() ? Number(t.replace(',', '.')) : undefined);
+    const currentKg = fromWeighIn ? goals.bodyWeight?.currentKg : weight(draft.current);
+    const targetKg = weight(draft.target);
+    if ([currentKg, targetKg].some((w) => w !== undefined && !(w >= 25 && w <= 300))) return setError('Enter body weight in kg (25–300), or leave it empty.');
+    const old = goals.bodyWeight;
+    // Progress is measured from the weight when the target was set (or changed).
+    const startKg = targetKg === undefined ? undefined : old?.startKg !== undefined && old.targetKg === targetKg ? old.startKg : currentKg;
     if (draft.km.trim() && !kmOk) return setError('Running goal distance: enter 1 to 42.2 km.');
     if (draft.pace.trim() && !paceOk) return setError('Running goal pace: enter a pace per km like 5:30.');
     if (draft.pace.trim() && !draft.km.trim()) return setError('Choose a distance for your running goal.');
     onSave({
       ...goals,
-      currentWeightKg: nums[0],
-      targetWeightKg: nums[1],
+      bodyWeight: currentKg !== undefined || targetKg !== undefined ? { currentKg, targetKg, startKg } : undefined,
       runGoal: draft.km.trim() ? { distanceKm: km, paceSecPerKm: paceOk ? pace : undefined } : undefined,
-      weeklySessionsTarget: nums[2],
-      weeklyRunKmTarget: nums[3],
+      weeklySessionsTarget: nums[0],
+      weeklyRunKmTarget: nums[1],
     });
   };
   const field = (key: keyof typeof draft, label: string, type = 'number', placeholder?: string) => (
@@ -162,8 +180,16 @@ function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => 
     <Modal open onClose={onClose} title="Edit goals" footer={<><button className="btn-ghost" onClick={onClose}>Cancel</button><button className="btn-primary" onClick={save}>Save goals</button></>}>
       {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700" role="alert">{error}</p>}
       <div className="grid grid-cols-2 gap-3">
-        {field('current', weighIns.some((w) => !w.isSample) ? 'Current weight (kg, from latest weigh-in)' : 'Current weight (kg)')}
-        {field('target', 'Target weight (kg)')}
+        {fromWeighIn ? (
+          <div>
+            <p className="label">Current weight (kg)</p>
+            <p className="input bg-slate-50 text-slate-600">{goals.bodyWeight?.currentKg}</p>
+            <p className="mt-1 text-[11px] text-slate-500">From your latest weigh-in (Body composition).</p>
+          </div>
+        ) : (
+          field('current', 'Current weight (kg)', 'number', 'e.g. 60')
+        )}
+        {field('target', 'Target weight (kg)', 'number', 'e.g. 58')}
         {field('sessions', 'Weekly sessions target')}
         {field('runKm', 'Weekly running target (km)')}
       </div>

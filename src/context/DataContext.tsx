@@ -384,7 +384,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // Weigh-ins are private: never shown on a friend's dashboard.
     if (!data || readOnly) return [];
     const own = data.weighIns ?? [];
-    return sortWeighIns(own.length || !data.sample ? own : sampleWeighIns(data.sample.seed, data.goals.currentWeightKg, data.goals.athleteSex));
+    return sortWeighIns(own.length || !data.sample ? own : sampleWeighIns(data.sample.seed, data.goals.bodyWeight?.currentKg ?? 55, data.goals.athleteSex));
   }, [data, readOnly]);
   // The latest weigh-in is the current body weight.
   const latestWeight = [...weighIns].reverse().find((w) => w.weightKg !== undefined)?.weightKg;
@@ -424,7 +424,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             readOnly,
             hasSampleData: !!data.sample,
             workouts: [...sample.workouts, ...data.added, ...fromPlan],
-            goals: { ...data.goals, currentWeightKg: latestWeight ?? data.goals.currentWeightKg, races: [...data.goals.races, ...shared.map((x) => fromShared(x, athlete.id))] },
+            goals: { ...data.goals, bodyWeight: latestWeight || data.goals.bodyWeight ? { ...data.goals.bodyWeight, currentKg: latestWeight ?? data.goals.bodyWeight?.currentKg } : undefined, races: [...data.goals.races, ...shared.map((x) => fromShared(x, athlete.id))] },
             today,
             addWorkout,
             removeWorkout,

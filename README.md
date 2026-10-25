@@ -148,6 +148,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   estimate: timed exercises (sets × time) plus runs; reps-based work and rest aren't timed.
 - **Time inputs** everywhere take m:ss or h:mm:ss; a dot works like a colon (5.30 = 5:30) and a plain number is
   minutes (5 = 5:00).
+- **Body weight goal** (Overview → Goals & races → Edit): empty until the athlete enters a current and target weight.
+  With weigh-ins (Body composition), the current weight comes from the latest one. Progress counts from the weight
+  when the target was set. Private: never shown to friends.
 - **Running goal** (Overview → Goals & races → Edit): empty until the athlete sets one. Pick 1K, 5K, 10K, half or
   marathon, or type any distance from 1 to 42.2 km, plus an optional target pace. The estimate for that distance uses
   Riegel's formula from the athlete's best standalone run (3 km or more, or 1 km+ for shorter goals).

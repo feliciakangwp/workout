@@ -222,8 +222,15 @@ export interface WorkoutDraft {
 export const planKey = (date: string, type: WorkoutType) => `${date}|${type}`;
 
 export interface Goals {
-  currentWeightKg: number;
-  targetWeightKg: number;
+  /**
+   * Body weight goal, entered by the athlete (private). The current weight comes from the
+   * latest weigh-in when there is one; startKg is the weight when the target was set.
+   */
+  bodyWeight?: { currentKg?: number; targetKg?: number; startKg?: number };
+  /** @deprecated Old example weight (55 kg) given to everyone; no longer used. */
+  currentWeightKg?: number;
+  /** @deprecated Old example target (52 kg); no longer used. */
+  targetWeightKg?: number;
   /** The athlete's own running goal: any distance from 1 km to a marathon, with an optional target pace. Unset until they add one. */
   runGoal?: { distanceKm: number; paceSecPerKm?: number };
   /** @deprecated Old example goal (10 km @ 5:00/km) given to everyone; no longer used. */

@@ -34,8 +34,7 @@ function seedStore(): DemoStore {
     sample: { seed: 7331, liftScale: 1.12, paceShiftSec: -12 },
     goals: {
       ...DEFAULT_GOALS,
-      currentWeightKg: 61,
-      targetWeightKg: 59,
+      bodyWeight: { currentKg: 61, targetKg: 59 },
       races: [
         { id: 'f-1', name: 'HYROX Kuala Lumpur Relay', date: '2026-11-21', format: 'relay', category: 'open', relayStations: ['sledPush', 'sandbagLunges'] },
         { id: 'f-2', name: 'HYROX Bangkok', date: '2026-07-11', format: 'solo', category: 'open', relayStations: [], result: { totalSec: 5380, splits: [] } },
@@ -48,8 +47,7 @@ function seedStore(): DemoStore {
     goals: {
       ...DEFAULT_GOALS,
       athleteSex: 'male',
-      currentWeightKg: 78,
-      targetWeightKg: 76,
+      bodyWeight: { currentKg: 78, targetKg: 76 },
       races: [{ id: 'j-1', name: 'HYROX Singapore', date: '2026-11-28', format: 'doubles', category: 'pro', relayStations: [] }],
     },
   };
