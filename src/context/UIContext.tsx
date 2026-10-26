@@ -12,6 +12,8 @@ interface UIContextValue {
   openProfile: (target?: ProfileTarget) => void;
   /** Edit a logged workout: fix its duration, add a forgotten set, and so on. */
   openEditWorkout: (w: Workout) => void;
+  /** Edit goals: body weight, running goal and weekly targets. */
+  openGoals: () => void;
   notify: (message: string) => void;
 }
 

@@ -151,6 +151,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 - **Body weight goal** (Overview → Goals & races → Edit): empty until the athlete enters a current and target weight.
   With weigh-ins (Body composition), the current weight comes from the latest one. Progress counts from the weight
   when the target was set. Private: never shown to friends.
+- **Goal prompts**: after sign-in, athletes without a weight or running goal see "No goal? No glory!" once per visit;
+  *ONZ* opens the goals editor. When a run logged yesterday meets the running goal (distance at or under the target
+  pace), or the weight reaches its target, "Goal crushed!" asks for the next goal (once per goal).
 - **Running goal** (Overview → Goals & races → Edit): empty until the athlete sets one. Pick 1K, 5K, 10K, half or
   marathon, or type any distance from 1 to 42.2 km, plus an optional target pace. The estimate for that distance uses
   Riegel's formula from the athlete's best standalone run (3 km or more, or 1 km+ for shorter goals).

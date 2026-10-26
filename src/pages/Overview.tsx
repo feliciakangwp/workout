@@ -46,10 +46,9 @@ export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
 
 // ---------------------------------------------------------------------------
 function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
-  const { goals, updateGoals, workouts, today, readOnly, weighIns } = useData();
-  const { openProfile } = useUI();
+  const { goals, workouts, today, readOnly, weighIns } = useData();
+  const { openProfile, openGoals } = useUI();
   const races = upcomingRaces(goals, today);
-  const [editing, setEditing] = useState(false);
   const goal = goals.runGoal;
   const predicted = goal ? predictFromBestRun(workouts, goal.distanceKm, today) : null;
   const goalTime = goal?.paceSecPerKm ? goal.paceSecPerKm * goal.distanceKm : 0;
@@ -64,7 +63,7 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
 
   return (
     <Card>
-      <CardHeader icon={Target} title="Goals & races" subtitle="Your goals and upcoming races" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => setEditing(true)}><Pencil size={13} /> Edit</button>} />
+      <CardHeader icon={Target} title="Goals & races" subtitle="Your goals and upcoming races" action={!readOnly && <button className="btn-ghost px-2.5 py-1.5 text-xs" onClick={() => openGoals()}><Pencil size={13} /> Edit</button>} />
       <div className="space-y-4 p-5">
         {/* Body weight is private: not shown on a friend's dashboard. */}
         {!readOnly && (
@@ -83,7 +82,7 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
             <span className="text-sm text-slate-600">Body weight goal: not set{current ? ` · now ${current} kg` : ''}</span>
-            <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => setEditing(true)}>Set a weight goal →</button>
+            <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => openGoals()}>Set a weight goal →</button>
           </div>
         )
         )}
@@ -99,7 +98,7 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
         ) : (
           <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
             <span className="text-sm text-slate-600">Running goal: not set</span>
-            {!readOnly && <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => setEditing(true)}>Set a running goal →</button>}
+            {!readOnly && <button className="text-xs font-medium text-blue-600 hover:text-blue-700" onClick={() => openGoals()}>Set a running goal →</button>}
           </div>
         )}
         <div className="space-y-2 border-t border-slate-100 pt-4">
@@ -126,12 +125,11 @@ function GoalsCard({ onNavigate }: { onNavigate: (p: PageId) => void }) {
           })}
         </div>
       </div>
-      {editing && <GoalsEditor goals={goals} onClose={() => setEditing(false)} onSave={(g) => { updateGoals(g); setEditing(false); }} />}
     </Card>
   );
 }
 
-function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => void; onSave: (g: Goals) => void }) {
+export function GoalsEditor({ goals, onClose, onSave }: { goals: Goals; onClose: () => void; onSave: (g: Goals) => void }) {
   const { weighIns, workouts, today } = useData();
   /** With weigh-ins, the current weight comes from the latest one. */
   const fromWeighIn = weighIns.some((w) => w.weightKg !== undefined);
