@@ -7,3 +7,4 @@ export * from './overview';
 export * from './race';
 export * from './body';
 export * from './simCompare';
+export * from './records';

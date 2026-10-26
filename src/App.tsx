@@ -8,6 +8,8 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { FriendRequestPrompt } from './components/FriendRequestPrompt';
 import { TaggedRacePrompt } from './components/TaggedRacePrompt';
 import { GoalPrompt } from './components/GoalPrompt';
+import { RecordsModal } from './components/RecordsModal';
+import type { Records } from './lib/analytics';
 import { FriendRequestsProvider } from './context/FriendRequestsContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { UIProvider, type ProfileTarget } from './context/UIContext';
@@ -56,6 +58,7 @@ function Gate() {
 function Dashboard() {
   const { readOnly, goals, updateGoals } = useData();
   const [goalsOpen, setGoalsOpen] = useState(false);
+  const [records, setRecords] = useState<Records | null>(null);
   const [page, setPage] = useState<PageId>(readHash);
   /**
    * null = closed. Otherwise: a blank form, an open workout being continued (draftId),
@@ -87,6 +90,7 @@ function Dashboard() {
       startPlannedWorkout: (date: string, type: WorkoutType) => !readOnly && setAdding({ start: { date, type }, key: Date.now() }),
       openEditWorkout: (w: Workout) => !readOnly && setAdding({ edit: w, key: Date.now() }),
       openGoals: () => !readOnly && setGoalsOpen(true),
+      celebrate: setRecords,
       openProfile: (target?: ProfileTarget) => !readOnly && setProfile(target ?? 'all'),
       notify: setToast,
     }),
@@ -119,7 +123,7 @@ function Dashboard() {
         </Layout>
         {adding && <AddWorkoutModal key={adding.key} draftId={adding.draftId} date={adding.date} plan={adding.plan} start={adding.start} edit={adding.edit} onClose={() => setAdding(null)} />}
         {goalsOpen && <GoalsEditor goals={goals} onClose={() => setGoalsOpen(false)} onSave={(g) => { updateGoals(g); setGoalsOpen(false); }} />}
-        {!readOnly && <GoalPrompt />}
+        {records ? <RecordsModal records={records} onClose={() => setRecords(null)} /> : !readOnly && <GoalPrompt />}
         <AthleteProfileModal open={profile !== null} target={profile === 'all' || profile === null ? undefined : profile} onClose={() => setProfile(null)} />
         {/* Pop-ups: friend requests and races you were tagged in, stacked above the tab bar. */}
         <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[45] flex flex-col items-center gap-2 px-3 lg:bottom-6 lg:items-end lg:px-6">

@@ -8,7 +8,7 @@ import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec,
 import { planKey, type CustomExercise, type Division, type DraftForm, type EntryMode, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
-import { isHyrox, raceDivision, upcomingRaces } from '../lib/analytics';
+import { hasRecords, isHyrox, newRecords, raceDivision, upcomingRaces } from '../lib/analytics';
 import { fmtShort } from '../lib/dates';
 import { fmtDuration, fmtPace, fmtTime, parseTime } from '../lib/format';
 import { WORKOUT_TYPES } from '../lib/theme';
@@ -166,7 +166,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
   const savedCustom = (name: string) => customExercises.find((c) => c.name === name);
   /** How a row is logged: chosen for a new custom exercise, saved for a reused one, else from the library. */
   const rowMeasure = (r: ExerciseRow): ExerciseMeasure => (r.name === CUSTOM ? r.customMeasure : savedCustom(r.name)?.measure ?? exerciseMeasure(r.name));
-  const { notify } = useUI();
+  const { notify, celebrate } = useUI();
   const nextRace = upcomingRaces(goals, today).find(isHyrox);
   const defaultDivision: Division = nextRace ? raceDivision(nextRace, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' };
   const draft = drafts.find((d) => d.id === draftId);
@@ -338,9 +338,13 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
       notify(`${w.title} updated.`);
       return onClose();
     }
+    // Personal records against everything logged before this workout.
+    const records = newRecords(w, workouts);
     addWorkout(w);
     deleteDraft(ownId); // no-op when the workout was never saved open
-    notify(w.hyrox ? `${w.title} completed. See how it compares with your bests on Race Performance.` : `${w.title} completed — added to the workout log.`);
+    // The records pop-up replaces the "completed" note, which would cover it.
+    if (hasRecords(records)) celebrate(records);
+    else notify(w.hyrox ? `${w.title} completed. See how it compares with your bests on Race Performance.` : `${w.title} completed — added to the workout log.`);
     onClose();
   };
 

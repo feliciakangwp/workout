@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { Workout, WorkoutType } from '../data/types';
+import type { Records } from '../lib/analytics';
 
 interface UIContextValue {
   /** Opens a blank workout (on `date`, default today), or continues the open workout with this id. */
@@ -14,6 +15,8 @@ interface UIContextValue {
   openEditWorkout: (w: Workout) => void;
   /** Edit goals: body weight, running goal and weekly targets. */
   openGoals: () => void;
+  /** Celebrate personal records a workout just set. */
+  celebrate: (records: Records) => void;
   notify: (message: string) => void;
 }
 

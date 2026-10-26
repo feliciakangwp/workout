@@ -151,6 +151,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 - **Body weight goal** (Overview → Goals & races → Edit): empty until the athlete enters a current and target weight.
   With weigh-ins (Body composition), the current weight comes from the latest one. Progress counts from the weight
   when the target was set. Private: never shown to friends.
+- **Personal records**: completing a workout checks it against everything logged before — longest run, fastest
+  pace (runs of 1 km+) and, in Strength workouts, the heaviest weight per exercise — and celebrates any new record.
+  Walks, planned-only days and a first-ever run or lift don't count.
 - **Goal prompts**: after sign-in, athletes without a weight or running goal see "No goal? No glory!" once per visit;
   *ONZ* opens the goals editor. When a run logged yesterday meets the running goal (distance at or under the target
   pace), or the weight reaches its target, "Goal crushed!" asks for the next goal (once per goal).
