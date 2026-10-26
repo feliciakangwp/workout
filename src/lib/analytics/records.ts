@@ -1,11 +1,14 @@
 import { entryMeasure } from '../../data/exercises';
 import type { Workout } from '../../data/types';
+import { diffDays } from '../dates';
 
 /** Personal records a newly logged workout sets against everything logged before it. */
 export interface Records {
   longest?: { km: number; previousKm: number };
   fastest?: { paceSecPerKm: number; previousPace: number; km: number };
   heaviest: { name: string; kg: number; previousKg: number }[];
+  /** Logged today after 2 or more full days without a logged workout. */
+  comeback?: { restDays: number };
 }
 
 /** Pure runs (walks aren't runs), each with its distance and average pace. */
@@ -19,9 +22,15 @@ const lifts = (w: Pick<Workout, 'exercises'>) => w.exercises.filter((e) => e.wei
  * assumed). A record needs an earlier result to beat, so a first-ever run or lift isn't one.
  * Fastest pace counts runs of 1 km or more.
  */
-export function newRecords(w: Omit<Workout, 'id' | 'isSample'>, previous: Workout[]): Records {
+export function newRecords(w: Omit<Workout, 'id' | 'isSample'>, previous: Workout[], today: string): Records {
   const before = previous.filter((x) => !x.fromPlan && !x.assumedExercises);
   const out: Records = { heaviest: [] };
+  // Back after a break: only for today's workout (not a past day filled in later).
+  const last = before.filter((x) => x.date < w.date).reduce((a, x) => (x.date > a ? x.date : a), '');
+  if (w.date === today && last && !before.some((x) => x.date === today)) {
+    const restDays = diffDays(w.date, last) - 1;
+    if (restDays >= 2) out.comeback = { restDays };
+  }
   const run = w.type === 'Running' && w.run && w.run.kind !== 'Walking' ? w.run : undefined;
   if (run) {
     const runs = pureRuns(before);
@@ -49,4 +58,4 @@ export function newRecords(w: Omit<Workout, 'id' | 'isSample'>, previous: Workou
   return out;
 }
 
-export const hasRecords = (r: Records) => !!(r.longest || r.fastest || r.heaviest.length);
+export const hasRecords = (r: Records) => !!(r.longest || r.fastest || r.heaviest.length || r.comeback);

@@ -339,7 +339,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
       return onClose();
     }
     // Personal records against everything logged before this workout.
-    const records = newRecords(w, workouts);
+    const records = newRecords(w, workouts, today);
     addWorkout(w);
     deleteDraft(ownId); // no-op when the workout was never saved open
     // The records pop-up replaces the "completed" note, which would cover it.

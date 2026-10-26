@@ -154,6 +154,8 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 - **Personal records**: completing a workout checks it against everything logged before — longest run, fastest
   pace (runs of 1 km+) and, in Strength workouts, the heaviest weight per exercise — and celebrates any new record.
   Walks, planned-only days and a first-ever run or lift don't count.
+- **Comeback**: logging today's workout after 2 or more full days without one shows "Look who's back from
+  vacation!" with the number of rest days.
 - **Goal prompts**: after sign-in, athletes without a weight or running goal see "No goal? No glory!" once per visit;
   *ONZ* opens the goals editor. When a run logged yesterday meets the running goal (distance at or under the target
   pace), or the weight reaches its target, "Goal crushed!" asks for the next goal (once per goal).
