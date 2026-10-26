@@ -27,7 +27,7 @@ const fmtLoad = (e: ExerciseEntry) => {
 };
 
 /** "Running" for pure runs; runs inside HYROX sessions are "Hyrox Run". */
-export const runCategory = (w: Workout) => (w.type === 'Running' ? 'Running' : 'Hyrox Run');
+export const runCategory = (w: Workout) => (w.run?.kind === 'Walking' ? 'Walking' : w.type === 'Running' ? 'Running' : 'Hyrox Run');
 
 export function IntensityBar({ value }: { value: number }) {
   const tone = value >= 8 ? 'bg-rose-500' : value >= 6 ? 'bg-amber-400' : value >= 4 ? 'bg-blue-500' : 'bg-emerald-500';
@@ -78,7 +78,7 @@ export function WorkoutDetail({ workout, onRemove, onEdit }: { workout: Workout;
         <div>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             {runCategory(workout)}
-            {workout.type === 'Running' && ` · ${workout.run.kind}`}
+            {workout.type === 'Running' && workout.run.kind !== 'Walking' && ` · ${workout.run.kind}`}
           </h4>
           <div className="grid grid-cols-3 gap-2">
             <MiniStat label="Distance" value={<span className="inline-flex items-center gap-1.5"><Route size={14} className="text-slate-400" />{workout.run.distanceKm} km</span>} />

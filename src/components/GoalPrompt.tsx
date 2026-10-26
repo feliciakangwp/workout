@@ -36,7 +36,7 @@ function runCrushed(goals: Goals, workouts: Workout[], yesterday: string): Crush
   const g = goals.runGoal;
   if (!g) return null;
   const met = workouts.some((w) => {
-    if (w.date !== yesterday || w.type !== 'Running' || !w.run) return false;
+    if (w.date !== yesterday || w.type !== 'Running' || !w.run || w.run.kind === 'Walking') return false;
     const efforts = [{ km: w.run.distanceKm, pace: w.run.paceSecPerKm }, ...(w.run.segments ?? []).map((s) => ({ km: s.distanceKm, pace: s.timeSec / s.distanceKm }))];
     return efforts.some((e) => e.km >= g.distanceKm - 0.01 && (!g.paceSecPerKm || e.pace <= g.paceSecPerKm + 0.5));
   });

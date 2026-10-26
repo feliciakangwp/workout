@@ -337,6 +337,7 @@ function makeRun(kind: RunKind, week: number): RunData {
     Tempo: { km: [5, 7], pace: [336, 314], hr: [167, 164] },
     Intervals: { km: [5.5, 7.5], pace: [326, 305], hr: [170, 168] },
     '5K Time Trial': { km: [5, 5], pace: [331, 309], hr: [176, 175] },
+    Walking: { km: [3, 6], pace: [660, 620], hr: [110, 105] },
     Compromised: { km: [4, 4], pace: [352, 326], hr: [171, 169] },
   };
   const pr = profile[kind];

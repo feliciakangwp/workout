@@ -22,7 +22,8 @@ export type StationId =
   | 'sandbagLunges'
   | 'wallBalls';
 
-export type RunKind = 'Easy' | 'Tempo' | 'Intervals' | '5K Time Trial' | 'Long' | 'Compromised';
+/** 'Walking' (outdoor or treadmill walks) is logged under Running but never counts as running. */
+export type RunKind = 'Easy' | 'Tempo' | 'Intervals' | '5K Time Trial' | 'Long' | 'Compromised' | 'Walking';
 
 export interface ExerciseEntry {
   name: string;

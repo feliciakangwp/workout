@@ -19,7 +19,7 @@ type RunRow = DraftForm['runRows'][number];
 
 const CUSTOM = '__custom__';
 /** Run types for pure running sessions. */
-const RUN_KINDS: RunKind[] = ['Easy', 'Long', 'Tempo', 'Intervals', '5K Time Trial'];
+const RUN_KINDS: RunKind[] = ['Easy', 'Long', 'Tempo', 'Intervals', '5K Time Trial', 'Walking'];
 const hasRun = (t: WorkoutType) => t === 'Running' || t === 'HYROX Engine';
 /** Accepts "4:30" or "4.30" (easier on a phone number pad). */
 const parseSplit = parseTime;
@@ -194,6 +194,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
   const [intensity, setIntensity] = useState(init.intensity);
   const [rows, setRows] = useState<ExerciseRow[]>(init.rows);
   const [runKind, setRunKind] = useState<RunKind>(init.runKind);
+  /** Running → Walking: an outdoor or treadmill walk, not counted as running. */
+  const walking = type === 'Running' && runKind === 'Walking';
   const [runRows, setRunRows] = useState<RunRow[]>(init.runRows);
   const [runHr, setRunHr] = useState(init.runHr);
   const [order, setOrder] = useState<number[]>(init.order ?? []);
@@ -402,7 +404,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
       const km = Number(r.km);
       const sec = parseSplit(r.time);
       if (!(km > 0 && km <= 100)) errs.push(`Run ${i + 1}: enter a distance in km.`);
-      else if (!(sec > 0 && sec / km >= 120 && sec / km <= 900)) errs.push(`Run ${i + 1}: enter a time as m:ss (or h:mm:ss) giving a realistic pace.`);
+      // Walks are slower: up to 30 min/km.
+      else if (!(sec > 0 && sec / km >= 120 && sec / km <= (walking ? 1800 : 900))) errs.push(`${walking ? 'Walk' : 'Run'} ${i + 1}: enter a time as m:ss (or h:mm:ss) giving a realistic pace.`);
       else segments.push({ distanceKm: km, timeSec: sec });
     });
     const hr = runHr.trim() ? Number(runHr) : undefined;
@@ -484,7 +487,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     finish({
       date,
       type,
-      title: isRunning ? `${runKind} Run` : title.trim() || DEFAULT_TITLE[type],
+      title: isRunning ? (walking ? 'Walk' : `${runKind} Run`) : title.trim() || DEFAULT_TITLE[type],
       durationMin: Math.max(1, dur),
       intensity,
       exercises: assumed ? functionalF45(workouts) : exercises,
@@ -661,7 +664,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     return (
       <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-xl border border-slate-200 p-3">
         <div>
-          <label className="label" htmlFor={`rkm-${r.key}`}>Run {i + 1} · distance (km)</label>
+          <label className="label" htmlFor={`rkm-${r.key}`}>{walking ? 'Walk' : 'Run'} {i + 1} · distance (km)</label>
           <input id={`rkm-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className="input" placeholder="1" value={r.km} onChange={(e) => updateRun(r.key, { km: e.target.value })} />
         </div>
         <div>
@@ -877,7 +880,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             <input id="run-hr" type="number" inputMode="numeric" className="input" placeholder="bpm" value={runHr} onChange={(e) => setRunHr(e.target.value)} />
           </div>
           <p className="mt-1.5 text-[11px] text-slate-500">
-            {type === 'Running' ? 'Add a row for each run or interval with its own distance and time.' : 'Runs in HYROX Engine sessions are recorded as Hyrox Run on the Running page.'}
+            {walking ? 'Walks are logged here but not counted as running: no pace, distance or bests on the Running page.' : type === 'Running' ? 'Add a row for each run or interval with its own distance and time.' : 'Runs in HYROX Engine sessions are recorded as Hyrox Run on the Running page.'}
           </p>
         </div>
       )}

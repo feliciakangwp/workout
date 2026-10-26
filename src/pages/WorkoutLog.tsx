@@ -123,7 +123,7 @@ export function WorkoutLog({ onAddWorkout }: { onAddWorkout: () => void }) {
                           {w.exercises.length > 3 && <span className="text-slate-400"> +{w.exercises.length - 3} more</span>}
                         </>
                       ) : (
-                        <span className="text-slate-400">{w.run ? `${w.run.kind} run` : '—'}</span>
+                        <span className="text-slate-400">{w.run ? (w.run.kind === 'Walking' ? 'Walk' : `${w.run.kind} run`) : '—'}</span>
                       )}
                     </td>
                     <td className="px-3 py-3"><IntensityBar value={w.intensity} /></td>

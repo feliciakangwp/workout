@@ -159,6 +159,8 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   Riegel's formula from the athlete's best standalone run (3 km or more, or 1 km+ for shorter goals).
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
+- **Walking**: a Running run type for outdoor or treadmill walks. It counts as a workout (time, training load) but
+  never as running: no pace, distance, bests, estimates or goal checks use it.
 - **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). In HYROX Engine, runs
   and exercises sit in one list in the order you do them; the arrows move a run before, after or between exercises. On the Running page,
   pure runs are *Running* and runs inside HYROX / HYROX Engine sessions are *Hyrox Run*.

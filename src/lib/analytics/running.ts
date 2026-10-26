@@ -12,7 +12,8 @@ export interface RunRecord extends RunData {
 export function runs(workouts: Workout[]): RunRecord[] {
   return sortByDate(
     workouts
-      .filter((w) => w.run && w.run.distanceKm > 0)
+      // Walks are logged under Running but aren't runs: no pace, distance or bests from them.
+      .filter((w) => w.run && w.run.distanceKm > 0 && w.run.kind !== 'Walking')
       .map((w) => ({ ...w.run!, date: w.date, workoutId: w.id, source: w.type, durationSec: w.run!.distanceKm * w.run!.paceSecPerKm })),
   );
 }
