@@ -166,6 +166,7 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   exercises done the day before, favours the muscle groups least trained this week and makes sure the whole body is
   worked. Strength runs lower body → upper body → core, starting around 75–80% of best weights. HYROX Engine picks a
   time, distance or mixed focus with a run before each station, a couple of runs, or none. Tap again for another mix.
+  The athlete's own exercises saved to that workout type are included too (and favoured).
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Walking**: a Running run type for outdoor or treadmill walks. It counts as a workout (time, training load) but

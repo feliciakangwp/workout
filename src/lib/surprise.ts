@@ -1,6 +1,6 @@
 import { EXERCISE_BY_NAME, type ExerciseInfo } from '../data/exercises';
 import { MUSCLE_BY_ID } from '../data/muscles';
-import type { EntryMode, MuscleGroup, Workout } from '../data/types';
+import type { CustomExercise, EntryMode, MuscleGroup, Workout, WorkoutType } from '../data/types';
 import { muscleCoverage } from './analytics/muscles';
 import { avgPace, runs } from './analytics/running';
 import { addDays } from './dates';
@@ -27,12 +27,12 @@ const FULL_BODY: MuscleGroup[] = ['quadriceps', 'hamstrings', 'glutes', 'chest',
 
 const regionOf = (e: ExerciseInfo): Region => (e.primary.some((m) => LOWER.includes(m)) ? 'lower' : e.primary.some((m) => UPPER.includes(m)) ? 'upper' : 'core');
 
-const STRENGTH_POOL = [
+const STRENGTH_BASE = [
   'Squat', 'Romanian Deadlift', 'Bulgarian Split Squat', 'Hip Thrust', 'Goblet Squat', 'Walking Lunges', 'Calf Raise',
   'Chest Press', 'Lat Pulldown', 'Shoulder Press', 'Seated Cable Row', 'Bent-over Row', 'Push-up', 'Bicep Curl', 'Tricep Dip', 'Renegade Row',
   'Plank', 'Russian Twist',
 ];
-const ENGINE_POOL = [
+const ENGINE_BASE = [
   'SkiErg', 'Row Erg', 'Assault Bike', 'Bike Erg', 'Sled Push', 'Sled Pull', 'Burpee Broad Jump', "Farmer's Carry (HYROX)", 'Sandbag Lunges', 'Wall Balls',
   'Kettlebell Swing', 'Thruster', 'Burpee', 'Box Jump', 'Goblet Squat', 'Push-up', 'Renegade Row', 'Plank', 'Russian Twist',
 ];
@@ -55,6 +55,10 @@ const rand = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)]
 const roundTo = (v: number, step: number) => Math.max(step, Math.round(v / step) * step);
 
 interface Ctx {
+  /** Exercise library plus the athlete's own exercises. */
+  lib: Record<string, ExerciseInfo>;
+  /** The athlete's own exercises: favoured, since they chose them. */
+  own: Set<string>;
   need: Record<MuscleGroup, number>;
   bestKg: Map<string, number>;
   skipped: Set<string>;
@@ -62,7 +66,7 @@ interface Ctx {
 }
 
 /** Training need per muscle (0 = on target, 1 = untrained) this week, yesterday's exercises and best weights. */
-function context(workouts: Workout[], date: string): Ctx {
+function context(workouts: Workout[], date: string, customs: CustomExercise[]): Ctx {
   const logged = workouts.filter((w) => w.date <= date);
   const cov = muscleCoverage(logged, '7d', date);
   const need = Object.fromEntries(cov.map((c) => [c.id, Math.max(0, 1 - c.pct / 100) + 0.1])) as Record<MuscleGroup, number>;
@@ -71,7 +75,10 @@ function context(workouts: Workout[], date: string): Ctx {
   const bestKg = new Map<string, number>();
   for (const w of logged) for (const e of w.exercises) if (e.weightKg && (!e.mode || e.mode === 'reps')) bestKg.set(e.name, Math.max(bestKg.get(e.name) ?? 0, e.weightKg));
   const focus = [...cov].sort((a, b) => a.pct - b.pct).filter((c) => c.pct < 100).slice(0, 3).map((c) => c.id);
-  return { need, bestKg, skipped, focus };
+  // Custom exercises: their chosen muscle groups count as primary.
+  const lib: Record<string, ExerciseInfo> = { ...EXERCISE_BY_NAME };
+  for (const c of customs) lib[c.name] = { name: c.name, primary: c.muscles, secondary: [], measure: c.measure };
+  return { lib, own: new Set(customs.map((c) => c.name)), need, bestKg, skipped, focus };
 }
 
 /**
@@ -81,11 +88,13 @@ function context(workouts: Workout[], date: string): Ctx {
 function pick(pool: string[], count: number, ctx: Ctx, worked: Set<MuscleGroup>, taken: Set<string>): ExerciseInfo[] {
   const out: ExerciseInfo[] = [];
   for (let i = 0; i < count; i++) {
-    const options = pool.map((n) => EXERCISE_BY_NAME[n]).filter((e) => e && !taken.has(e.name) && !ctx.skipped.has(e.name));
+    const options = pool.map((n) => ctx.lib[n]).filter((e) => e && !taken.has(e.name) && !ctx.skipped.has(e.name));
     if (!options.length) break;
     const score = (e: ExerciseInfo) =>
       (e.primary.reduce((a, m) => a + ctx.need[m] * (worked.has(m) ? 0.35 : 1), 0) + e.secondary.reduce((a, m) => a + 0.4 * ctx.need[m] * (worked.has(m) ? 0.35 : 1), 0)) *
-      (0.7 + Math.random() * 0.6);
+      (0.7 + Math.random() * 0.6) *
+      // Own exercises usually work one muscle group, so they'd lose to compound lifts without a boost.
+      (ctx.own.has(e.name) ? 2 : 1);
     const best = options.reduce((a, e) => (score(e) > score(a) ? e : a));
     out.push(best);
     taken.add(best.name);
@@ -99,7 +108,7 @@ function fillGaps(pool: string[], ctx: Ctx, worked: Set<MuscleGroup>, taken: Set
   const extra: ExerciseInfo[] = [];
   for (const m of FULL_BODY) {
     if (worked.has(m) || extra.length >= max) continue;
-    const e = pool.map((n) => EXERCISE_BY_NAME[n]).find((x) => x && !taken.has(x.name) && !ctx.skipped.has(x.name) && x.primary.includes(m));
+    const e = pool.map((n) => ctx.lib[n]).find((x) => x && !taken.has(x.name) && !ctx.skipped.has(x.name) && x.primary.includes(m));
     if (!e) continue;
     extra.push(e);
     taken.add(e.name);
@@ -109,14 +118,23 @@ function fillGaps(pool: string[], ctx: Ctx, worked: Set<MuscleGroup>, taken: Set
 }
 
 const focusNote = (ctx: Ctx) => (ctx.focus.length ? `Focus on ${ctx.focus.map((m) => MUSCLE_BY_ID[m].label.toLowerCase()).join(', ')}: least trained this week.` : 'Every muscle group is on target this week: a balanced session.');
+const ownNote = (ctx: Ctx, items: SurpriseItem[]) => {
+  const mine = items.flatMap((i) => (i.kind === 'exercise' && ctx.own.has(i.name) ? [i.name] : []));
+  return mine.length ? `Includes your own exercise${mine.length > 1 ? 's' : ''}: ${mine.join(', ')}.` : '';
+};
 const skipNote = (ctx: Ctx) => (ctx.skipped.size ? `Left out from yesterday: ${[...ctx.skipped].slice(0, 4).join(', ')}${ctx.skipped.size > 4 ? ` and ${ctx.skipped.size - 4} more` : ''}.` : '');
 
 /** About an hour of strength: lower body first, then upper body, then a core finisher. */
-export function surpriseStrength(workouts: Workout[], date: string): Surprise {
-  const ctx = context(workouts, date);
+/** The athlete's own exercises saved for this workout type (Strength: rep-based or timed only). */
+const customPool = (customs: CustomExercise[], type: WorkoutType) =>
+  customs.filter((c) => c.types.includes(type) && c.muscles.length && (type !== 'Strength' || c.measure !== 'distanceTime')).map((c) => c.name);
+
+export function surpriseStrength(workouts: Workout[], date: string, customs: CustomExercise[] = []): Surprise {
+  const ctx = context(workouts, date, customs);
+  const STRENGTH_POOL = [...STRENGTH_BASE, ...customPool(customs, 'Strength')];
   const worked = new Set<MuscleGroup>();
   const taken = new Set<string>();
-  const byRegion = (r: Region) => STRENGTH_POOL.filter((n) => regionOf(EXERCISE_BY_NAME[n]) === r);
+  const byRegion = (r: Region) => STRENGTH_POOL.filter((n) => regionOf(ctx.lib[n]) === r);
   const lower = pick(byRegion('lower'), 3, ctx, worked, taken);
   const upper = pick(byRegion('upper'), 3, ctx, worked, taken);
   const core = pick(byRegion('core'), 1, ctx, worked, taken);
@@ -141,7 +159,7 @@ export function surpriseStrength(workouts: Workout[], date: string): Surprise {
     title: 'Surprise Strength',
     items,
     durationMin: Math.max(45, Math.min(70, Math.round(sec / 60))),
-    notes: [focusNote(ctx), 'Lower body first, then upper body, with a core finisher. Weights start around 75–80% of your best.', skipNote(ctx)].filter(Boolean),
+    notes: [focusNote(ctx), 'Lower body first, then upper body, with a core finisher. Weights start around 75–80% of your best.', ownNote(ctx, items), skipNote(ctx)].filter(Boolean),
   };
 }
 
@@ -149,8 +167,9 @@ type Style = 'time' | 'distance' | 'mix';
 type Runs = 'hyrox' | 'none' | 'few';
 
 /** About an hour of HYROX Engine: time, distance or mixed work, with runs between stations, a couple of runs, or none. */
-export function surpriseEngine(workouts: Workout[], date: string): Surprise {
-  const ctx = context(workouts, date);
+export function surpriseEngine(workouts: Workout[], date: string, customs: CustomExercise[] = []): Surprise {
+  const ctx = context(workouts, date, customs);
+  const ENGINE_POOL = [...ENGINE_BASE, ...customPool(customs, 'HYROX Engine')];
   const style: Style = rand(['time', 'distance', 'mix'] as const);
   const runPattern: Runs = rand(['hyrox', 'hyrox', 'none', 'few'] as const);
   const pace = Math.round(avgPace(runs(workouts.filter((w) => w.date <= date && w.type === 'Running'))) || 360);
@@ -158,7 +177,7 @@ export function surpriseEngine(workouts: Workout[], date: string): Surprise {
 
   const item = (e: ExerciseInfo): { item: SurpriseItem; sec: number } => {
     const dist = DISTANCE[e.name];
-    const mode: EntryMode = e.measure === 'time' ? 'time' : style === 'time' ? 'time' : style === 'distance' ? (dist ? 'distance' : 'reps') : rand(dist ? (['distance', 'time'] as const) : (['reps', 'time'] as const));
+    const mode: EntryMode = e.measure === 'time' || (e.measure === 'distanceTime' && !dist) ? 'time' : style === 'time' ? 'time' : style === 'distance' ? (dist ? 'distance' : 'reps') : rand(dist ? (['distance', 'time'] as const) : (['reps', 'time'] as const));
     const best = ctx.bestKg.get(e.name);
     const weightKg = best ? roundTo(best * 0.8, 2) : undefined;
     if (mode === 'time') {
@@ -173,7 +192,7 @@ export function surpriseEngine(workouts: Workout[], date: string): Surprise {
   // Lower, upper and core work, favouring what's least trained, then fill the session to about an hour.
   const worked = new Set<MuscleGroup>();
   const taken = new Set<string>();
-  const byRegion = (r: Region) => ENGINE_POOL.filter((n) => regionOf(EXERCISE_BY_NAME[n]) === r);
+  const byRegion = (r: Region) => ENGINE_POOL.filter((n) => regionOf(ctx.lib[n]) === r);
   const chosen = [...pick(byRegion('lower'), 2, ctx, worked, taken), ...pick(byRegion('upper'), 2, ctx, worked, taken), ...pick(byRegion('core'), 1, ctx, worked, taken)];
   chosen.push(...fillGaps(ENGINE_POOL, ctx, worked, taken, 2));
   const shuffled = chosen.sort(() => Math.random() - 0.5);
@@ -208,6 +227,7 @@ export function surpriseEngine(workouts: Workout[], date: string): Surprise {
     notes: [
       focusNote(ctx),
       `${styleLabel[0].toUpperCase()}${styleLabel.slice(1)} with ${runLabel}. Runs at your average pace (${fmtTime(pace)}/km). Tap again for a different mix.`,
+      ownNote(ctx, items),
       skipNote(ctx),
     ].filter(Boolean),
   };

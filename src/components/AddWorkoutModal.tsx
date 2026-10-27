@@ -272,7 +272,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
   const surpriseMe = () => {
     const hasWork = rows.some((r) => !isEmptyExercise(r)) || runRows.some((r) => !isEmptyRun(r));
     if (hasWork && !window.confirm('Replace your exercises with a surprise workout?')) return;
-    const s = type === 'HYROX Engine' ? surpriseEngine(workouts, date) : surpriseStrength(workouts, date);
+    const s = type === 'HYROX Engine' ? surpriseEngine(workouts, date, customExercises) : surpriseStrength(workouts, date, customExercises);
     const exRows: ExerciseRow[] = [];
     const runList: RunRow[] = [];
     const keys: number[] = [];
