@@ -88,7 +88,8 @@ function workoutToForm(w: Workout, division: Division): DraftForm {
         time: t(e.durationSec),
       }));
   const segments = w.run?.segments?.length ? w.run.segments : w.run ? [{ distanceKm: w.run.distanceKm, timeSec: w.run.distanceKm * w.run.paceSecPerKm }] : [];
-  const runRows = w.type === 'HYROX' ? [newRunRow()] : segments.length ? segments.map((s) => ({ key: rowKey++, km: String(s.distanceKm), time: t(Math.round(s.timeSec)) })) : [newRunRow()];
+  const engine = w.type === 'HYROX Engine';
+  const runRows = w.type === 'HYROX' ? [newRunRow()] : segments.length ? segments.map((s) => ({ key: rowKey++, km: String(s.distanceKm), time: t(Math.round(s.timeSec)) })) : engine ? [] : [newRunRow()];
   // HYROX Engine: runs and exercises in the order they were done.
   let order: number[] | undefined;
   if (w.type === 'HYROX Engine' && w.sequence) {
@@ -109,7 +110,7 @@ function workoutToForm(w: Workout, division: Division): DraftForm {
     title: DEFAULT_TITLE[w.type] === w.title ? '' : w.title,
     duration: autoDuration ? '' : String(w.durationMin),
     intensity: w.intensity,
-    rows: rows.length ? rows : [newRow()],
+    rows: rows.length || engine ? rows : [newRow()],
     runKind: w.type === 'Running' && w.run && RUN_KINDS.includes(w.run.kind) ? w.run.kind : 'Easy',
     runRows,
     runHr: w.run?.avgHr ? String(w.run.avgHr) : '',
@@ -178,7 +179,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     if (draft) return draft.form;
     if (planRef) {
       const saved = planDetails[planKey(planRef.date, planRef.type)];
-      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), rows: [newRow('', planRef.type === 'HYROX Engine' ? '1' : '3')], duration: planRef.type === 'HYROX' || planRef.type === 'HYROX Engine' ? '' : planRef.type === 'F45' ? String(F45_MINUTES) : '60' };
+      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), ...(planRef.type === 'HYROX Engine' ? { rows: [], runRows: [] } : {}), duration: planRef.type === 'HYROX' || planRef.type === 'HYROX Engine' ? '' : planRef.type === 'F45' ? String(F45_MINUTES) : '60' };
       // A planned workout is logged on its own day (today, or an earlier day being filled in).
       return { ...base, type: planRef.type, date: plan ? plan.date : start && start.date < today ? start.date : today };
     }
@@ -255,11 +256,13 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
   const addExercise = () => {
     const row = newRow('', type === 'HYROX Engine' ? '1' : '3');
     setRows((rs) => [...rs, row]);
+    if (type === 'HYROX Engine') setOrder([...sequenceKeys, row.key]); // in the order tapped, runs and exercises mixed
     setScrollTo(`ex-${row.key}`);
   };
   const addRun = () => {
     const row = newRunRow();
     setRunRows((rs) => [...rs, row]);
+    if (type === 'HYROX Engine') setOrder([...sequenceKeys, row.key]);
     setScrollTo(`rkm-${row.key}`);
   };
   /** Full-width button under a list, so adding the next item needs no scrolling back up. */
@@ -314,9 +317,16 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
 
   const chooseType = (t: WorkoutType) => {
     setType(t);
+    // HYROX Engine starts empty (the athlete adds runs and exercises in order); other types keep one starting row.
     if (t === 'HYROX Engine') {
-      // One set by default, and the duration estimated from the times entered.
-      setRows((rs) => rs.map((r) => (isEmptyExercise(r) && r.sets === '3' ? { ...r, sets: '1' } : r)));
+      setRows((rs) => rs.filter((r) => !isEmptyExercise(r)));
+      setRunRows((rs) => rs.filter((r) => !isEmptyRun(r)));
+    } else {
+      setRows((rs) => (rs.length ? rs : [newRow()]));
+      setRunRows((rs) => (rs.length ? rs : [newRunRow()]));
+    }
+    if (t === 'HYROX Engine') {
+      // The duration is estimated from the times entered.
       if (duration === '60') setDuration('');
     } else if (t === 'HYROX') {
       setDivision(defaultDivision);
@@ -430,7 +440,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     const engine = type === 'HYROX Engine';
     // HYROX Engine without a typed duration uses the estimate from the exercise and run times.
     const dur = isRunning ? Math.ceil(runTotals.sec / 60) : engine && !duration.trim() ? Math.ceil(engineSec / 60) : Number(duration);
-    if (engine && !duration.trim() && !engineSec) errs.push('Enter the duration, or add exercise or run times to estimate it.');
+    const engineEmpty = engine && rows.every(isEmptyExercise) && runRows.every(isEmptyRun);
+    if (engineEmpty) errs.push('Add at least one exercise or run.');
+    else if (engine && !duration.trim() && !engineSec) errs.push('Enter the duration, or add exercise or run times to estimate it.');
     else if (!isRunning && !(dur > 0 && dur <= 600)) errs.push('Duration must be between 1 and 600 minutes.');
 
     const exercises: ExerciseEntry[] = [];
@@ -541,7 +553,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     const rowControls = (
       <>
         {controls}
-        <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove exercise ${i + 1}`}>
+        <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={rows.length === 1 && type !== 'HYROX Engine'} onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove exercise ${i + 1}`}>
           <Trash2 size={16} />
         </button>
       </>
@@ -677,7 +689,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         </div>
         <div className="mb-0.5 flex items-center">
           {controls}
-          <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={runRows.length === 1} onClick={() => setRunRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove run ${i + 1}`}>
+          <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={runRows.length === 1 && type !== 'HYROX Engine'} onClick={() => setRunRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove run ${i + 1}`}>
             <Trash2 size={16} />
           </button>
         </div>
@@ -770,16 +782,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         <div className="mt-5">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-semibold text-slate-800">Runs & exercises</h4>
-            <div className="flex gap-1.5">
-              <button className="btn-ghost py-1.5 text-xs" onClick={addExercise}>
-                <Plus size={14} /> Add exercise
-              </button>
-              <button className="btn-ghost py-1.5 text-xs" onClick={addRun}>
-                <Plus size={14} /> Add run
-              </button>
-            </div>
           </div>
-          <p className="mb-2 text-[11px] text-slate-500">In the order you do them: use the arrows to put a run first, last or in between exercises.</p>
+          <p className="mb-2 text-[11px] text-slate-500">Add them in the order you do them; the arrows move one up or down.</p>
+          {sequenceKeys.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-500">Nothing added yet. Start with an exercise or a run.</p>}
           <ol className="space-y-2">
             {(() => {
               let ex = 0;
