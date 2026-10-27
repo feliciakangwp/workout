@@ -69,6 +69,17 @@ export function RunningPerformance() {
   const goalTime = goal?.paceSecPerKm ? goal.paceSecPerKm * goal.distanceKm : 0;
 
   const paceTicks = (v: number) => fmtPace(v);
+  /** Pace axis on even steps (15, 30 or 60 s) around the runs shown, about 5 labels. */
+  const paceAxis = useMemo(() => {
+    const ps = cur.map((r) => r.paceSecPerKm).filter((v) => v > 0);
+    if (!ps.length) return { min: 240, max: 420, ticks: [240, 300, 360, 420] };
+    const lo = Math.min(...ps) - 5;
+    const hi = Math.max(...ps) + 5;
+    const step = [15, 30, 60, 120].find((st) => (hi - lo) / st <= 5) ?? 120;
+    const min = Math.floor(lo / step) * step;
+    const max = Math.ceil(hi / step) * step;
+    return { min, max, ticks: Array.from({ length: (max - min) / step + 1 }, (_, i) => min + i * step) };
+  }, [cur]);
   const runTooltip = ({ active, payload }: { active?: boolean; payload?: { payload?: unknown }[] }) => {
     const r = payload?.[0]?.payload as RunRecord | undefined;
     if (!active || !r) return null;
@@ -108,13 +119,14 @@ export function RunningPerformance() {
 
           <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
             <Card>
-              <CardHeader icon={Gauge} title="Running pace progression" subtitle="Average pace per run · lower is faster" action={<Legend items={groups.map((g) => ({ label: g.label, color: g.color }))} />} />
+              <CardHeader icon={Gauge} title="Running pace progression" subtitle="Average pace per run (min/km) · lower is faster" action={<Legend items={groups.map((g) => ({ label: g.label, color: g.color }))} />} />
               <div className="h-60 p-3 sm:h-72 sm:p-5">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart margin={{ top: 8, right: 12, left: -4, bottom: 0 }}>
                     <CartesianGrid {...GRID} />
                     <XAxis dataKey="t" type="number" domain={['dataMin', 'dataMax']} tickFormatter={(v) => fmtShort(new Date(v).toISOString().slice(0, 10))} {...AXIS} />
-                    <YAxis dataKey="paceSecPerKm" type="number" reversed domain={['dataMin - 10', 'dataMax + 10']} tickFormatter={paceTicks} {...AXIS} width={44} />
+                    {/* Not reversed: smaller (faster) paces sit lower, as the subtitle says. */}
+                    <YAxis dataKey="paceSecPerKm" type="number" domain={[paceAxis.min, paceAxis.max]} ticks={paceAxis.ticks} interval={0} tickFormatter={paceTicks} {...AXIS} width={44} />
                     <ZAxis range={[60, 60]} />
                     <Tooltip content={runTooltip} cursor={{ strokeDasharray: '3 3' }} />
                     {groups.map((g) => (
