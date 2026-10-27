@@ -174,6 +174,11 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 - **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). In HYROX Engine, runs
   and exercises sit in one list in the order you do them; the arrows move a run before, after or between exercises. On the Running page,
   pure runs are *Running* and runs inside HYROX / HYROX Engine sessions are *Hyrox Run*.
+- **Station performance from HYROX Engine**: station work in a HYROX Engine session (SkiErg, sleds, burpee broad
+  jumps, row, farmer's carry, sandbag lunges, wall balls) counts on the Race page when it has the distance (or wall
+  ball reps), the time and, for weighted stations, at least the race weight of the next HYROX race's division (Open
+  weights of your sex when none). Its time is scaled to the full station, like part sims; under 25% of a station
+  isn't counted. Engine reps can now be timed (e.g. 50 wall balls in 2:30).
 - **Sim analysis** (HYROX page, and in each sim's details): every run and station of a completed sim is compared with
   your best from any other sim, solo race or relay leg, with new bests flagged. Half and ¾ sims are scaled to a full
   sim (station time ÷ distance share, plus a fatigue allowance of +4% / +2% on stations and +2% / +1% on runs) and

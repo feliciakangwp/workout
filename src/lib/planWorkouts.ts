@@ -33,7 +33,7 @@ function fromPlanForm(form: DraftForm | undefined, customs: CustomExercise[]): {
       const measure = mode ? MODE_MEASURE[mode] : usual;
       const customMuscles = r.name === CUSTOM ? r.customMuscles : saved?.muscles;
       const weightKg = num(r.weight);
-      if (measure === 'weight' && num(r.reps)) exercises.push({ name, sets, reps: num(r.reps), weightKg, customMuscles, mode });
+      if (measure === 'weight' && num(r.reps)) exercises.push({ name, sets, reps: num(r.reps), weightKg, durationSec: mode ? secs(r.time) : undefined, customMuscles, mode });
       else if (measure === 'time' && secs(r.time)) exercises.push({ name, sets, durationSec: secs(r.time), weightKg: mode && weightKg, customMuscles, mode });
       else if (measure === 'distanceTime' && num(r.distance)) exercises.push({ name, sets, distanceM: num(r.distance), durationSec: secs(r.time), weightKg: mode && weightKg, customMuscles, mode });
     }

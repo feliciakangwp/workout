@@ -14,7 +14,7 @@ export const fmtSetsReps = (e: ExerciseEntry) => {
   if (m === 'time') return `${e.sets} × ${e.durationSec ? fmtTime(e.durationSec) : '—'}`;
   if (m === 'distanceTime') return `${e.sets > 1 ? `${e.sets} × ` : ''}${e.distanceM ?? '—'} m${e.durationSec ? ` in ${fmtTime(e.durationSec)}` : ''}`;
   const unit = EXERCISE_BY_NAME[e.name]?.repUnit === 'm' ? ' m' : '';
-  return `${e.sets} × ${e.reps ?? '—'}${unit}`;
+  return `${e.sets} × ${e.reps ?? '—'}${unit}${e.durationSec ? ` in ${fmtTime(e.durationSec)}` : ''}`;
 };
 
 /** Load column: weight, or pace for distance + time machines. */

@@ -27,7 +27,10 @@ const RADAR_LABEL: Record<StationId, string> = {
 
 export function HyroxPerformance() {
   const { workouts, goals, today } = useData();
-  const summaries = useMemo(() => stationSummaries(workouts), [workouts]);
+  const nextComp = upcomingRaces(goals, today).find(isHyrox);
+  // Engine station work counts at this division's race weights.
+  const division = nextComp ? raceDivision(nextComp, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' as const };
+  const summaries = useMemo(() => stationSummaries(workouts, division), [workouts, division.sex, division.category]);
   const weakest = [...summaries].filter((s) => s.latest).sort((a, b) => a.latest!.score - b.latest!.score)[0];
   const [selected, setSelected] = useState<StationId>(weakest?.id ?? 'skierg');
   const sel = summaries.find((s) => s.id === selected)!;
@@ -38,15 +41,13 @@ export function HyroxPerformance() {
   const totalFirst = withData.reduce((a, s) => a + s.first!.timeSec, 0);
   const totalTarget = withData.reduce((a, s) => a + STATION_BY_ID[s.id].targetSec, 0);
   const onTarget = withData.filter((s) => s.latest!.score >= 95).length;
-  const nextComp = upcomingRaces(goals, today).find(isHyrox);
-  const division = nextComp ? raceDivision(nextComp, goals.athleteSex) : { sex: goals.athleteSex, category: 'open' as const };
 
   const narrow = window.innerWidth < 640;
   const radarData = summaries.map((s) => ({ id: s.id, station: RADAR_LABEL[s.id], latest: s.latest?.score ?? 0, baseline: s.first?.score ?? 0 }));
 
   return (
     <div>
-      <PageHeader title="Race Performance" subtitle="Your races, plus HYROX station results from simulations and station practice. Half and ¾ sim times are scaled to full distance for comparison." actions={<DemoBadge />} />
+      <PageHeader title="Race Performance" subtitle="Your races, plus HYROX station results from simulations, station practice and HYROX Engine station work at race weight. Partial distances are scaled to the full station for comparison." actions={<DemoBadge />} />
 
       <div className="mb-5 space-y-5">
         <RacePlan />
@@ -57,7 +58,7 @@ export function HyroxPerformance() {
           id="station-performance"
           icon={RadarIcon}
           title="Station performance"
-          subtitle="Every station from your sims and station practice"
+          subtitle="Every station from your sims, station practice and HYROX Engine station work at race weight"
           summary={
             <div className="grid grid-cols-3 gap-2">
               <MiniStat label="Station time (latest)" value={withData.length ? fmtTime(totalLatest) : '—'} />
@@ -124,7 +125,7 @@ export function HyroxPerformance() {
                   action={sel.best && <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">PB {fmtTime(sel.best.timeSec)}</span>}
                 />
                 {sel.history.length === 0 ? (
-                  <div className="p-5"><EmptyState title="No attempts recorded" text="Add a HYROX workout with station times." /></div>
+                  <div className="p-5"><EmptyState title="No attempts recorded" text="Add a HYROX workout with station times, or HYROX Engine station work with its distance (or reps), time and race weight." /></div>
                 ) : (
                   <>
                     <div className="h-56 p-3 sm:h-64 sm:p-5">
@@ -141,7 +142,11 @@ export function HyroxPerformance() {
                                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
                                   <p className="font-medium text-slate-900">{fmtLong(d.date)}</p>
                                   <p className="text-slate-700">{fmtTime(d.timeSec)}{info.derived ? ` · ${info.derived.compute(d.timeSec)}` : ''}</p>
-                                  {d.fraction < 1 && <p className="text-amber-700">Est. full distance from {fmtTime(d.rawSec)} at {d.fraction === 0.5 ? 'half' : '¾'} distance</p>}
+                                  {d.source === 'engine' ? (
+                                    <p className="text-amber-700">From HYROX Engine: {fmtTime(d.rawSec)} for {d.amount} {info.unit}{d.fraction !== 1 ? ', scaled to the full station' : ''}</p>
+                                  ) : (
+                                    d.fraction < 1 && <p className="text-amber-700">Est. full distance from {fmtTime(d.rawSec)} at {d.fraction === 0.5 ? 'half' : '¾'} distance</p>
+                                  )}
                                   <p className="text-slate-500">Score {d.score}</p>
                                 </div>
                               );

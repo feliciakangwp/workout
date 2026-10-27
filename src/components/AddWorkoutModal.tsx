@@ -338,14 +338,13 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
 
   /** HYROX Engine: how each exercise is counted. */
   const rowMode = (r: ExerciseRow): EntryMode => r.mode ?? defaultMode(r.name, rowMeasure(r));
-  /** HYROX Engine: estimated time from timed exercises (sets × time) and runs; reps-based work and rest aren't timed. */
+  /** HYROX Engine: estimated time from timed exercises (sets × time) and runs; untimed work and rest aren't counted. */
   const engineSec = useMemo(() => {
     if (type !== 'HYROX Engine') return 0;
     let sec = runTotals.sec;
     for (const r of rows) {
-      const m = rowMode(r);
       const t = parseSplit(r.time);
-      if ((m === 'time' || m === 'distance') && t > 0) sec += t * (Number(r.sets) > 0 ? Number(r.sets) : 1);
+      if (t > 0) sec += t * (Number(r.sets) > 0 ? Number(r.sets) : 1); // reps can be timed too
     }
     return sec;
   }, [type, rows, runTotals.sec, customExercises]);
@@ -516,7 +515,10 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           const weight = r.weight === '' ? undefined : Number(r.weight);
           if (!(reps > 0)) errs.push(`${n}: repetitions must be above 0.`);
           if (weight !== undefined && !(weight >= 0)) errs.push(`${n}: weight must be 0 or more.`);
-          exercises.push({ name, sets, reps, weightKg: weight || undefined, customMuscles: muscles, mode });
+          // HYROX Engine: reps may be timed (e.g. 100 wall balls in 5:30).
+          const sec = engine && r.time.trim() ? parseSplit(r.time) : undefined;
+          if (sec !== undefined && !(sec > 0 && sec < 3 * 3600)) errs.push(`${n}: enter a time as m:ss (a plain number is minutes).`);
+          exercises.push({ name, sets, reps, weightKg: weight || undefined, durationSec: sec, customMuscles: muscles, mode });
         } else {
           // HYROX Engine: a distance may be untimed, and either can carry a weight.
           const timeOptional = engine && measure === 'distanceTime' && !r.time.trim();
@@ -624,6 +626,12 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
               <input id={`reps-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
             </div>
             {weightField(false)}
+            {engine && (
+              <div>
+                <label className="label" htmlFor={`time-${r.key}`}>Time (optional)</label>
+                <input id={`time-${r.key}`} inputMode="decimal" className="input" placeholder="5:30" value={r.time} onChange={(e) => updateRow(r.key, { time: e.target.value })} />
+              </div>
+            )}
           </>
         )}
         {m === 'distanceTime' && (
@@ -863,7 +871,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-blue-50 px-3 py-2.5">
             <div>
               <p className="text-xs font-medium text-blue-900">Estimated workout time</p>
-              <p className="text-[11px] text-blue-800/80">Timed exercises (sets × time) plus runs. Reps-based exercises and rest aren't timed.</p>
+              <p className="text-[11px] text-blue-800/80">Exercises with a time (sets × time) plus runs. Untimed exercises and rest aren't counted.</p>
             </div>
             <p className="shrink-0 text-lg font-semibold text-blue-900">{engineSec ? fmtDuration(Math.ceil(engineSec / 60)) : '—'}</p>
           </div>
