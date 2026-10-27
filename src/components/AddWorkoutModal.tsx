@@ -1,4 +1,5 @@
-import { CheckCircle2, ChevronDown, ChevronUp, Plus, Save, Trash2 } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, Dices, Plus, Save, Trash2 } from 'lucide-react';
+import { surpriseEngine, surpriseStrength } from '../lib/surprise';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EXERCISES, EXERCISE_BY_NAME, MODE_MEASURE, defaultMode, entryMeasure, exerciseMeasure } from '../data/exercises';
 import { DEFAULT_TITLE } from '../lib/workoutTitles';
@@ -265,6 +266,52 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     if (type === 'HYROX Engine') setOrder([...sequenceKeys, row.key]);
     setScrollTo(`rkm-${row.key}`);
   };
+  /** Notes on the last "Surprise me" workout: why these exercises. */
+  const [surpriseNotes, setSurpriseNotes] = useState<string[]>([]);
+  /** Strength / HYROX Engine with no plan: about an hour built from what's under-trained, not repeating yesterday. */
+  const surpriseMe = () => {
+    const hasWork = rows.some((r) => !isEmptyExercise(r)) || runRows.some((r) => !isEmptyRun(r));
+    if (hasWork && !window.confirm('Replace your exercises with a surprise workout?')) return;
+    const s = type === 'HYROX Engine' ? surpriseEngine(workouts, date) : surpriseStrength(workouts, date);
+    const exRows: ExerciseRow[] = [];
+    const runList: RunRow[] = [];
+    const keys: number[] = [];
+    for (const it of s.items) {
+      if (it.kind === 'run') {
+        const r = { ...newRunRow(), km: String(it.km), time: fmtTime(it.timeSec) };
+        runList.push(r);
+        keys.push(r.key);
+      } else {
+        const r: ExerciseRow = {
+          ...newRow(it.name, String(it.sets)),
+          mode: type === 'HYROX Engine' ? it.mode : undefined,
+          reps: it.reps !== undefined ? String(it.reps) : '',
+          weight: it.weightKg !== undefined ? String(it.weightKg) : '',
+          distance: it.distanceM !== undefined ? String(it.distanceM) : '',
+          time: it.timeSec ? fmtTime(it.timeSec) : '',
+        };
+        exRows.push(r);
+        keys.push(r.key);
+      }
+    }
+    setRows(exRows.length ? exRows : [newRow()]);
+    setRunRows(type === 'HYROX Engine' ? runList : [newRunRow()]);
+    setOrder(keys);
+    setDuration(String(s.durationMin));
+    if (!title.trim() || title.startsWith('Surprise')) setTitle(s.title);
+    setSurpriseNotes(s.notes);
+  };
+  const surpriseButton = (
+    <button className="btn-ghost border-violet-200 py-1.5 text-xs text-violet-700 hover:bg-violet-50" onClick={surpriseMe}>
+      <Dices size={14} /> Surprise me
+    </button>
+  );
+  const surpriseInfo = surpriseNotes.length > 0 && (
+    <ul className="mb-2 space-y-0.5 rounded-lg bg-violet-50 px-3 py-2 text-[11px] text-violet-900">
+      {surpriseNotes.map((n) => <li key={n}>🎲 {n}</li>)}
+    </ul>
+  );
+
   /** Full-width button under a list, so adding the next item needs no scrolling back up. */
   const addMoreButton = (label: string, onClick: () => void) => (
     <button className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-blue-300 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-50" onClick={onClick}>
@@ -782,7 +829,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         <div className="mt-5">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
             <h4 className="text-sm font-semibold text-slate-800">Runs & exercises</h4>
+            {surpriseButton}
           </div>
+          {surpriseInfo}
           <p className="mb-2 text-[11px] text-slate-500">Add them in the order you do them; the arrows move one up or down.</p>
           {sequenceKeys.length === 0 && <p className="rounded-xl border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-500">Nothing added yet. Start with an exercise or a run.</p>}
           <ol className="space-y-2">
@@ -829,10 +878,14 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         <div className="mt-5">
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-slate-800">Exercises</h4>
-            <button className="btn-ghost py-1.5 text-xs" onClick={addExercise}>
-              <Plus size={14} /> Add exercise
-            </button>
+            <div className="flex gap-1.5">
+              {type === 'Strength' && surpriseButton}
+              <button className="btn-ghost py-1.5 text-xs" onClick={addExercise}>
+                <Plus size={14} /> Add exercise
+              </button>
+            </div>
           </div>
+          {type === 'Strength' && surpriseInfo}
           <div className="space-y-2">
             {rows.map((r, i) => renderExercise(r, i))}
           </div>

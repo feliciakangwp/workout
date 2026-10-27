@@ -162,6 +162,10 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 - **Running goal** (Overview → Goals & races → Edit): empty until the athlete sets one. Pick 1K, 5K, 10K, half or
   marathon, or type any distance from 1 to 42.2 km, plus an optional target pace. The estimate for that distance uses
   Riegel's formula from the athlete's best standalone run (3 km or more, or 1 km+ for shorter goals).
+- **Surprise me** (Strength and HYROX Engine): builds about an hour of work when nothing is planned. It leaves out
+  exercises done the day before, favours the muscle groups least trained this week and makes sure the whole body is
+  worked. Strength runs lower body → upper body → core, starting around 75–80% of best weights. HYROX Engine picks a
+  time, distance or mixed focus with a run before each station, a couple of runs, or none. Tap again for another mix.
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Walking**: a Running run type for outdoor or treadmill walks. It counts as a workout (time, training load) but
