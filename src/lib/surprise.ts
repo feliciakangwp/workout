@@ -62,40 +62,69 @@ interface Ctx {
   need: Record<MuscleGroup, number>;
   bestKg: Map<string, number>;
   skipped: Set<string>;
+  /** Done earlier this week (not yesterday): allowed, but much less likely. */
+  thisWeek: Set<string>;
   focus: MuscleGroup[];
 }
 
-/** Training need per muscle (0 = on target, 1 = untrained) this week, yesterday's exercises and best weights. */
+/** Exercises of the previous surprise, so tapping again gives a different mix. */
+let lastSurprise = new Set<string>();
+const remember = (items: SurpriseItem[]) => {
+  lastSurprise = new Set(items.flatMap((i) => (i.kind === 'exercise' ? [i.name] : [])));
+};
+
+/** Weighted lottery: higher weight, better odds, but every option has a chance. */
+function draw<T>(options: T[], weight: (x: T) => number): T | undefined {
+  if (!options.length) return undefined;
+  const ws = options.map((x) => Math.max(0, weight(x)));
+  const total = ws.reduce((a, w) => a + w, 0);
+  if (!(total > 0)) return options[Math.floor(Math.random() * options.length)];
+  let r = Math.random() * total;
+  for (let i = 0; i < options.length; i++) if ((r -= ws[i]) <= 0) return options[i];
+  return options[options.length - 1];
+}
+
+/** Training need per muscle (0 = on target, 1 = untrained) this week, exercises done yesterday and earlier this week, and best weights. */
 function context(workouts: Workout[], date: string, customs: CustomExercise[]): Ctx {
   const logged = workouts.filter((w) => w.date <= date);
   const cov = muscleCoverage(logged, '7d', date);
   const need = Object.fromEntries(cov.map((c) => [c.id, Math.max(0, 1 - c.pct / 100) + 0.1])) as Record<MuscleGroup, number>;
   const yesterday = addDays(date, -1);
   const skipped = new Set(logged.filter((w) => w.date === yesterday).flatMap((w) => w.exercises.map((e) => e.name)));
+  const weekAgo = addDays(date, -7);
+  const thisWeek = new Set(logged.filter((w) => w.date >= weekAgo && w.date < yesterday && !w.fromPlan).flatMap((w) => w.exercises.map((e) => e.name)));
   const bestKg = new Map<string, number>();
   for (const w of logged) for (const e of w.exercises) if (e.weightKg && (!e.mode || e.mode === 'reps')) bestKg.set(e.name, Math.max(bestKg.get(e.name) ?? 0, e.weightKg));
   const focus = [...cov].sort((a, b) => a.pct - b.pct).filter((c) => c.pct < 100).slice(0, 3).map((c) => c.id);
   // Custom exercises: their chosen muscle groups count as primary.
   const lib: Record<string, ExerciseInfo> = { ...EXERCISE_BY_NAME };
   for (const c of customs) lib[c.name] = { name: c.name, primary: c.muscles, secondary: [], measure: c.measure };
-  return { lib, own: new Set(customs.map((c) => c.name)), need, bestKg, skipped, focus };
+  return { lib, own: new Set(customs.map((c) => c.name)), need, bestKg, skipped, thisWeek, focus };
 }
 
 /**
- * Picks `count` exercises from a pool, favouring under-trained muscles (with some
- * randomness) and spreading over muscles not yet worked in this session.
+ * How likely an exercise is to be picked: the training need of its muscles (not yet
+ * worked in this session counts more), less likely when done earlier this week or in
+ * the previous surprise, more likely for the athlete's own exercises.
  */
+function weightOf(e: ExerciseInfo, ctx: Ctx, worked: Set<MuscleGroup>) {
+  const need = e.primary.reduce((a, m) => a + ctx.need[m] * (worked.has(m) ? 0.35 : 1), 0) + e.secondary.reduce((a, m) => a + 0.4 * ctx.need[m] * (worked.has(m) ? 0.35 : 1), 0);
+  return (
+    need ** 1.5 *
+    (ctx.thisWeek.has(e.name) ? 0.25 : 1) *
+    (lastSurprise.has(e.name) ? 0.45 : 1) *
+    // Own exercises usually work one muscle group, so they'd lose to compound lifts without a boost.
+    (ctx.own.has(e.name) ? 2 : 1)
+  );
+}
+
+/** Draws `count` exercises from a pool, favouring under-trained muscles and spreading over muscles not yet worked. */
 function pick(pool: string[], count: number, ctx: Ctx, worked: Set<MuscleGroup>, taken: Set<string>): ExerciseInfo[] {
   const out: ExerciseInfo[] = [];
   for (let i = 0; i < count; i++) {
     const options = pool.map((n) => ctx.lib[n]).filter((e) => e && !taken.has(e.name) && !ctx.skipped.has(e.name));
     if (!options.length) break;
-    const score = (e: ExerciseInfo) =>
-      (e.primary.reduce((a, m) => a + ctx.need[m] * (worked.has(m) ? 0.35 : 1), 0) + e.secondary.reduce((a, m) => a + 0.4 * ctx.need[m] * (worked.has(m) ? 0.35 : 1), 0)) *
-      (0.7 + Math.random() * 0.6) *
-      // Own exercises usually work one muscle group, so they'd lose to compound lifts without a boost.
-      (ctx.own.has(e.name) ? 2 : 1);
-    const best = options.reduce((a, e) => (score(e) > score(a) ? e : a));
+    const best = draw(options, (e) => weightOf(e, ctx, worked))!;
     out.push(best);
     taken.add(best.name);
     [...best.primary, ...best.secondary].forEach((m) => worked.add(m));
@@ -108,7 +137,7 @@ function fillGaps(pool: string[], ctx: Ctx, worked: Set<MuscleGroup>, taken: Set
   const extra: ExerciseInfo[] = [];
   for (const m of FULL_BODY) {
     if (worked.has(m) || extra.length >= max) continue;
-    const e = pool.map((n) => ctx.lib[n]).find((x) => x && !taken.has(x.name) && !ctx.skipped.has(x.name) && x.primary.includes(m));
+    const e = draw(pool.map((n) => ctx.lib[n]).filter((x) => x && !taken.has(x.name) && !ctx.skipped.has(x.name) && x.primary.includes(m)), (x) => weightOf(x, ctx, worked));
     if (!e) continue;
     extra.push(e);
     taken.add(e.name);
@@ -122,12 +151,19 @@ const ownNote = (ctx: Ctx, items: SurpriseItem[]) => {
   const mine = items.flatMap((i) => (i.kind === 'exercise' && ctx.own.has(i.name) ? [i.name] : []));
   return mine.length ? `Includes your own exercise${mine.length > 1 ? 's' : ''}: ${mine.join(', ')}.` : '';
 };
-const skipNote = (ctx: Ctx) => (ctx.skipped.size ? `Left out from yesterday: ${[...ctx.skipped].slice(0, 4).join(', ')}${ctx.skipped.size > 4 ? ` and ${ctx.skipped.size - 4} more` : ''}.` : '');
+const skipNote = (ctx: Ctx) =>
+  [
+    ctx.skipped.size ? `Left out from yesterday: ${[...ctx.skipped].slice(0, 4).join(', ')}${ctx.skipped.size > 4 ? ` and ${ctx.skipped.size - 4} more` : ''}.` : '',
+    ctx.thisWeek.size ? 'Exercises from earlier this week are less likely, to vary your training.' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
-/** About an hour of strength: lower body first, then upper body, then a core finisher. */
 /** The athlete's own exercises saved for this workout type (Strength: rep-based or timed only). */
 const customPool = (customs: CustomExercise[], type: WorkoutType) =>
   customs.filter((c) => c.types.includes(type) && c.muscles.length && (type !== 'Strength' || c.measure !== 'distanceTime')).map((c) => c.name);
+
+/** About an hour of strength: lower body first, then upper body, then a core finisher. */
 
 export function surpriseStrength(workouts: Workout[], date: string, customs: CustomExercise[] = []): Surprise {
   const ctx = context(workouts, date, customs);
@@ -155,6 +191,7 @@ export function surpriseStrength(workouts: Workout[], date: string, customs: Cus
     const best = ctx.bestKg.get(e.name);
     return { kind: 'exercise', name: e.name, sets, reps: REPS[e.name] ?? (main ? 8 : 12), weightKg: best ? roundTo(best * (main ? 0.8 : 0.75), 2.5) : undefined };
   });
+  remember(items);
   return {
     title: 'Surprise Strength',
     items,
@@ -220,6 +257,7 @@ export function surpriseEngine(workouts: Workout[], date: string, customs: Custo
   const runCount = items.filter((i) => i.kind === 'run').length;
   const styleLabel = { time: 'time focus', distance: 'distance focus', mix: 'mixed' }[style];
   const runLabel = runPattern === 'hyrox' ? 'a 1 km run before each station, HYROX style' : runCount ? `${runCount} run${runCount === 1 ? '' : 's'} in between` : 'no runs';
+  remember(items);
   return {
     title: `Surprise Engine · ${styleLabel}`,
     items,
