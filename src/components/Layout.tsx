@@ -130,7 +130,7 @@ function TodayPlanBar() {
   const pending = (plan[today] ?? []).filter((t) => !workouts.some((w) => w.date === today && w.type === t && !w.fromPlan) && !drafts.some((d) => d.fromPlan === planKey(today, t)));
   if (!pending.length) return null;
   return (
-    <div className="mb-3 space-y-2">
+    <div className="space-y-2">
       {pending.map((t) => {
         const detail = planDetails[planKey(today, t)];
         return (
@@ -161,7 +161,7 @@ function OpenWorkoutsBar() {
   const { openAddWorkout } = useUI();
   if (!drafts.length) return null;
   return (
-    <div className="mb-4 space-y-2">
+    <div className="space-y-2">
       {drafts.map((d) => {
         const f = d.form;
         const title = f.type === 'HYROX' ? `HYROX ${simLabel(f.sim)}` : f.title.trim() || DEFAULT_TITLE[f.type];
@@ -357,7 +357,9 @@ export function Layout({ page, onNavigate, children }: { page: PageId; onNavigat
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200 bg-white/90 px-4 py-2.5 backdrop-blur sm:px-6 sm:py-3">
+        {/* Header plus today's plan / open workouts, pinned to the top so Start and Continue are always one tap away. */}
+        <div className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <header className="flex items-center gap-3 px-4 py-2.5 sm:px-6 sm:py-3">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white lg:hidden">
             <BarChart3 size={16} />
           </span>
@@ -376,11 +378,14 @@ export function Layout({ page, onNavigate, children }: { page: PageId; onNavigat
           )}
           <AccountMenu onNavigate={onNavigate} />
         </header>
+        <div className="mx-auto w-full max-w-[1400px] space-y-2 px-3 pb-2.5 empty:hidden sm:px-6">
+          <TodayPlanBar />
+          <OpenWorkoutsBar />
+        </div>
+        </div>
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-3 pb-28 pt-4 sm:px-6 sm:py-6 lg:pb-6">
           {page !== 'friends' && <ViewingBanner />}
           <DemoVisitBanner />
-          <TodayPlanBar />
-          <OpenWorkoutsBar />
           {children}
         </main>
         <DemoFooter />
