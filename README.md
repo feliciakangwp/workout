@@ -169,6 +169,10 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   The athlete's own exercises saved to that workout type are included too (and favoured).
   Picks are a weighted draw, not a fixed ranking: under-trained muscles get better odds, exercises from earlier in
   the week and from the previous surprise are less likely, and yesterday's are left out.
+- **Day view** (tap a day on the weekly plan): each workout gets one line with its status and the next step:
+  *Plan exercises* (nothing planned yet), *View plan* (planned: the exercises, with Edit plan, Start and Remove from
+  plan) or *View workout* (done: the logged details, with Edit workout and Remove). Workout types are picked with
+  compact chips below.
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Walking**: a Running run type for outdoor or treadmill walks. It counts as a workout (time, training load) but

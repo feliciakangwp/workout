@@ -18,7 +18,7 @@ const secs = (s: string) => {
 const DEFAULT_MINUTES: Record<WorkoutType, number> = { F45: F45_MINUTES, Strength: 60, HYROX: 75, 'HYROX Engine': 60, Running: 45, Recovery: 45 };
 
 /** The exercises and runs written into a plan, as a workout would record them. */
-function fromPlanForm(form: DraftForm | undefined, customs: CustomExercise[]): { exercises: ExerciseEntry[]; run?: RunData } {
+export function fromPlanForm(form: DraftForm | undefined, customs: CustomExercise[]): { exercises: ExerciseEntry[]; run?: RunData } {
   if (!form) return { exercises: [] };
   const exercises: ExerciseEntry[] = [];
   if (form.type !== 'Running' && form.type !== 'HYROX')
