@@ -247,6 +247,28 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     setOrder(keys);
   };
 
+  /** Moves an exercise up or down the list (e.g. equipment taken): numbers follow the new order. */
+  const moveRow = (key: number, dir: -1 | 1) =>
+    setRows((rs) => {
+      const i = rs.findIndex((r) => r.key === key);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= rs.length) return rs;
+      const next = [...rs];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  /** Up / down arrows for reordering a list item. */
+  const moveControls = (idx: number, total: number, move: (dir: -1 | 1) => void) => (
+    <span className="mr-1 flex flex-col">
+      <button className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-25" disabled={idx === 0} onClick={() => move(-1)} aria-label="Move up">
+        <ChevronUp size={20} />
+      </button>
+      <button className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-25" disabled={idx === total - 1} onClick={() => move(1)} aria-label="Move down">
+        <ChevronDown size={20} />
+      </button>
+    </span>
+  );
+
   // New rows scroll into view so the next exercise or run can be filled straight away.
   const [scrollTo, setScrollTo] = useState<string | null>(null);
   useEffect(() => {
@@ -847,16 +869,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
               let ex = 0;
               let run = 0;
               return sequenceKeys.map((key, idx) => {
-                const controls = (
-                  <span className="mr-1 flex flex-col">
-                    <button className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30" disabled={idx === 0} onClick={() => moveItem(key, -1)} aria-label="Move up">
-                      <ChevronUp size={16} />
-                    </button>
-                    <button className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30" disabled={idx === sequenceKeys.length - 1} onClick={() => moveItem(key, 1)} aria-label="Move down">
-                      <ChevronDown size={16} />
-                    </button>
-                  </span>
-                );
+                const controls = moveControls(idx, sequenceKeys.length, (dir) => moveItem(key, dir));
                 const exRow = rows.find((r) => r.key === key);
                 if (exRow) return <li key={key}>{renderExercise(exRow, ex++, controls)}</li>;
                 const runRow = runRows.find((r) => r.key === key)!;
@@ -895,11 +908,11 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           </div>
           {type === 'Strength' && surpriseInfo}
           <div className="space-y-2">
-            {rows.map((r, i) => renderExercise(r, i))}
+            {rows.map((r, i) => renderExercise(r, i, rows.length > 1 ? moveControls(i, rows.length, (dir) => moveRow(r.key, dir)) : undefined))}
           </div>
           {addMoreButton('Add another exercise', addExercise)}
           <p className="mt-1.5 text-[11px] text-slate-500">
-            Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.
+            Use the arrows to change the order, e.g. when equipment is taken. Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.
             {type === 'Strength' && ' Cardio machines (distance & time) are logged under HYROX Engine or F45.'}
           </p>
         </div>
