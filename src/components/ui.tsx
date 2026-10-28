@@ -225,9 +225,10 @@ export function Modal({ open, onClose, title, children, wide = false, footer }: 
   if (!open) return null;
   // Rendered on <body> so a parent with blur or sticky positioning (like the header) can't trap it.
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+    // Centred on phones too, clear of the notch and home bar.
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-4">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label={title} className={`relative flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white shadow-xl sm:rounded-2xl ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}>
+      <div role="dialog" aria-modal="true" aria-label={title} className={`relative flex max-h-[calc(100dvh-1.5rem)] w-full flex-col rounded-2xl bg-white shadow-xl sm:max-h-[92vh] ${wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" aria-label="Close">
@@ -235,7 +236,7 @@ export function Modal({ open, onClose, title, children, wide = false, footer }: 
           </button>
         </div>
         <div className="overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">{footer}</div>}
+        {footer && <div className="flex justify-end gap-2 border-t border-slate-100 px-4 py-3 sm:px-5">{footer}</div>}
       </div>
     </div>,
     document.body,
