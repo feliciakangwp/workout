@@ -11,6 +11,9 @@ import { AXIS, GRID, SERIES } from '../lib/theme';
 type Metric = 'weight' | 'strength' | 'volume';
 const isCarry = (name: string) => name === "Farmer's Carry";
 const repLabel = (name: string, s: LiftSession) => `${s.sets} × ${s.reps}${isCarry(name) ? ' m' : ''}`;
+type SortKey = 'recent' | 'improved' | 'declined';
+const SORT_KEY = 'hyrox-dashboard.strength-sort';
+
 const volUnit = (name: string) => (isCarry(name) ? 'kg·m' : 'kg');
 
 export function StrengthProgression() {
@@ -25,6 +28,26 @@ export function StrengthProgression() {
   };
   // Only exercises actually done with weights in Strength workouts, most recent first.
   const summaries = useMemo(() => strengthExercises(workouts).map((n) => liftSummary(workouts, n, true)), [workouts]);
+  const [sort, setSortState] = useState<SortKey>(() => {
+    try {
+      return (localStorage.getItem(SORT_KEY) as SortKey) || 'recent';
+    } catch {
+      return 'recent';
+    }
+  });
+  const setSort = (v: SortKey) => {
+    setSortState(v);
+    try {
+      localStorage.setItem(SORT_KEY, v);
+    } catch {
+      /* storage unavailable: kept for this visit */
+    }
+  };
+  // The list's order: most recent first, or by change since the first session (declines lead "Least improved").
+  const listed = useMemo(
+    () => (sort === 'recent' ? summaries : [...summaries].sort((a, b) => (sort === 'improved' ? b.changeSinceStartPct - a.changeSinceStartPct : a.changeSinceStartPct - b.changeSinceStartPct) || a.name.localeCompare(b.name))),
+    [summaries, sort],
+  );
   const s = summaries.find((x) => x.name === picked) ?? summaries[0];
   if (!s)
     return (
@@ -46,12 +69,17 @@ export function StrengthProgression() {
 
   return (
     <div>
-      <PageHeader title="Strength Progression" subtitle="Every exercise from your Strength workouts, with the weights you lifted. Most recent first." actions={<DemoBadge />} />
+      <PageHeader title="Strength Progression" subtitle="Every exercise from your Strength workouts, with the weights you lifted." actions={<DemoBadge />} />
 
       <Card className="mb-5 overflow-hidden">
-        <CardHeader icon={Dumbbell} title="All strength exercises" subtitle="Tap an exercise to see its progress below" />
+        <CardHeader
+          icon={Dumbbell}
+          title="All strength exercises"
+          subtitle="Tap an exercise to see its progress below"
+          action={<Segmented<SortKey> value={sort} onChange={setSort} options={[{ value: 'recent', label: 'Recent' }, { value: 'improved', label: 'Most improved' }, { value: 'declined', label: 'Least improved' }]} />}
+        />
         <ul className="mt-3 max-h-72 divide-y divide-slate-100 overflow-y-auto md:hidden">
-          {summaries.map((x) => (
+          {listed.map((x) => (
             <li key={x.name}>
               <button onClick={() => pickExercise(x.name)} className={`flex w-full items-center gap-3 px-4 py-3 text-left ${x.name === exercise ? 'bg-blue-50/70' : ''}`}>
                 <span className="min-w-0 flex-1">
@@ -81,7 +109,7 @@ export function StrengthProgression() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {summaries.map((x) => (
+              {listed.map((x) => (
                 <tr key={x.name} onClick={() => pickExercise(x.name)} className={`cursor-pointer transition hover:bg-blue-50/50 ${x.name === exercise ? 'bg-blue-50/70' : ''}`}>
                   <td className="px-5 py-2.5 font-medium text-slate-800">{x.name}</td>
                   <td className="px-3 py-2.5 text-slate-700">{x.latest ? `${x.latest.weightKg} kg` : '—'}</td>
