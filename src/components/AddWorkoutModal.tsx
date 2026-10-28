@@ -259,12 +259,13 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     });
   /** Up / down arrows for reordering a list item. */
   const moveControls = (idx: number, total: number, move: (dir: -1 | 1) => void) => (
-    <span className="mr-1 flex flex-col">
-      <button className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-25" disabled={idx === 0} onClick={() => move(-1)} aria-label="Move up">
-        <ChevronUp size={20} />
+    <span className="inline-flex items-center rounded-lg bg-slate-100 p-0.5" title="Change the order">
+      <span className="px-1.5 text-[11px] font-medium text-slate-500">Move</span>
+      <button className="rounded-md p-1 text-slate-600 hover:bg-white hover:text-blue-700 disabled:opacity-25" disabled={idx === 0} onClick={() => move(-1)} aria-label="Move up">
+        <ChevronUp size={18} />
       </button>
-      <button className="rounded-md p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-25" disabled={idx === total - 1} onClick={() => move(1)} aria-label="Move down">
-        <ChevronDown size={20} />
+      <button className="rounded-md p-1 text-slate-600 hover:bg-white hover:text-blue-700 disabled:opacity-25" disabled={idx === total - 1} onClick={() => move(1)} aria-label="Move down">
+        <ChevronDown size={18} />
       </button>
     </span>
   );
@@ -608,7 +609,6 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     const m = engine ? MODE_MEASURE[mode] : measure;
     const select = (
       <>
-        <label className="label" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
         <select id={`ex-${r.key}`} className={`input ${r.name ? '' : 'text-slate-400'}`} value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value, mode: undefined })}>
           <option value="" disabled>Choose an exercise…</option>
           {options.map((name) => (
@@ -628,6 +628,13 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           <Trash2 size={16} />
         </button>
       </>
+    );
+    // Card header: the number on the left; moving and removing the whole exercise on the right.
+    const header = (
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <label className="text-sm font-semibold text-slate-800" htmlFor={`ex-${r.key}`}>Exercise {i + 1}</label>
+        <div className="flex items-center gap-1">{rowControls}</div>
+      </div>
     );
     const weightField = (optional: boolean) => (
       <div>
@@ -673,12 +680,10 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     );
     return (
       <div key={r.key} className="rounded-xl border border-slate-200 p-3">
+        {header}
         {engine ? (
           <>
-            <div className="flex items-end gap-2">
-              <div className="min-w-0 flex-1">{select}</div>
-              {rowControls}
-            </div>
+            {select}
             <div className="mt-2">
               <Segmented<EntryMode>
                 size="md"
@@ -690,10 +695,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{fields}</div>
           </>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr_auto]">
-            <div className="col-span-2 sm:col-span-1">{select}</div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr]">
+            <div className="col-span-2 self-end sm:col-span-1">{select}</div>
             {fields}
-            <div className="flex items-end">{rowControls}</div>
           </div>
         )}
         {best && <p className="mt-1.5 text-xs text-slate-400">{best.label}</p>}
@@ -755,22 +759,27 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     const km = Number(r.km);
     const sec = parseSplit(r.time);
     return (
-      <div className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-xl border border-slate-200 p-3">
+      <div className="rounded-xl border border-slate-200 p-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-slate-800">{walking ? 'Walk' : 'Run'} {i + 1}</p>
+          <div className="flex items-center gap-1">
+            {controls}
+            <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={runRows.length === 1 && type !== 'HYROX Engine'} onClick={() => setRunRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove run ${i + 1}`}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="label" htmlFor={`rkm-${r.key}`}>{walking ? 'Walk' : 'Run'} {i + 1} · distance (km)</label>
+          <label className="label" htmlFor={`rkm-${r.key}`}>Distance (km)</label>
           <input id={`rkm-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className="input" placeholder="1" value={r.km} onChange={(e) => updateRun(r.key, { km: e.target.value })} />
         </div>
         <div>
           <label className="label" htmlFor={`rt-${r.key}`}>Time (m:ss)</label>
           <input id={`rt-${r.key}`} inputMode="decimal" className="input" placeholder="5:15" value={r.time} onChange={(e) => updateRun(r.key, { time: e.target.value })} />
         </div>
-        <div className="mb-0.5 flex items-center">
-          {controls}
-          <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30" disabled={runRows.length === 1 && type !== 'HYROX Engine'} onClick={() => setRunRows((rs) => rs.filter((x) => x.key !== r.key))} aria-label={`Remove run ${i + 1}`}>
-            <Trash2 size={16} />
-          </button>
         </div>
-        {km > 0 && sec > 0 && <p className="col-span-3 -mt-1 text-xs text-slate-500">Pace {fmtPace(sec / km)} /km</p>}
+        {km > 0 && sec > 0 && <p className="mt-1 text-xs text-slate-500">Pace {fmtPace(sec / km)} /km</p>}
       </div>
     );
   };
