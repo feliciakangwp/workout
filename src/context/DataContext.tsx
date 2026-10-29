@@ -1,3 +1,4 @@
+import { EXERCISES } from '../data/exercises';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DEMO_TODAY, generateSample } from '../data/mockData';
 import { localToday } from '../lib/dates';
@@ -110,6 +111,43 @@ function repairRaceIds(d: UserData): UserData {
   return changed ? { ...d, goals: { ...d.goals, races } } : d;
 }
 
+/** "Barbell squats " → "barbell squat": for matching names typed differently. */
+const nameKey = (n: string) => n.trim().toLowerCase().replace(/\s+/g, ' ').replace(/([^s])s$/, '$1');
+const LIBRARY_BY_KEY = new Map(EXERCISES.map((e) => [nameKey(e.name), e.name]));
+
+/**
+ * Custom exercises that are now in the library (e.g. a custom "Barbell Squat") are
+ * merged into it: every logged, open and planned use takes the library name (and its
+ * muscle groups), and the custom copy is removed. Saved as soon as it loads.
+ */
+export function mergeLibraryCustoms(d: UserData): UserData {
+  const target = (name: string) => {
+    const lib = LIBRARY_BY_KEY.get(nameKey(name));
+    return lib && lib !== name ? lib : undefined;
+  };
+  const merging = d.customExercises.some((c) => LIBRARY_BY_KEY.has(nameKey(c.name)));
+  const renames = merging || d.added.some((w) => w.exercises.some((e) => target(e.name)));
+  if (!renames) return d;
+  const entry = <T extends { name: string; customMuscles?: unknown }>(e: T): T => {
+    const to = target(e.name);
+    return to ? { ...e, name: to, customMuscles: undefined } : e;
+  };
+  const form = (f: DraftForm): DraftForm => ({
+    ...f,
+    rows: f.rows.map((r) => {
+      const to = target(r.name);
+      return to ? { ...r, name: to } : r;
+    }),
+  });
+  return {
+    ...d,
+    customExercises: d.customExercises.filter((c) => !LIBRARY_BY_KEY.has(nameKey(c.name))),
+    added: d.added.map((w) => (w.exercises.some((e) => target(e.name)) ? { ...w, exercises: w.exercises.map(entry) } : w)),
+    drafts: d.drafts.map((x) => ({ ...x, form: form(x.form) })),
+    planDetails: Object.fromEntries(Object.entries(d.planDetails ?? {}).map(([k, f]) => [k, form(f)])),
+  };
+}
+
 /** Loads the viewed athlete's data and saves changes (own data only). */
 export function DataProvider({ children }: { children: ReactNode }) {
   const { backend, user, viewing, viewFriend } = useAuth();
@@ -172,7 +210,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!live) return;
         base.current = d;
         if (d) {
-          const repaired = repairRaceIds(d);
+          const repaired = mergeLibraryCustoms(repairRaceIds(d));
           synced.current = repaired === d ? d : null;
           setData(repaired);
         } else if (!readOnly) setData(newUserData(athlete.id));
