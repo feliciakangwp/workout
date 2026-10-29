@@ -147,8 +147,16 @@ type DayView = { kind: 'day' } | { kind: 'plan'; type: WorkoutType } | { kind: '
 
 function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout[]; onClose: () => void }) {
   const { plan, setDayPlan, today, readOnly, planDetails, drafts } = useData();
-  const { openAddWorkout } = useUI();
+  const { openAddWorkout, openPlanEditor } = useUI();
   const [view, setView] = useState<DayView>({ kind: 'day' });
+  /** "Plan a workout": choosing which type to plan. */
+  const [choosing, setChoosing] = useState(false);
+  /** Adds the type to the day (if needed) and opens its exercise planner. */
+  const planType = (t: WorkoutType) => {
+    if (!planned.includes(t)) setDayPlan(date, WORKOUT_TYPES.filter((x) => x === t || planned.includes(x)));
+    onClose();
+    openPlanEditor(date, t);
+  };
   const planned = plan[date] ?? [];
   // Every day can be changed, so past training can be filled in later.
   const editable = !readOnly;
@@ -226,6 +234,8 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
             ))}
           </section>
         )}
+        {/* The quick type chips; hidden while choosing a workout to plan, which shows the same types. */}
+        {!choosing && (
         <section>
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-slate-800">{planned.length ? 'Plan' : 'Plan this day'}</h4>
@@ -260,13 +270,35 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
           )}
           {editable && <p className="mt-2 text-[11px] text-slate-500">Tap to add or remove. Changes save straight away; pick more than one for double sessions.</p>}
         </section>
+        )}
 
 
-        {date > today && !planned.length && <p className="text-sm text-slate-500">This day is still ahead.</p>}
-        {date <= today && !readOnly && (
-          <button className="btn-primary" onClick={() => { onClose(); openAddWorkout(undefined, date); }}>
-            <Plus size={15} /> {past ? 'Add a past workout' : 'Log a workout'}
-          </button>
+        {!readOnly && (
+          <div className="flex flex-wrap gap-2">
+            {date <= today && (
+              <button className="btn-primary" onClick={() => { onClose(); openAddWorkout(undefined, date); }}>
+                <Plus size={15} /> {past ? 'Add a past workout' : 'Log a workout'}
+              </button>
+            )}
+            {!past && (
+              <button className={date > today ? 'btn-primary' : 'btn-ghost'} onClick={() => setChoosing((c) => !c)} aria-expanded={choosing}>
+                <ClipboardList size={15} /> Plan a workout
+              </button>
+            )}
+          </div>
+        )}
+        {choosing && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3">
+            <p className="mb-2 text-xs font-medium text-slate-700">Which workout? Then add its exercises, sets and weights.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {WORKOUT_TYPES.map((t) => (
+                <button key={t} onClick={() => planType(t)} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-blue-50 hover:ring-blue-300">
+                  <span className="h-2 w-2 rounded-full" style={{ background: TYPE_COLORS[t] }} />
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </Modal>
