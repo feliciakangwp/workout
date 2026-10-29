@@ -147,16 +147,7 @@ type DayView = { kind: 'day' } | { kind: 'plan'; type: WorkoutType } | { kind: '
 
 function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout[]; onClose: () => void }) {
   const { plan, setDayPlan, today, readOnly, planDetails, drafts } = useData();
-  const { openAddWorkout, openPlanEditor } = useUI();
   const [view, setView] = useState<DayView>({ kind: 'day' });
-  /** "Plan a workout": choosing which type to plan. */
-  const [choosing, setChoosing] = useState(false);
-  /** Adds the type to the day (if needed) and opens its exercise planner. */
-  const planType = (t: WorkoutType) => {
-    if (!planned.includes(t)) setDayPlan(date, WORKOUT_TYPES.filter((x) => x === t || planned.includes(x)));
-    onClose();
-    openPlanEditor(date, t);
-  };
   const planned = plan[date] ?? [];
   // Every day can be changed, so past training can be filled in later.
   const editable = !readOnly;
@@ -177,68 +168,9 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
   return (
     <Modal open onClose={onClose} title={title}>
       <div className="space-y-5">
-        {(planned.length > 0 || logged.length > 0) && (
-          <section className="space-y-2">
-            <h4 className="text-sm font-semibold text-slate-800">Workouts</h4>
-            {planned.map((t) => {
-              const key = planKey(date, t);
-              const detail = planDetails[key];
-              const started = drafts.some((d) => d.fromPlan === key);
-              const done = logged.find((w) => w.type === t);
-              const counted = workouts.some((w) => w.type === t && w.fromPlan);
-              return (
-                <div key={t} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 p-3">
-                  <span className="h-2 w-2 rounded-full" style={{ background: TYPE_COLORS[t] }} />
-                  <span className="min-w-0 flex-1 text-sm font-medium text-slate-900">
-                    {done ? done.title : t}
-                    <span className="block text-xs font-normal text-slate-500">
-                      {done ? `${fmtDuration(done.durationMin)} · ${loggedSummary(done)}` : detail ? planSummary(detail) + ' planned' : 'No exercises planned yet'}
-                    </span>
-                  </span>
-                  {done ? (
-                    <>
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} /> Done</span>
-                      <button className="btn-ghost py-1.5 text-xs" onClick={() => setView({ kind: 'workout', id: done.id })}>
-                        <Eye size={14} /> View workout
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {started && <span className="text-xs font-medium text-blue-700">In progress</span>}
-                      {detail || readOnly ? (
-                        <button className="btn-ghost py-1.5 text-xs" onClick={() => setView({ kind: 'plan', type: t })}>
-                          <Eye size={14} /> View plan
-                        </button>
-                      ) : (
-                        <PlanButton date={date} type={t} onClose={onClose} />
-                      )}
-                      {editable && date <= today && !started && <StartButton date={date} type={t} label={past ? 'Log this workout' : 'Start workout'} onClose={onClose} />}
-                    </>
-                  )}
-                  {counted && !done && <span className="basis-full text-[11px] text-emerald-700">Counted as done from your plan. Log it to add the details.</span>}
-                </div>
-              );
-            })}
-            {unplanned.map((w) => (
-              <div key={w.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 p-3">
-                <span className="h-2 w-2 rounded-full" style={{ background: TYPE_COLORS[w.type] }} />
-                <span className="min-w-0 flex-1 text-sm font-medium text-slate-900">
-                  {w.title}
-                  <span className="block text-xs font-normal text-slate-500">{w.type} · {fmtDuration(w.durationMin)} · {loggedSummary(w)}</span>
-                </span>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} /> Done</span>
-                <button className="btn-ghost py-1.5 text-xs" onClick={() => setView({ kind: 'workout', id: w.id })}>
-                  <Eye size={14} /> View workout
-                </button>
-              </div>
-            ))}
-          </section>
-        )}
-        {/* The quick type chips; hidden while choosing a workout to plan, which shows the same types. */}
-        {!choosing && (
         <section>
           <div className="mb-2 flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-slate-800">{planned.length ? 'Plan' : 'Plan this day'}</h4>
+            <h4 className="text-sm font-semibold text-slate-800">Choose a workout</h4>
             {editable ? (
               planned.length > 0 && <button className="text-xs font-medium text-slate-500 hover:text-rose-600" onClick={() => setDayPlan(date, [])}>Clear</button>
             ) : (
@@ -268,37 +200,72 @@ function DayModal({ date, workouts, onClose }: { date: string; workouts: Workout
           ) : (
             <p className="text-sm text-slate-500">Nothing was planned for this day.</p>
           )}
-          {editable && <p className="mt-2 text-[11px] text-slate-500">Tap to add or remove. Changes save straight away; pick more than one for double sessions.</p>}
+          {editable && <p className="mt-2 text-[11px] text-slate-500">{planned.length ? 'Tap to add or remove; pick more than one for double sessions.' : past ? 'Pick what you did, then log it below.' : 'Pick a workout, then plan its exercises or start it below.'}</p>}
         </section>
-        )}
-
-
-        {!readOnly && (
-          <div className="flex flex-wrap gap-2">
-            {date <= today && (
-              <button className="btn-primary" onClick={() => { onClose(); openAddWorkout(undefined, date); }}>
-                <Plus size={15} /> {past ? 'Add a past workout' : 'Log a workout'}
-              </button>
-            )}
-            {!past && (
-              <button className={date > today ? 'btn-primary' : 'btn-ghost'} onClick={() => setChoosing((c) => !c)} aria-expanded={choosing}>
-                <ClipboardList size={15} /> Plan a workout
-              </button>
-            )}
-          </div>
-        )}
-        {choosing && (
-          <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3">
-            <p className="mb-2 text-xs font-medium text-slate-700">Which workout? Then add its exercises, sets and weights.</p>
-            <div className="flex flex-wrap gap-1.5">
-              {WORKOUT_TYPES.map((t) => (
-                <button key={t} onClick={() => planType(t)} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-inset ring-slate-200 hover:bg-blue-50 hover:ring-blue-300">
-                  <span className="h-2 w-2 rounded-full" style={{ background: TYPE_COLORS[t] }} />
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
+        {(planned.length > 0 || logged.length > 0) && (
+          <section className="space-y-2">
+            <h4 className="text-sm font-semibold text-slate-800">Workouts</h4>
+            {planned.map((t) => {
+              const key = planKey(date, t);
+              const detail = planDetails[key];
+              const started = drafts.some((d) => d.fromPlan === key);
+              const done = logged.find((w) => w.type === t);
+              const counted = workouts.some((w) => w.type === t && w.fromPlan);
+              return (
+                <div key={t} className="rounded-xl border border-slate-200 p-3">
+                  {/* Name and status on top; the buttons get their own line so nothing is squeezed on a phone. */}
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TYPE_COLORS[t] }} />
+                    <span className="min-w-0 flex-1 text-sm font-medium text-slate-900">
+                      {done ? done.title : t}
+                      <span className="block text-xs font-normal text-slate-500">
+                        {done ? `${fmtDuration(done.durationMin)} · ${loggedSummary(done)}` : detail ? planSummary(detail) + ' planned' : 'No exercises planned yet'}
+                      </span>
+                    </span>
+                    {done && <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} /> Done</span>}
+                    {!done && started && <span className="shrink-0 text-xs font-medium text-blue-700">In progress</span>}
+                  </div>
+                  <div className="mt-2 flex flex-wrap justify-end gap-2 empty:hidden">
+                    {done ? (
+                      <button className="btn-ghost py-1.5 text-xs" onClick={() => setView({ kind: 'workout', id: done.id })}>
+                        <Eye size={14} /> View workout
+                      </button>
+                    ) : (
+                      <>
+                        {detail || readOnly ? (
+                          <button className="btn-ghost py-1.5 text-xs" onClick={() => setView({ kind: 'plan', type: t })}>
+                            <Eye size={14} /> View plan
+                          </button>
+                        ) : (
+                          // A past day is logged, not planned.
+                          !past && <PlanButton date={date} type={t} onClose={onClose} />
+                        )}
+                        {editable && date <= today && !started && <StartButton date={date} type={t} label={past ? 'Log this workout' : 'Start workout'} onClose={onClose} />}
+                      </>
+                    )}
+                  </div>
+                  {counted && !done && <p className="mt-2 text-[11px] text-emerald-700">Counted as done from your plan. Log it to add the details.</p>}
+                </div>
+              );
+            })}
+            {unplanned.map((w) => (
+              <div key={w.id} className="rounded-xl border border-slate-200 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: TYPE_COLORS[w.type] }} />
+                  <span className="min-w-0 flex-1 text-sm font-medium text-slate-900">
+                    {w.title}
+                    <span className="block text-xs font-normal text-slate-500">{w.type} · {fmtDuration(w.durationMin)} · {loggedSummary(w)}</span>
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-700"><CheckCircle2 size={13} /> Done</span>
+                </div>
+                <div className="mt-2 flex justify-end">
+                  <button className="btn-ghost py-1.5 text-xs" onClick={() => setView({ kind: 'workout', id: w.id })}>
+                    <Eye size={14} /> View workout
+                  </button>
+                </div>
+              </div>
+            ))}
+          </section>
         )}
       </div>
     </Modal>
