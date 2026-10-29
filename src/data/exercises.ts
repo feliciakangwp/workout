@@ -34,6 +34,8 @@ export const EXERCISES: ExerciseInfo[] = [
   // Tracked strength lifts
   { name: 'Romanian Deadlift', primary: ['hamstrings', 'glutes'], secondary: ['back', 'core'], tracked: true },
   { name: 'Squat', primary: ['quadriceps', 'glutes'], secondary: ['core', 'hamstrings'], tracked: true },
+  // Lower back counts as back; adductors aren't a tracked muscle group.
+  { name: 'Barbell Squat', primary: ['quadriceps', 'glutes'], secondary: ['hamstrings', 'core', 'calves', 'back'], tracked: true },
   { name: 'Lat Pulldown', primary: ['back'], secondary: ['biceps'], tracked: true },
   { name: 'Chest Press', primary: ['chest'], secondary: ['triceps', 'shoulders'], tracked: true },
   { name: 'Bulgarian Split Squat', primary: ['quadriceps', 'glutes'], secondary: ['hamstrings'], tracked: true },

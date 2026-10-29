@@ -28,7 +28,7 @@ const FULL_BODY: MuscleGroup[] = ['quadriceps', 'hamstrings', 'glutes', 'chest',
 const regionOf = (e: ExerciseInfo): Region => (e.primary.some((m) => LOWER.includes(m)) ? 'lower' : e.primary.some((m) => UPPER.includes(m)) ? 'upper' : 'core');
 
 const STRENGTH_BASE = [
-  'Squat', 'Romanian Deadlift', 'Bulgarian Split Squat', 'Hip Thrust', 'Goblet Squat', 'Walking Lunges', 'Calf Raise',
+  'Squat', 'Barbell Squat', 'Romanian Deadlift', 'Bulgarian Split Squat', 'Hip Thrust', 'Goblet Squat', 'Walking Lunges', 'Calf Raise',
   'Chest Press', 'Lat Pulldown', 'Shoulder Press', 'Seated Cable Row', 'Bent-over Row', 'Push-up', 'Bicep Curl', 'Tricep Dip', 'Renegade Row',
   'Plank', 'Russian Twist',
 ];
