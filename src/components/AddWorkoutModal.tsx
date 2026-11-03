@@ -487,8 +487,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
       const km = Number(r.km);
       const sec = parseSplit(r.time);
       if (!(km > 0 && km <= 100)) errs.push(`Run ${i + 1}: enter a distance in km.`);
-      // Walks are slower: up to 30 min/km.
-      else if (!(sec > 0 && sec / km >= 120 && sec / km <= (walking ? 1800 : 900))) errs.push(`${walking ? 'Walk' : 'Run'} ${i + 1}: enter a time as m:ss (or h:mm:ss) giving a realistic pace.`);
+      else if (!(sec > 0)) errs.push(`${walking ? 'Walk' : 'Run'} ${i + 1}: enter the time, e.g. 21.45 or 21:45 (1.05.30 for over an hour).`);
+      // Paces from 2:00 to 30:00 per km: run-walks and easy jogs can be slow.
+      else if (!(sec / km >= 120 && sec / km <= 1800)) errs.push(`${walking ? 'Walk' : 'Run'} ${i + 1}: ${km} km in ${fmtTime(sec)} is ${fmtPace(sec / km)} /km. Check the distance and time.`);
       else segments.push({ distanceKm: km, timeSec: sec });
     });
     const hr = runHr.trim() ? Number(runHr) : undefined;
@@ -777,7 +778,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           <input id={`rkm-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className="input" placeholder="1" value={r.km} onChange={(e) => updateRun(r.key, { km: e.target.value })} />
         </div>
         <div>
-          <label className="label" htmlFor={`rt-${r.key}`}>Time (m:ss)</label>
+          <label className="label" htmlFor={`rt-${r.key}`}>Time (m.ss or m:ss)</label>
           <input id={`rt-${r.key}`} inputMode="decimal" className="input" placeholder="5:15" value={r.time} onChange={(e) => updateRun(r.key, { time: e.target.value })} />
         </div>
         </div>
