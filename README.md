@@ -173,6 +173,10 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   gets a line with its status and next step: *Plan exercises* and *Start workout* (or *Log this workout* on a past
   day), *View plan* once exercises are planned (with Edit plan, Start and Remove from plan), or *View workout* once
   done (the logged details, with Edit workout and Remove).
+- **Share custom exercises** (account menu → My exercises → share icon): tick which friends get an exercise. They
+  see "New exercise from …" with *Add to my exercises* (and a *Shared with you* list in My exercises); adding copies
+  it into their own exercises (marked "From …"). Untick to stop sharing. Friends can already read each other's data,
+  so this chooses who is offered it rather than hiding it.
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Walking**: a Running run type for outdoor or treadmill walks. It counts as a workout (time, training load) but

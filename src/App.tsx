@@ -7,6 +7,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { UpdateBanner } from './components/UpdateBanner';
 import { FriendRequestPrompt } from './components/FriendRequestPrompt';
 import { TaggedRacePrompt } from './components/TaggedRacePrompt';
+import { SharedExercisePrompt } from './components/SharedExercises';
 import { GoalPrompt } from './components/GoalPrompt';
 import { RecordsModal } from './components/RecordsModal';
 import type { Records } from './lib/analytics';
@@ -129,6 +130,7 @@ function Dashboard() {
         <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[45] flex flex-col items-center gap-2 px-3 lg:bottom-6 lg:items-end lg:px-6">
           {!readOnly && <FriendRequestPrompt onNavigate={navigate} />}
           <TaggedRacePrompt />
+          {!readOnly && <SharedExercisePrompt />}
         </div>
         {toast && (
           <div className="fixed bottom-24 left-1/2 z-[60] flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg lg:bottom-5" role="status">

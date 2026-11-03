@@ -43,6 +43,10 @@ interface DataContextValue {
   renameCustomExercise: (from: string, to: string) => void;
   /** Removes a custom exercise from the exercise list (logged workouts keep it). */
   deleteCustomExercise: (name: string) => void;
+  /** Shares one of your custom exercises with these friends (replaces the list; empty stops sharing). */
+  shareCustomExercise: (name: string, friendIds: string[]) => void;
+  /** Adds a friend's shared exercise to your own exercises. False if you already have one with that name. */
+  addSharedExercise: (exercise: CustomExercise, from: string) => boolean;
   /** Body composition weigh-ins, oldest first (demonstration ones until the athlete adds their own). */
   weighIns: WeighIn[];
   addWeighIn: (w: Omit<WeighIn, 'id' | 'isSample'>) => void;
@@ -443,6 +447,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [update],
   );
   const deleteCustomExercise = useCallback((name: string) => update((d) => ({ ...d, customExercises: d.customExercises.filter((c) => c.name !== name) })), [update]);
+  const shareCustomExercise = useCallback(
+    (name: string, friendIds: string[]) =>
+      update((d) => ({ ...d, customExercises: d.customExercises.map((c) => (c.name === name ? { ...c, sharedWith: friendIds.length ? friendIds : undefined } : c)) })),
+    [update],
+  );
+  const addSharedExercise = useCallback(
+    (ex: CustomExercise, from: string) => {
+      if (data?.customExercises.some((c) => c.name.toLowerCase() === ex.name.toLowerCase())) return false;
+      // Your copy: theirs to keep, not shared onwards.
+      const copy: CustomExercise = { name: ex.name, measure: ex.measure, muscles: ex.muscles, types: ex.types, sharedBy: from };
+      update((d) => (d.customExercises.some((c) => c.name.toLowerCase() === ex.name.toLowerCase()) ? d : { ...d, customExercises: [...d.customExercises, copy] }));
+      return true;
+    },
+    [update, data],
+  );
 
   const sampleKey = data ? JSON.stringify(data.sample) : '';
   // Demonstration athletes get generated workouts; real accounts start with none.
@@ -479,12 +498,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
             saveCustomExercises,
             renameCustomExercise,
             deleteCustomExercise,
+            shareCustomExercise,
+            addSharedExercise,
             weighIns,
             addWeighIn,
             removeWeighIn,
           }
         : null,
-    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, weighIns, latestWeight, addWeighIn, removeWeighIn],
+    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, shareCustomExercise, addSharedExercise, weighIns, latestWeight, addWeighIn, removeWeighIn],
   );
 
   if (!value)

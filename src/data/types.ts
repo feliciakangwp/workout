@@ -253,6 +253,10 @@ export interface CustomExercise {
   measure: ExerciseMeasure;
   muscles: MuscleGroup[];
   types: WorkoutType[];
+  /** Friends (profile ids) this exercise is shared with; they can add it to their own exercises. */
+  sharedWith?: string[];
+  /** Added from a friend's shared exercise: who shared it. */
+  sharedBy?: string;
 }
 
 // ---------------------------------------------------------------------------
