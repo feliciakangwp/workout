@@ -22,6 +22,8 @@ const CUSTOM = '__custom__';
 /** Run types for pure running sessions. */
 const RUN_KINDS: RunKind[] = ['Easy', 'Long', 'Tempo', 'Intervals', '5K Time Trial', 'Walking'];
 const hasRun = (t: WorkoutType) => t === 'Running' || t === 'HYROX Engine';
+/** Slowest average pace (s/km) that still counts as a run; slower Running sessions are saved as walks. */
+const RUN_MAX_PACE = 15 * 60;
 /** Accepts "4:30" or "4.30" (easier on a phone number pad). */
 const parseSplit = parseTime;
 
@@ -412,9 +414,10 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
   };
 
   const finish = (w: Omit<Workout, 'id' | 'isSample'>) => {
+    const asWalk = type === 'Running' && runKind !== 'Walking' && w.run?.kind === 'Walking' ? ' Slower than 15:00 /km, so it was saved as a walk.' : '';
     if (edit) {
       updateWorkout(edit.id, w);
-      notify(`${w.title} updated.`);
+      notify(`${w.title} updated.${asWalk}`);
       return onClose();
     }
     // Personal records against everything logged before this workout.
@@ -423,7 +426,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     deleteDraft(ownId); // no-op when the workout was never saved open
     // The records pop-up replaces the "completed" note, which would cover it.
     if (hasRecords(records)) celebrate(records);
-    else notify(w.hyrox ? `${w.title} completed. See how it compares with your bests on Race Performance.` : `${w.title} completed — added to the workout log.`);
+    else notify(w.hyrox ? `${w.title} completed. See how it compares with your bests on Race Performance.` : `${w.title} completed — added to the workout log.${asWalk}`);
     onClose();
   };
 
@@ -488,7 +491,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
       const sec = parseSplit(r.time);
       if (!(km > 0 && km <= 100)) errs.push(`Run ${i + 1}: enter a distance in km.`);
       else if (!(sec > 0)) errs.push(`${walking ? 'Walk' : 'Run'} ${i + 1}: enter the time, e.g. 21.45 or 21:45 (1.05.30 for over an hour).`);
-      // Paces from 2:00 to 30:00 per km: run-walks and easy jogs can be slow.
+      // Each row 2:00 to 30:00 /km (a walking interval in a run is fine); a run averaging over 15:00 /km is saved as a walk.
       else if (!(sec / km >= 120 && sec / km <= 1800)) errs.push(`${walking ? 'Walk' : 'Run'} ${i + 1}: ${km} km in ${fmtTime(sec)} is ${fmtPace(sec / km)} /km. Check the distance and time.`);
       else segments.push({ distanceKm: km, timeSec: sec });
     });
@@ -497,7 +500,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     if (!segments.length) return undefined;
     const km = segments.reduce((a, x) => a + x.distanceKm, 0);
     const sec = segments.reduce((a, x) => a + x.timeSec, 0);
-    const kind: RunKind = type === 'Running' ? runKind : segments.length > 1 ? 'Intervals' : 'Compromised';
+    // Running slower than 15:00 /km on average is a walk.
+    const kind: RunKind = type === 'Running' ? (runKind !== 'Walking' && sec / km > RUN_MAX_PACE ? 'Walking' : runKind) : segments.length > 1 ? 'Intervals' : 'Compromised';
     return { kind, distanceKm: Math.round(km * 100) / 100, paceSecPerKm: Math.round(sec / km), avgHr: hr, segments };
   };
 
@@ -576,7 +580,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     finish({
       date,
       type,
-      title: isRunning ? (walking ? 'Walk' : `${runKind} Run`) : title.trim() || DEFAULT_TITLE[type],
+      title: isRunning ? (run?.kind === 'Walking' ? 'Walk' : `${runKind} Run`) : title.trim() || DEFAULT_TITLE[type],
       durationMin: Math.max(1, dur),
       intensity,
       exercises: assumed ? functionalF45(workouts) : exercises,
@@ -970,6 +974,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
               <p className="text-sm font-semibold text-slate-900">{runTotals.pace ? `${fmtPace(runTotals.pace)}/km` : '—'}</p>
             </div>
           </div>
+          {type === 'Running' && !walking && runTotals.pace > RUN_MAX_PACE && (
+            <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Average pace {fmtPace(runTotals.pace)} /km is slower than 15:00 /km, so this will be saved as a walk.</p>
+          )}
           <div className="mt-2 max-w-[200px]">
             <label className="label" htmlFor="run-hr">Average HR (optional)</label>
             <input id="run-hr" type="number" inputMode="numeric" className="input" placeholder="bpm" value={runHr} onChange={(e) => setRunHr(e.target.value)} />

@@ -181,6 +181,8 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   HYROX station check compares the farmer's carry with both race kettlebells.
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
+- **Slow runs become walks**: a Running session averaging slower than 15:00 /km is saved as a walk (a note says so
+  while typing). A slower interval inside a faster run keeps the run a run.
 - **Walking**: a Running run type for outdoor or treadmill walks. It counts as a workout (time, training load) but
   never as running: no pace, distance, bests, estimates or goal checks use it.
 - **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). In HYROX Engine, runs
