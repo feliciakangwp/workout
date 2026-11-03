@@ -638,8 +638,10 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     );
     const weightField = (optional: boolean) => (
       <div>
-        <label className="label" htmlFor={`w-${r.key}`}>Weight (kg{optional ? ', optional' : ''})</label>
+        <label className="label" htmlFor={`w-${r.key}`}>Total weight (kg{optional ? ', optional' : ''})</label>
         <input id={`w-${r.key}`} type="number" inputMode="decimal" min={0} step={0.5} className="input placeholder:text-slate-400" placeholder={best?.weightKg ? `Best ${best.weightKg}` : optional ? '' : 'BW'} value={r.weight} onChange={(e) => updateRow(r.key, { weight: e.target.value })} />
+        {/* The example right where the weight is typed: dumbbells and carries count both hands. */}
+        <p className="mt-1 whitespace-nowrap text-[11px] leading-tight text-slate-500">{/carry/i.test(r.name) ? 'Both hands: 2 × 16 = 32 kg' : 'Dumbbells: 2 × 10 = 20 kg'}</p>
       </div>
     );
     const fields = (
@@ -696,7 +698,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           </>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-[2fr_1fr_1fr_1fr]">
-            <div className="col-span-2 self-end sm:col-span-1">{select}</div>
+            <div className="col-span-2 sm:col-span-1 sm:pt-5">{select}</div>
             {fields}
           </div>
         )}
