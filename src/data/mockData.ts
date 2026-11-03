@@ -186,7 +186,7 @@ const LIFT: Record<string, LiftPlan> = {
   lat: { name: 'Lat Pulldown', sets: 3, reps: 10, start: 35, end: 43, step: 1 },
   chest: { name: 'Chest Press', sets: 3, reps: 10, start: 25, end: 32.5, step: 2.5 },
   shoulder: { name: 'Shoulder Press', sets: 3, reps: 10, start: 9, end: 12, step: 1 },
-  farmer: { name: "Farmer's Carry", sets: 4, reps: 40, start: 20, end: 26, step: 2 },
+  farmer: { name: "Farmer's Carry", sets: 4, reps: 40, start: 40, end: 52, step: 4 },
 };
 /** Strength days rotate between lower, upper and full-body sessions. */
 const STRENGTH_DAYS: { title: string; lifts: string[]; extras: (p: number) => ExerciseEntry[] }[] = [
@@ -274,7 +274,7 @@ function engineSession(week: number): EngineSession {
       title: 'HYROX Engine — Lunge & Carry Grinder',
       exercises: [
         { name: 'Sandbag Lunges', sets: 4, reps: 25, weightKg: 10 },
-        { name: "Farmer's Carry (HYROX)", sets: 4, reps: 50, weightKg: 16 },
+        { name: "Farmer's Carry (HYROX)", sets: 4, reps: 50, weightKg: 32 },
         { name: 'Sled Pull', sets: 3, reps: 25 },
       ],
       runs: [1, 1],
@@ -290,7 +290,7 @@ const STATION_EXERCISE: Record<string, ExerciseEntry> = {
   sledPull: { name: 'Sled Pull', sets: 2, reps: 25 },
   burpeeBroadJump: { name: 'Burpee Broad Jump', sets: 2, reps: 40 },
   rowing: { name: 'Row Erg', sets: 2, distanceM: 500 },
-  farmersCarry: { name: "Farmer's Carry (HYROX)", sets: 2, reps: 100, weightKg: 16 },
+  farmersCarry: { name: "Farmer's Carry (HYROX)", sets: 2, reps: 100, weightKg: 32 },
   sandbagLunges: { name: 'Sandbag Lunges', sets: 2, reps: 50, weightKg: 10 },
   wallBalls: { name: 'Wall Balls', sets: 2, reps: 50, weightKg: 4 },
 };

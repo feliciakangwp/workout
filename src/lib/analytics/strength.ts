@@ -14,7 +14,7 @@ export interface LiftSession {
 /** Epley estimated one-rep max. */
 export const e1rm = (weight: number, reps: number) => weight * (1 + reps / 30);
 
-/** Strength measure used for progression: e1RM, or load per hand for carries. */
+/** Strength measure used for progression: e1RM, or total load for carries. */
 export const liftStrength = (s: LiftSession) => (s.reps > 20 ? s.weightKg : s.e1rm);
 
 /** Sessions of one weighted exercise; `strengthOnly` keeps just Strength workouts. */

@@ -1,4 +1,4 @@
-import { STATIONS, STATION_BY_ID, stationWeight } from '../../data/stations';
+import { STATIONS, STATION_BY_ID, stationLoadKg } from '../../data/stations';
 import type { Division, StationId, Workout } from '../../data/types';
 import { sortByDate } from './common';
 
@@ -34,7 +34,8 @@ export const stationScore = (id: StationId, timeSec: number) =>
  */
 export function stationHistory(workouts: Workout[], id: StationId, division: Division): StationAttempt[] {
   const st = STATION_BY_ID[id];
-  const raceKg = stationWeight(id, division);
+  // Logged weights are the total load, so the carry is compared with both kettlebells.
+  const raceKg = stationLoadKg(id, division);
   const out: StationAttempt[] = [];
   for (const w of workouts) {
     for (const s of w.stations ?? [])

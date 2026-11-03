@@ -61,8 +61,8 @@ export function StrengthProgression() {
   const carry = isCarry(exercise);
   const chartData = history.map((h) => ({ ...h, strength: Math.round(liftStrength(h) * 10) / 10 }));
   const metricMeta: Record<Metric, { key: string; name: string; unit: string; color: string }> = {
-    weight: { key: 'weightKg', name: carry ? 'Load per hand' : 'Working weight', unit: 'kg', color: SERIES.blue },
-    strength: { key: 'strength', name: carry ? 'Load per hand' : 'Estimated 1RM', unit: 'kg', color: SERIES.orange },
+    weight: { key: 'weightKg', name: carry ? 'Total load' : 'Working weight', unit: 'kg', color: SERIES.blue },
+    strength: { key: 'strength', name: carry ? 'Total load' : 'Estimated 1RM', unit: 'kg', color: SERIES.orange },
     volume: { key: 'volume', name: 'Session volume', unit: volUnit(exercise), color: SERIES.aqua },
   };
   const m = metricMeta[metric];
@@ -209,7 +209,7 @@ export function StrengthProgression() {
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <StatCard icon={Dumbbell} label={carry ? 'Latest load (per hand)' : 'Latest weight'} value={String(latest.weightKg)} unit="kg" comparison={fmtLong(latest.date)} delta={previous ? latest.weightKg - previous.weightKg : undefined} deltaLabel={previous ? `${latest.weightKg - previous.weightKg >= 0 ? '+' : ''}${latest.weightKg - previous.weightKg} kg` : undefined} />
+            <StatCard icon={Dumbbell} label={carry ? 'Latest load (total)' : 'Latest weight'} value={String(latest.weightKg)} unit="kg" comparison={fmtLong(latest.date)} delta={previous ? latest.weightKg - previous.weightKg : undefined} deltaLabel={previous ? `${latest.weightKg - previous.weightKg >= 0 ? '+' : ''}${latest.weightKg - previous.weightKg} kg` : undefined} />
             <StatCard icon={Layers} label="Sets × reps" value={repLabel(exercise, latest)} comparison={previous ? `Previous: ${repLabel(exercise, previous)}` : 'First session'} accent="sky" />
             <StatCard icon={History} label="Previous performance" value={previous ? String(previous.weightKg) : '—'} unit={previous ? 'kg' : ''} comparison={previous ? `${repLabel(exercise, previous)} · ${fmtShort(previous.date)}` : 'No previous session'} accent="violet" />
             <StatCard icon={TrendingUp} label={carry ? 'Load progression' : 'Strength progression'} value={fmtPct(s.changeSinceStartPct, 1)} comparison={carry ? 'load since first session' : 'est. 1RM since first session'} delta={s.changeVsPreviousPct} deltaLabel={`${fmtPct(s.changeVsPreviousPct, 1)} vs prev`} accent="emerald" />

@@ -177,6 +177,8 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   see "New exercise from …" with *Add to my exercises* (and a *Shared with you* list in My exercises); adding copies
   it into their own exercises (marked "From …"). Untick to stop sharing. Friends can already read each other's data,
   so this chooses who is offered it rather than hiding it.
+- **Weights are the total load**: both dumbbells together, and both hands for carries (2 × 16 kg = 32 kg). The
+  HYROX station check compares the farmer's carry with both race kettlebells.
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Walking**: a Running run type for outdoor or treadmill walks. It counts as a workout (time, training load) but

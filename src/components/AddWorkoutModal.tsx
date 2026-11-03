@@ -5,7 +5,7 @@ import { EXERCISES, EXERCISE_BY_NAME, MODE_MEASURE, defaultMode, entryMeasure, e
 import { DEFAULT_TITLE } from '../lib/workoutTitles';
 import { F45_MINUTES, functionalF45 } from '../lib/f45';
 import { MUSCLES } from '../data/muscles';
-import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationSpec, stationWeight } from '../data/stations';
+import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationLoadKg, stationSpec } from '../data/stations';
 import { planKey, type CustomExercise, type Division, type DraftForm, type EntryMode, type ExerciseEntry, type ExerciseMeasure, type HyroxSplit, type RunData, type RunKind, type SimType, type StationId, type StationResult, type Workout, type WorkoutType } from '../data/types';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
@@ -448,7 +448,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         exercises.push(
           exerciseMeasure(s.exercise) === 'distanceTime'
             ? { name: s.exercise, sets: 1, distanceM: s.amount * fraction, durationSec: stationSec, creditSets: 4 * fraction }
-            : { name: s.exercise, sets: 1, reps: s.amount * fraction, weightKg: stationWeight(s.id, division), creditSets: 4 * fraction },
+            : { name: s.exercise, sets: 1, reps: s.amount * fraction, weightKg: stationLoadKg(s.id, division), creditSets: 4 * fraction },
         );
       }
     }
@@ -900,7 +900,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           {engineSec > 0 && duration.trim() && Number(duration) !== Math.ceil(engineSec / 60) && (
             <button className="mt-1.5 text-xs font-medium text-blue-700 hover:underline" onClick={() => setDuration('')}>Use the estimate ({Math.ceil(engineSec / 60)} min) as the duration</button>
           )}
-          <p className="mt-1.5 text-[11px] text-slate-500">Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries. Times are m:ss; a plain number is minutes (5 = 5:00).</p>
+          <p className="mt-1.5 text-[11px] text-slate-500">Grey text shows your best previous effort for each exercise. Weight is the total load: both dumbbells together, and both hands for carries (2 × 16 kg = 32 kg). Times are m:ss; a plain number is minutes (5 = 5:00).</p>
         </div>
       )}
 
@@ -921,7 +921,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           </div>
           {addMoreButton('Add another exercise', addExercise)}
           <p className="mt-1.5 text-[11px] text-slate-500">
-            Use the arrows to change the order, e.g. when equipment is taken. Grey text shows your best previous effort for each exercise. Weight is per hand for dumbbells and carries.
+            Use the arrows to change the order, e.g. when equipment is taken. Grey text shows your best previous effort for each exercise. Weight is the total load: both dumbbells together, and both hands for carries (2 × 16 kg = 32 kg).
             {type === 'Strength' && ' Cardio machines (distance & time) are logged under HYROX Engine or F45.'}
           </p>
         </div>

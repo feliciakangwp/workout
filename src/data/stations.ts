@@ -33,7 +33,7 @@ export const STATIONS: StationInfo[] = [
 
 export const STATION_BY_ID = Object.fromEntries(STATIONS.map((s) => [s.id, s])) as Record<StationId, StationInfo>;
 
-/** Official station loads (kg) by division. Farmer's carry is per hand. */
+/** Official station loads (kg) by division. Farmer's carry is per hand (two kettlebells). */
 const WEIGHTS: Record<string, Partial<Record<StationId, number>>> = {
   'female-open': { sledPush: 102, sledPull: 78, farmersCarry: 16, sandbagLunges: 10, wallBalls: 4 },
   'female-pro': { sledPush: 152, sledPull: 103, farmersCarry: 24, sandbagLunges: 20, wallBalls: 6 },
@@ -42,6 +42,12 @@ const WEIGHTS: Record<string, Partial<Record<StationId, number>>> = {
 };
 
 export const stationWeight = (id: StationId, d: Division) => WEIGHTS[`${d.sex}-${d.category}`][id];
+
+/** Total load as athletes log it: both hands for the farmer's carry. */
+export const stationLoadKg = (id: StationId, d: Division) => {
+  const w = stationWeight(id, d);
+  return w && id === 'farmersCarry' ? w * 2 : w;
+};
 
 export const SIM_TYPES: { id: SimType; label: string; fraction: number }[] = [
   { id: 'half', label: 'Half Sim', fraction: 0.5 },

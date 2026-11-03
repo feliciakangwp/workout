@@ -34,7 +34,7 @@ export interface ExerciseEntry {
   distanceM?: number;
   /** Time per set in seconds (plank, ergs and bikes). */
   durationSec?: number;
-  /** Load per rep in kg (per hand for dumbbell / carry work). */
+  /** Total load in kg: both dumbbells together, both hands for carries. */
   weightKg?: number;
   /** Muscle groups for exercises not in the library (user-added). */
   customMuscles?: MuscleGroup[];
