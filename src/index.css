@@ -68,3 +68,15 @@
     @apply inline;
   }
 }
+
+/*
+ * iPhone Safari zooms into any text field under 16px when it is tapped. On phones every
+ * field (search boxes and the small ones included) uses at least 16px, so nothing zooms.
+ */
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
