@@ -101,9 +101,10 @@ export function WeeklyPlanner({ className = '' }: { className?: string }) {
                 </span>
               </div>
               <div className="min-w-0 flex-1 sm:mt-2">
-                {planned.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {planned.map((t) => {
+                {/* Planned workouts still to do; once one is done, its ✓ line below is enough. */}
+                {planned.some((t) => !done.some((w) => w.type === t)) && (
+                  <div className="mb-0.5 flex flex-wrap gap-1">
+                    {planned.filter((t) => !done.some((w) => w.type === t)).map((t) => {
                       const detail = planDetails[planKey(d, t)];
                       return (
                         <span key={t} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700">
