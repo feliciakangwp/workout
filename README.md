@@ -182,6 +182,12 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 - **Exercise search**: tap an exercise box to search (every typed word must match, e.g. "bar sq"). With no match it
   says so and offers *Create custom exercise "…"* with the typed name. A new custom exercise shows a reminder to tick
   Strength and/or HYROX Engine so it is saved for next time.
+- **Recovery library** (`src/data/recovery.ts`): Recovery workouts offer only HYROX recovery work: 6 lower-body and 5
+  upper-body stretches, 4 mobility drills and Walking (circulation). Picking one fills in its dose (e.g. 0:30 hold per
+  side, 8 reps per side) and shows the muscles, how-to and HYROX link. Stretches name the muscles they stretch but
+  earn no training credit in Muscle Analysis. *Surprise me* for Recovery starts with a 10–15 min walk, then 3 lower,
+  2 upper and 2 mobility picks, favouring the muscles worked hardest in the last 7 days (sets vs weekly target, plus
+  running for the legs) with two rounds for the top ones, while keeping a spread across the body.
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Slow runs become walks**: a Running session averaging slower than 15:00 /km is saved as a walk (a note says so

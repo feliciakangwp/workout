@@ -1,7 +1,8 @@
 import { EXERCISE_BY_NAME, type ExerciseInfo } from '../data/exercises';
 import { MUSCLE_BY_ID } from '../data/muscles';
 import type { CustomExercise, EntryMode, MuscleGroup, Workout, WorkoutType } from '../data/types';
-import { muscleCoverage } from './analytics/muscles';
+import { muscleCoverage, setCredits } from './analytics/muscles';
+import { RECOVERY_EXERCISES, type RecoveryInfo } from '../data/recovery';
 import { avgPace, runs } from './analytics/running';
 import { addDays } from './dates';
 import { fmtTime } from './format';
@@ -269,5 +270,71 @@ export function surpriseEngine(workouts: Workout[], date: string, customs: Custo
       ownNote(ctx, items),
       skipNote(ctx),
     ].filter(Boolean),
+  };
+}
+
+/**
+ * About half an hour of recovery: an easy walk for circulation, then stretches and mobility
+ * spread over lower body, upper body and spine. Muscles worked hardest in the last 7 days
+ * (training sets against their weekly target, plus running for the legs) are more likely to
+ * be stretched, and held longer, but no single area takes over.
+ */
+export function surpriseRecovery(workouts: Workout[], date: string): Surprise {
+  const recent = workouts.filter((w) => w.date >= addDays(date, -6) && w.date <= date && !w.fromPlan);
+  const sets = setCredits(recent);
+  const runKm = runs(recent).reduce((a, r) => a + r.distanceKm, 0);
+  // A kilometre of running loads the legs roughly like a fraction of a set.
+  const legs: Partial<Record<MuscleGroup, number>> = { quadriceps: 0.6, hamstrings: 0.5, calves: 0.6, glutes: 0.4 };
+  const strain = Object.fromEntries(
+    (Object.keys(sets) as MuscleGroup[]).map((m) => [m, (sets[m] + (legs[m] ?? 0) * runKm) / MUSCLE_BY_ID[m].weeklyTargetSets]),
+  ) as Record<MuscleGroup, number>;
+  const ranked = (Object.keys(strain) as MuscleGroup[]).sort((a, b) => strain[b] - strain[a]);
+  const top = new Set(ranked.slice(0, 3).filter((m) => strain[m] > 0.2));
+
+  const stretched = new Set<MuscleGroup>();
+  const taken = new Set<string>();
+  const weight = (r: RecoveryInfo) =>
+    (0.25 + Math.max(0, ...r.muscles.map((m) => strain[m] * (stretched.has(m) ? 0.3 : 1)))) * (lastSurprise.has(r.name) ? 0.45 : 1);
+  const pickFrom = (region: RecoveryInfo['region'], count: number) => {
+    const out: RecoveryInfo[] = [];
+    for (let i = 0; i < count; i++) {
+      const r = draw(RECOVERY_EXERCISES.filter((x) => x.region === region && !taken.has(x.name)), weight);
+      if (!r) break;
+      out.push(r);
+      taken.add(r.name);
+      r.muscles.forEach((m) => stretched.add(m));
+    }
+    return out;
+  };
+  // Both halves of the body every time, plus spine / hip mobility.
+  const chosen = [...pickFrom('lower', 3), ...pickFrom('upper', 2), ...pickFrom('mobility', 2)];
+
+  const walkMin = runKm >= 20 ? 10 : 15;
+  const items: SurpriseItem[] = [{ kind: 'exercise', name: 'Walking', sets: 1, timeSec: walkMin * 60 }];
+  let sec = walkMin * 60;
+  for (const r of chosen) {
+    // Muscles worked hardest this week get two rounds.
+    const rounds = r.muscles.some((m) => top.has(m)) ? 2 : 1;
+    const sides = r.dose.perSide ? 2 : 1;
+    if (r.dose.reps) {
+      items.push({ kind: 'exercise', name: r.name, sets: rounds, reps: r.dose.reps });
+      sec += rounds * sides * r.dose.reps * 4 + 15;
+    } else {
+      items.push({ kind: 'exercise', name: r.name, sets: rounds, timeSec: r.dose.timeSec });
+      sec += rounds * sides * (r.dose.timeSec ?? 30) + 15;
+    }
+  }
+  remember(items);
+  const most = ranked.filter((m) => strain[m] > 0.2).slice(0, 3);
+  return {
+    title: 'Surprise Recovery',
+    items,
+    durationMin: Math.max(15, Math.round(sec / 60)),
+    notes: [
+      most.length
+        ? `Worked hardest this week: ${most.map((m) => MUSCLE_BY_ID[m].label.toLowerCase()).join(', ')}. Their stretches are more likely and get two rounds.`
+        : 'A light week, so an even spread of stretches.',
+      `Starts with a ${walkMin}-minute easy walk for circulation, then lower body, upper body and mobility.`,
+    ],
   };
 }

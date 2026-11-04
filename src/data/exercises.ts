@@ -1,3 +1,4 @@
+import { RECOVERY_EXERCISES } from './recovery';
 import type { EntryMode, ExerciseEntry, ExerciseMeasure, MuscleGroup } from './types';
 
 export interface ExerciseInfo {
@@ -12,6 +13,8 @@ export interface ExerciseInfo {
   conditioning?: boolean;
   /** How the exercise is logged: sets × reps × weight (default), time only, or distance + time. */
   measure?: ExerciseMeasure;
+  /** Recovery stretch or mobility drill: only offered in Recovery workouts, no training credit. */
+  recovery?: boolean;
 }
 
 export const MODE_MEASURE: Record<EntryMode, ExerciseMeasure> = { reps: 'weight', distance: 'distanceTime', time: 'time' };
@@ -72,6 +75,11 @@ export const EXERCISES: ExerciseInfo[] = [
   { name: 'Sandbag Lunges', primary: ['quadriceps', 'glutes'], secondary: ['core'], repUnit: 'm', conditioning: true },
   { name: 'Wall Balls', primary: ['quadriceps', 'shoulders'], secondary: ['glutes', 'triceps'], conditioning: true },
 ];
+
+// Recovery: stretches are held (time), mobility drills are counted (reps, no weight).
+EXERCISES.push(
+  ...RECOVERY_EXERCISES.map((r): ExerciseInfo => ({ name: r.name, primary: r.muscles, secondary: [], measure: r.dose.reps ? 'weight' : 'time', recovery: true })),
+);
 
 export const EXERCISE_BY_NAME: Record<string, ExerciseInfo> = Object.fromEntries(
   EXERCISES.map((e) => [e.name, e]),

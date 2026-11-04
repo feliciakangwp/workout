@@ -1,5 +1,6 @@
 import { Clock, Flame, Gauge, HeartPulse, Route, Trash2, Pencil } from 'lucide-react';
 import { EXERCISE_BY_NAME, entryMeasure } from '../data/exercises';
+import { RECOVERY_BY_NAME } from '../data/recovery';
 import { MUSCLE_BY_ID } from '../data/muscles';
 import { STATION_BY_ID, divisionLabel, simFraction, simLabel, stationSpec } from '../data/stations';
 import type { ExerciseEntry, Workout } from '../data/types';
@@ -11,6 +12,12 @@ import { SimComparison } from './SimAnalysis';
 
 export const fmtSetsReps = (e: ExerciseEntry) => {
   const m = entryMeasure(e);
+  const rec = RECOVERY_BY_NAME[e.name];
+  if (rec) {
+    const side = rec.dose.perSide ? ' per side' : '';
+    const dose = e.durationSec ? fmtTime(e.durationSec) : `${e.reps ?? '—'} reps`;
+    return `${e.sets > 1 ? `${e.sets} × ` : ''}${dose}${rec.region === 'walk' ? '' : side}`;
+  }
   if (m === 'time') return `${e.sets > 1 || !e.mode ? `${e.sets} × ` : ''}${e.durationSec ? fmtTime(e.durationSec) : '—'}${e.reps ? ` · ${e.reps} reps` : ''}`;
   if (m === 'distanceTime') return `${e.sets > 1 ? `${e.sets} × ` : ''}${e.distanceM ?? '—'} m${e.durationSec ? ` in ${fmtTime(e.durationSec)}` : ''}`;
   const unit = EXERCISE_BY_NAME[e.name]?.repUnit === 'm' ? ' m' : '';
@@ -20,6 +27,7 @@ export const fmtSetsReps = (e: ExerciseEntry) => {
 /** Load column: weight, or pace for distance + time machines. */
 export const fmtLoad = (e: ExerciseEntry) => {
   const m = entryMeasure(e);
+  if (RECOVERY_BY_NAME[e.name]) return '—';
   if (e.weightKg && m !== 'weight') return `${e.weightKg} kg`;
   if (m === 'distanceTime') return e.distanceM && e.durationSec ? `${fmtTime((e.durationSec / e.distanceM) * 500)} /500m` : '—';
   if (m === 'time') return '—';
@@ -143,7 +151,7 @@ export function WorkoutDetail({ workout, onRemove, onEdit }: { workout: Workout;
       )}
 
       <div>
-        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Muscle groups trained</h4>
+        <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{workout.exercises.every((e) => RECOVERY_BY_NAME[e.name]) ? 'Muscle groups stretched' : 'Muscle groups trained'}</h4>
         {muscles.length ? (
           <div className="flex flex-wrap gap-1.5">
             {muscles.map((m) => (

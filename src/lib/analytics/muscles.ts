@@ -18,7 +18,8 @@ export const COVERAGE_META: Record<CoverageStatus, { label: string; color: strin
 /** Muscles credited by one exercise: primary = 1 set per set, secondary = 0.5. */
 export function exerciseMuscles(e: ExerciseEntry): { primary: MuscleGroup[]; secondary: MuscleGroup[]; factor: number } {
   const info = EXERCISE_BY_NAME[e.name];
-  if (info) return { primary: info.primary, secondary: info.secondary, factor: info.conditioning ? 0.5 : 1 };
+  // Recovery stretches aren't training: they name the muscles they stretch but earn no set credit.
+  if (info) return { primary: info.primary, secondary: info.secondary, factor: info.recovery ? 0 : info.conditioning ? 0.5 : 1 };
   return { primary: e.customMuscles ?? [], secondary: [], factor: 1 };
 }
 
@@ -42,8 +43,8 @@ export const workoutMuscles = (w: Workout): MuscleGroup[] => {
 
 export const hitsMuscle = (w: Workout, m: MuscleGroup) =>
   w.exercises.some((e) => {
-    const { primary, secondary } = exerciseMuscles(e);
-    return primary.includes(m) || secondary.includes(m);
+    const { primary, secondary, factor } = exerciseMuscles(e);
+    return factor > 0 && (primary.includes(m) || secondary.includes(m)); // stretching isn't training
   });
 
 export function coverageStatus(sets: number, target: number, hasAnyData: boolean): CoverageStatus {
@@ -106,9 +107,9 @@ export function muscleDetail(workouts: Workout[], muscle: MuscleGroup, today = D
   const exMap = new Map<string, { name: string; sets: number; lastDate: string; primary: boolean }>();
   for (const w of last28)
     for (const e of w.exercises) {
-      const { primary, secondary } = exerciseMuscles(e);
+      const { primary, secondary, factor } = exerciseMuscles(e);
       const isPrimary = primary.includes(muscle);
-      if (!isPrimary && !secondary.includes(muscle)) continue;
+      if (!factor || (!isPrimary && !secondary.includes(muscle))) continue;
       const cur = exMap.get(e.name) ?? { name: e.name, sets: 0, lastDate: w.date, primary: isPrimary };
       cur.sets += e.creditSets ?? e.sets;
       if (w.date > cur.lastDate) cur.lastDate = w.date;

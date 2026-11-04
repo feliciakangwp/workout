@@ -1,8 +1,9 @@
 import { CheckCircle2, ChevronDown, ChevronUp, Dices, Plus, Save, Trash2 } from 'lucide-react';
-import { surpriseEngine, surpriseStrength } from '../lib/surprise';
+import { surpriseEngine, surpriseRecovery, surpriseStrength } from '../lib/surprise';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EXERCISES, EXERCISE_BY_NAME, MODE_MEASURE, defaultMode, entryMeasure, exerciseMeasure } from '../data/exercises';
 import { DEFAULT_TITLE } from '../lib/workoutTitles';
+import { RECOVERY_BY_NAME, RECOVERY_EXERCISES, RECOVERY_NOTE } from '../data/recovery';
 import { F45_MINUTES, functionalF45 } from '../lib/f45';
 import { MUSCLES } from '../data/muscles';
 import { SIM_TYPES, STATIONS, divisionLabel, simFraction, simLabel, stationLoadKg, stationSpec } from '../data/stations';
@@ -282,7 +283,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     setScrollTo(null);
   }, [scrollTo]);
   const addExercise = () => {
-    const row = newRow('', type === 'HYROX Engine' ? '1' : '3');
+    const row = newRow('', type === 'HYROX Engine' || type === 'Recovery' ? '1' : '3');
     setRows((rs) => [...rs, row]);
     if (type === 'HYROX Engine') setOrder([...sequenceKeys, row.key]); // in the order tapped, runs and exercises mixed
     setScrollTo(`ex-${row.key}`);
@@ -299,7 +300,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
   const surpriseMe = () => {
     const hasWork = rows.some((r) => !isEmptyExercise(r)) || runRows.some((r) => !isEmptyRun(r));
     if (hasWork && !window.confirm('Replace your exercises with a surprise workout?')) return;
-    const s = type === 'HYROX Engine' ? surpriseEngine(workouts, date, customExercises) : surpriseStrength(workouts, date, customExercises);
+    const s = type === 'HYROX Engine' ? surpriseEngine(workouts, date, customExercises) : type === 'Recovery' ? surpriseRecovery(workouts, date) : surpriseStrength(workouts, date, customExercises);
     const exRows: ExerciseRow[] = [];
     const runList: RunRow[] = [];
     const keys: number[] = [];
@@ -604,13 +605,18 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
    * Exercise choices in alphabetical order: the library (distance + time machines
    * are left out of Strength) plus custom exercises saved for this workout type.
    */
-  const exerciseOptions = (current: string) =>
-    [
-      ...EXERCISES.filter((e) => type !== 'Strength' || e.measure !== 'distanceTime' || e.name === current).map((e) => e.name),
-      ...customExercises.filter((c) => c.types.includes(type) || c.name === current).map((c) => c.name),
-      // A logged exercise no longer in the lists (e.g. a removed custom one) stays selectable when editing.
-      ...(current && current !== CUSTOM && !EXERCISE_BY_NAME[current] && !savedCustom(current) ? [current] : []),
-    ].sort((a, b) => a.localeCompare(b));
+  const exerciseOptions = (current: string) => {
+    // Recovery has its own library, in its own order: lower body, upper body, mobility, walking.
+    const list =
+      type === 'Recovery'
+        ? [...RECOVERY_EXERCISES.map((r) => r.name), ...customExercises.filter((c) => c.types.includes(type)).map((c) => c.name)]
+        : [
+            ...EXERCISES.filter((e) => !e.recovery && (type !== 'Strength' || e.measure !== 'distanceTime')).map((e) => e.name),
+            ...customExercises.filter((c) => c.types.includes(type)).map((c) => c.name),
+          ].sort((a, b) => a.localeCompare(b));
+    // An exercise already in the row (e.g. from an older workout) stays selectable when editing.
+    return current && current !== CUSTOM && !list.includes(current) ? [current, ...list] : list;
+  };
 
   const renderExercise = (r: ExerciseRow, i: number, controls?: ReactNode) => {
     const isCustom = r.name === CUSTOM;
@@ -633,6 +639,10 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             updateRow(r.key, {
               name,
               mode: undefined,
+              // Recovery: one round at the library's dose (e.g. 0:30 per side, or 8 reps per side).
+              ...(RECOVERY_BY_NAME[name]
+                ? { sets: '1', time: RECOVERY_BY_NAME[name].dose.timeSec ? fmtTime(RECOVERY_BY_NAME[name].dose.timeSec!) : '', reps: RECOVERY_BY_NAME[name].dose.reps ? String(RECOVERY_BY_NAME[name].dose.reps) : '' }
+                : {}),
               ...(customName !== undefined ? { customName } : {}),
               ...(engine && r.reps === '10' && name !== CUSTOM && defaultMode(name, savedCustom(name)?.measure ?? exerciseMeasure(name)) === 'time' ? { reps: '' } : {}),
             })
@@ -664,21 +674,22 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
       </div>
     );
     const timedBlock = engine && m === 'time';
+    const rec = RECOVERY_BY_NAME[r.name];
     const fields = (
       <>
         {!timedBlock && (
           <div>
-            <label className="label" htmlFor={`sets-${r.key}`}>{m === 'distanceTime' && !engine ? 'Rounds' : 'Sets'}</label>
+            <label className="label" htmlFor={`sets-${r.key}`}>{rec || (m === 'distanceTime' && !engine) ? 'Rounds' : 'Sets'}</label>
             <input id={`sets-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
           </div>
         )}
         {m === 'weight' && (
           <>
             <div>
-              <label className="label" htmlFor={`reps-${r.key}`}>{!engine && EXERCISE_BY_NAME[r.name]?.repUnit === 'm' ? 'Distance (m)' : 'Reps'}</label>
+              <label className="label" htmlFor={`reps-${r.key}`}>{rec ? (rec.dose.perSide ? 'Reps per side' : 'Reps') : !engine && EXERCISE_BY_NAME[r.name]?.repUnit === 'm' ? 'Distance (m)' : 'Reps'}</label>
               <input id={`reps-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
             </div>
-            {weightField(false)}
+            {!rec && weightField(false)}
             {engine && (
               <div>
                 <label className="label" htmlFor={`time-${r.key}`}>Time (optional)</label>
@@ -695,7 +706,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         )}
         {m !== 'weight' && (
           <div className={m === 'time' && !engine ? 'sm:col-span-2' : ''}>
-            <label className="label" htmlFor={`time-${r.key}`}>{timedBlock ? 'Time (m.ss)' : m === 'time' ? 'Time per set (m:ss)' : engine ? 'Time (optional)' : 'Time (m:ss)'}</label>
+            <label className="label" htmlFor={`time-${r.key}`}>{timedBlock ? 'Time (m.ss)' : rec ? (rec.region === 'walk' ? 'Time (m.ss)' : rec.dose.perSide ? 'Hold per side (m.ss)' : 'Hold (m.ss)') : m === 'time' ? 'Time per set (m:ss)' : engine ? 'Time (optional)' : 'Time (m:ss)'}</label>
             <input id={`time-${r.key}`} inputMode="decimal" className="input" placeholder={m === 'time' ? (engine ? '2:00' : '0:45') : '1:50'} value={r.time} onChange={(e) => updateRow(r.key, { time: e.target.value })} />
           </div>
         )}
@@ -731,7 +742,14 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             {fields}
           </div>
         )}
-        {best && <p className="mt-1.5 text-xs text-slate-400">{best.label}</p>}
+        {best && !RECOVERY_BY_NAME[r.name] && <p className="mt-1.5 text-xs text-slate-400">{best.label}</p>}
+        {RECOVERY_BY_NAME[r.name] && (
+          <p className="mt-1.5 text-xs text-slate-500">
+            <span className="font-medium text-slate-600">{RECOVERY_BY_NAME[r.name].targets}</span> · {RECOVERY_BY_NAME[r.name].dose.text}
+            {RECOVERY_BY_NAME[r.name].how && <span className="block">{RECOVERY_BY_NAME[r.name].how}</span>}
+            <span className="block text-slate-400">For: {RECOVERY_BY_NAME[r.name].hyrox}</span>
+          </p>
+        )}
         {isCustom && (
           <div className="mt-2 space-y-3 rounded-lg bg-slate-50 p-3">
             <input className="input" placeholder="Exercise name" value={r.customName} onChange={(e) => updateRow(r.key, { customName: e.target.value })} aria-label="Custom exercise name" />
@@ -945,21 +963,25 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-sm font-semibold text-slate-800">Exercises</h4>
             <div className="flex gap-1.5">
-              {type === 'Strength' && surpriseButton}
+              {(type === 'Strength' || type === 'Recovery') && surpriseButton}
               <button className="btn-ghost py-1.5 text-xs" onClick={addExercise}>
                 <Plus size={14} /> Add exercise
               </button>
             </div>
           </div>
-          {type === 'Strength' && surpriseInfo}
+          {(type === 'Strength' || type === 'Recovery') && surpriseInfo}
           <div className="space-y-2">
             {rows.map((r, i) => renderExercise(r, i, rows.length > 1 ? moveControls(i, rows.length, (dir) => moveRow(r.key, dir)) : undefined))}
           </div>
           {addMoreButton('Add another exercise', addExercise)}
-          <p className="mt-1.5 text-[11px] text-slate-500">
-            Use the arrows to change the order, e.g. when equipment is taken. Grey text shows your best previous effort for each exercise. Weight is the total load: both dumbbells together, and both hands for carries (2 × 16 kg = 32 kg).
-            {type === 'Strength' && ' Cardio machines (distance & time) are logged under HYROX Engine or F45.'}
-          </p>
+          {type === 'Recovery' ? (
+            <p className="mt-1.5 text-[11px] text-slate-500">Stretches and mobility drills, plus an easy walk for circulation. They don't count as training sets in Muscle Analysis. {RECOVERY_NOTE}</p>
+          ) : (
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              Use the arrows to change the order, e.g. when equipment is taken. Grey text shows your best previous effort for each exercise. Weight is the total load: both dumbbells together, and both hands for carries (2 × 16 kg = 32 kg).
+              {type === 'Strength' && ' Cardio machines (distance & time) are logged under HYROX Engine or F45.'}
+            </p>
+          )}
         </div>
       )}
 
