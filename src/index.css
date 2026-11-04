@@ -80,3 +80,20 @@
     font-size: 16px !important;
   }
 }
+
+/*
+ * iPhone Safari gives date fields a built-in minimum width and centred text, so in a
+ * two-column row the date spilled under the next field. Let them shrink to their column.
+ */
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  display: block;
+  /* Without the native look an empty date field can collapse on iPhone: keep the usual field height. */
+  min-height: 40px;
+}
+input[type='date']::-webkit-date-and-time-value {
+  text-align: left;
+}
