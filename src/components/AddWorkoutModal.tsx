@@ -348,7 +348,26 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
   );
 
   const updateRow = (key: number, patch: Partial<ExerciseRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const updateRun = (key: number, patch: Partial<RunRow>) => setRunRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  /**
+   * Distance, time and treadmill speed: any two typed fill in the third (marked auto).
+   * Typing over an auto value makes it the athlete's own.
+   */
+  const editRun = (key: number, field: 'km' | 'time' | 'speed', value: string) =>
+    setRunRows((rs) =>
+      rs.map((r) => {
+        if (r.key !== key) return r;
+        const next: RunRow = { ...r, [field]: value, auto: r.auto === field ? undefined : r.auto };
+        const typed = (f: 'km' | 'time' | 'speed') => !!(next[f] ?? '').trim() && next.auto !== f;
+        const km = Number(next.km);
+        const sec = parseSplit(next.time);
+        const speed = Number(next.speed);
+        if (typed('km') && typed('time') && !typed('speed')) return km > 0 && sec > 0 ? { ...next, speed: String(Math.round((km / (sec / 3600)) * 10) / 10), auto: 'speed' } : { ...next, speed: '', auto: undefined };
+        if (typed('speed') && typed('time') && !typed('km')) return speed > 0 && sec > 0 ? { ...next, km: String(Math.round(speed * (sec / 3600) * 100) / 100), auto: 'km' } : { ...next, km: '', auto: undefined };
+        if (typed('km') && typed('speed') && !typed('time')) return km > 0 && speed > 0 ? { ...next, time: fmtTime(Math.round((km / speed) * 3600)), auto: 'time' } : { ...next, time: '', auto: undefined };
+        // Fewer than two typed: an auto value no longer follows from anything, so clear it.
+        return next.auto && !(['km', 'time', 'speed'] as const).filter((f) => f !== next.auto).every(typed) ? { ...next, [next.auto]: '', auto: undefined } : next;
+      }),
+    );
 
   const runTotals = useMemo(() => {
     let km = 0;
@@ -812,6 +831,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
   const renderRun = (r: RunRow, i: number, controls?: ReactNode) => {
     const km = Number(r.km);
     const sec = parseSplit(r.time);
+    // Shown inside the field, so the labels stay on one line and the boxes stay aligned.
+    const autoTag = (f: RunRow['auto']) => (r.auto === f ? <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 rounded bg-blue-100 px-1 text-[10px] font-semibold text-blue-700">auto</span> : null);
+    const autoCls = (f: RunRow['auto']) => (r.auto === f ? 'bg-blue-50 text-blue-900' : '');
     return (
       <div className="rounded-xl border border-slate-200 p-3">
         <div className="mb-2 flex items-center justify-between gap-2">
@@ -823,17 +845,31 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="label" htmlFor={`rkm-${r.key}`}>Distance (km)</label>
-          <input id={`rkm-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className="input" placeholder="1" value={r.km} onChange={(e) => updateRun(r.key, { km: e.target.value })} />
-        </div>
-        <div>
-          <label className="label" htmlFor={`rt-${r.key}`}>Time (m.ss or m:ss)</label>
-          <input id={`rt-${r.key}`} inputMode="decimal" className="input" placeholder="5:15" value={r.time} onChange={(e) => updateRun(r.key, { time: e.target.value })} />
-        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="label" htmlFor={`rkm-${r.key}`}>Distance (km)</label>
+            <div className="relative">
+              <input id={`rkm-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className={`input ${autoCls('km')}`} placeholder="1" value={r.km} onChange={(e) => editRun(r.key, 'km', e.target.value)} />
+              {autoTag('km')}
+            </div>
+          </div>
+          <div>
+            <label className="label" htmlFor={`rt-${r.key}`}>Time (m.ss)</label>
+            <div className="relative">
+              <input id={`rt-${r.key}`} inputMode="decimal" className={`input ${autoCls('time')}`} placeholder="5:15" value={r.time} onChange={(e) => editRun(r.key, 'time', e.target.value)} />
+              {autoTag('time')}
+            </div>
+          </div>
+          <div>
+            <label className="label" htmlFor={`rsp-${r.key}`}>Speed (km/h)</label>
+            <div className="relative">
+              <input id={`rsp-${r.key}`} type="number" inputMode="decimal" min={0} step={0.1} className={`input ${autoCls('speed')}`} placeholder="Treadmill" value={r.speed ?? ''} onChange={(e) => editRun(r.key, 'speed', e.target.value)} />
+              {autoTag('speed')}
+            </div>
+          </div>
         </div>
         {km > 0 && sec > 0 && <p className="mt-1 text-xs text-slate-500">Pace {fmtPace(sec / km)} /km</p>}
+        {!r.km && !r.time && <p className="mt-1 text-[11px] text-slate-500">On a treadmill? Enter any two of distance, time and speed; the third fills in.</p>}
       </div>
     );
   };

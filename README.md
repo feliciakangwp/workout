@@ -192,6 +192,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Slow runs become walks**: a Running session averaging slower than 15:00 /km is saved as a walk (a note says so
   while typing). A slower interval inside a faster run keeps the run a run.
+- **Treadmill speed**: each run row has Distance, Time and Speed (km/h). Any two fill in the third (marked *auto*):
+  speed + time → distance, distance + time → speed, distance + speed → time; the pace follows. Typing over an auto
+  value makes it your own.
 - **Walking**: a Running run type for outdoor or treadmill walks. It counts as a workout (time, training load) but
   never as running: no pace, distance, bests, estimates or goal checks use it.
 - **Runs**: Running and HYROX Engine sessions take any number of runs / intervals (*+ Add run*). In HYROX Engine, runs

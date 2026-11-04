@@ -199,7 +199,15 @@ export interface DraftForm {
   }[];
   runKind: RunKind;
   /** One row per run or interval. */
-  runRows: { key: number; km: string; time: string }[];
+  runRows: {
+    key: number;
+    km: string;
+    time: string;
+    /** Treadmill speed in km/h (optional). */
+    speed?: string;
+    /** The one of distance, time and speed worked out from the other two. */
+    auto?: 'km' | 'time' | 'speed';
+  }[];
   runHr: string;
   /** HYROX Engine: exercise and run row keys in the order they are done. */
   order?: number[];
