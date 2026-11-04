@@ -83,12 +83,13 @@ function workoutToForm(w: Workout, division: Division): DraftForm {
         ...newRow(e.name),
         customMuscles: e.customMuscles ?? [],
         mode: e.mode,
-        sets: String(e.sets),
+        // HYROX Engine timed work is one block: older entries of several sets add up.
+        sets: w.type === 'HYROX Engine' && e.mode === 'time' ? '1' : String(e.sets),
         reps: e.reps !== undefined ? String(e.reps) : '',
         weight: e.weightKg !== undefined ? String(e.weightKg) : '',
         // Metre-based work logged as "reps" before distance could be chosen.
         distance: e.distanceM !== undefined ? String(e.distanceM) : w.type === 'HYROX Engine' && !e.mode && EXERCISE_BY_NAME[e.name]?.repUnit === 'm' && e.reps ? String(e.reps) : '',
-        time: t(e.durationSec),
+        time: t(e.durationSec && w.type === 'HYROX Engine' && e.mode === 'time' ? e.durationSec * e.sets : e.durationSec),
       }));
   const segments = w.run?.segments?.length ? w.run.segments : w.run ? [{ distanceKm: w.run.distanceKm, timeSec: w.run.distanceKm * w.run.paceSecPerKm }] : [];
   const engine = w.type === 'HYROX Engine';
@@ -369,7 +370,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     let sec = runTotals.sec;
     for (const r of rows) {
       const t = parseSplit(r.time);
-      if (t > 0) sec += t * (Number(r.sets) > 0 ? Number(r.sets) : 1); // reps can be timed too
+      // Reps can be timed too; a timed block counts once.
+      if (t > 0) sec += t * (rowMode(r) !== 'time' && Number(r.sets) > 0 ? Number(r.sets) : 1);
     }
     return sec;
   }, [type, rows, runTotals.sec, customExercises]);
@@ -532,7 +534,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         const muscles = isCustom ? r.customMuscles : savedCustom(r.name)?.muscles ?? (r.customMuscles.length ? r.customMuscles : undefined);
         const n = `Exercise ${i + 1}${name ? ` (${name})` : ''}`;
         if (isEmptyExercise(r)) return;
-        const sets = Number(r.sets);
+        // HYROX Engine timed work is one block of time (with an optional rep count), not sets.
+        const timedBlock = engine && mode === 'time';
+        const sets = timedBlock ? 1 : Number(r.sets);
         if (!name) errs.push(`Exercise ${i + 1}: enter a name.`);
         if (!(sets > 0 && Number.isInteger(sets))) errs.push(`${n}: sets must be a whole number above 0.`);
         if (isCustom && r.customMuscles.length === 0) errs.push(`${n}: select at least one muscle group for a custom exercise.`);
@@ -558,7 +562,11 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             const m = Number(r.distance);
             if (!(m > 0)) errs.push(`${n}: enter a distance in metres.`);
             exercises.push({ name, sets, distanceM: m, durationSec: sec, weightKg: weight || undefined, customMuscles: muscles, mode });
-          } else exercises.push({ name, sets, durationSec: sec, weightKg: weight || undefined, customMuscles: muscles, mode });
+          } else {
+            const reps = timedBlock && r.reps.trim() ? Number(r.reps) : undefined;
+            if (reps !== undefined && !(reps > 0 && Number.isInteger(reps))) errs.push(`${n}: reps should be a whole number, or leave it empty.`);
+            exercises.push({ name, sets, reps, durationSec: sec, weightKg: weight || undefined, customMuscles: muscles, mode });
+          }
         }
       });
 
@@ -614,7 +622,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     const m = engine ? MODE_MEASURE[mode] : measure;
     const select = (
       <>
-        <select id={`ex-${r.key}`} className={`input ${r.name ? '' : 'text-slate-400'}`} value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value, mode: undefined })}>
+        <select id={`ex-${r.key}`} className={`input ${r.name ? '' : 'text-slate-400'}`} value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value, mode: undefined, ...(engine && r.reps === '10' && defaultMode(e.target.value, savedCustom(e.target.value)?.measure ?? exerciseMeasure(e.target.value)) === 'time' ? { reps: '' } : {}) })}>
           <option value="" disabled>Choose an exercise…</option>
           {options.map((name) => (
             <option key={name} value={name} className="text-slate-900">
@@ -649,12 +657,15 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         {/carry/i.test(r.name) && <p className="mt-1 whitespace-nowrap text-[11px] leading-tight text-slate-500">Both hands: 2 × 16 = 32 kg</p>}
       </div>
     );
+    const timedBlock = engine && m === 'time';
     const fields = (
       <>
-        <div>
-          <label className="label" htmlFor={`sets-${r.key}`}>{m === 'distanceTime' && !engine ? 'Rounds' : 'Sets'}</label>
-          <input id={`sets-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
-        </div>
+        {!timedBlock && (
+          <div>
+            <label className="label" htmlFor={`sets-${r.key}`}>{m === 'distanceTime' && !engine ? 'Rounds' : 'Sets'}</label>
+            <input id={`sets-${r.key}`} type="number" inputMode="numeric" min={1} className="input" value={r.sets} onChange={(e) => updateRow(r.key, { sets: e.target.value })} />
+          </div>
+        )}
         {m === 'weight' && (
           <>
             <div>
@@ -678,8 +689,14 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         )}
         {m !== 'weight' && (
           <div className={m === 'time' && !engine ? 'sm:col-span-2' : ''}>
-            <label className="label" htmlFor={`time-${r.key}`}>{m === 'time' ? 'Time per set (m:ss)' : engine ? 'Time (optional)' : 'Time (m:ss)'}</label>
+            <label className="label" htmlFor={`time-${r.key}`}>{timedBlock ? 'Time (m.ss)' : m === 'time' ? 'Time per set (m:ss)' : engine ? 'Time (optional)' : 'Time (m:ss)'}</label>
             <input id={`time-${r.key}`} inputMode="decimal" className="input" placeholder={m === 'time' ? (engine ? '2:00' : '0:45') : '1:50'} value={r.time} onChange={(e) => updateRow(r.key, { time: e.target.value })} />
+          </div>
+        )}
+        {timedBlock && (
+          <div>
+            <label className="label" htmlFor={`reps-${r.key}`}>Reps (optional)</label>
+            <input id={`reps-${r.key}`} type="number" inputMode="numeric" min={1} className="input placeholder:text-slate-400" placeholder="e.g. 40" value={r.reps} onChange={(e) => updateRow(r.key, { reps: e.target.value })} />
           </div>
         )}
         {engine && m !== 'weight' && weightField(true)}
@@ -695,7 +712,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
               <Segmented<EntryMode>
                 size="md"
                 value={mode}
-                onChange={(v) => updateRow(r.key, { mode: v })}
+                // The optional rep count of a timed block starts empty, not at the default 10.
+                onChange={(v) => updateRow(r.key, { mode: v, ...(v === 'time' && r.reps === '10' ? { reps: '' } : {}) })}
                 options={[{ value: 'reps', label: 'Reps' }, { value: 'distance', label: 'Distance' }, { value: 'time', label: 'Time' }]}
               />
             </div>

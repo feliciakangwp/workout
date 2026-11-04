@@ -219,7 +219,8 @@ export function surpriseEngine(workouts: Workout[], date: string, customs: Custo
     const weightKg = best ? roundTo(best * 0.8, 2) : undefined;
     if (mode === 'time') {
       const t = e.measure === 'time' ? 60 : rand([90, 120, 150, 180]);
-      return { item: { kind: 'exercise', name: e.name, sets, mode, timeSec: t, weightKg }, sec: sets * t + (sets - 1) * 60 + 45 };
+      // One timed block (HYROX Engine logs time work without sets).
+      return { item: { kind: 'exercise', name: e.name, sets: 1, mode, timeSec: t * sets, weightKg }, sec: sets * t + 45 };
     }
     if (mode === 'distance') return { item: { kind: 'exercise', name: e.name, sets, mode, distanceM: dist.m, weightKg }, sec: sets * dist.m * dist.secPerM + (sets - 1) * 60 + 45 };
     const reps = REPS[e.name] ?? 20;

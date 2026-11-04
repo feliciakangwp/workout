@@ -144,7 +144,7 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 - **Exercise logging**: lifts use sets × reps × weight, with your best previous effort shown in grey. Plank is logged
   by time; SkiErg, Row Erg, Assault Bike and Bike Erg by distance and time (not offered in Strength sessions).
 - **HYROX Engine exercises** are counted by *Reps* (reps × weight), *Distance* (metres, with optional time and weight)
-  or *Time* (time per set, optional weight). New exercises start at 1 set. Leave the duration empty to use the
+  or *Time* (one timed block with an optional rep count and weight, e.g. 2:00 · 45 wall balls). New exercises start at 1 set. Leave the duration empty to use the
   estimate: timed exercises (sets × time) plus runs; reps-based work and rest aren't timed.
 - **Time inputs** everywhere take m:ss or h:mm:ss; a dot works like a colon (5.30 = 5:30) and a plain number is
   minutes (5 = 5:00).

@@ -11,7 +11,7 @@ import { SimComparison } from './SimAnalysis';
 
 export const fmtSetsReps = (e: ExerciseEntry) => {
   const m = entryMeasure(e);
-  if (m === 'time') return `${e.sets} × ${e.durationSec ? fmtTime(e.durationSec) : '—'}`;
+  if (m === 'time') return `${e.sets > 1 || !e.mode ? `${e.sets} × ` : ''}${e.durationSec ? fmtTime(e.durationSec) : '—'}${e.reps ? ` · ${e.reps} reps` : ''}`;
   if (m === 'distanceTime') return `${e.sets > 1 ? `${e.sets} × ` : ''}${e.distanceM ?? '—'} m${e.durationSec ? ` in ${fmtTime(e.durationSec)}` : ''}`;
   const unit = EXERCISE_BY_NAME[e.name]?.repUnit === 'm' ? ' m' : '';
   return `${e.sets} × ${e.reps ?? '—'}${unit}${e.durationSec ? ` in ${fmtTime(e.durationSec)}` : ''}`;
