@@ -14,6 +14,7 @@ import { fmtShort } from '../lib/dates';
 import { fmtDuration, fmtPace, fmtTime, parseTime } from '../lib/format';
 import { WORKOUT_TYPES } from '../lib/theme';
 import { Modal, Segmented } from './ui';
+import { ExercisePicker } from './ExercisePicker';
 
 type ExerciseRow = DraftForm['rows'][number];
 type RunRow = DraftForm['runRows'][number];
@@ -622,16 +623,21 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     const m = engine ? MODE_MEASURE[mode] : measure;
     const select = (
       <>
-        <select id={`ex-${r.key}`} className={`input ${r.name ? '' : 'text-slate-400'}`} value={r.name} onChange={(e) => updateRow(r.key, { name: e.target.value, mode: undefined, ...(engine && r.reps === '10' && defaultMode(e.target.value, savedCustom(e.target.value)?.measure ?? exerciseMeasure(e.target.value)) === 'time' ? { reps: '' } : {}) })}>
-          <option value="" disabled>Choose an exercise…</option>
-          {options.map((name) => (
-            <option key={name} value={name} className="text-slate-900">
-              {name}
-              {savedCustom(name) ? ' (my exercise)' : ''}
-            </option>
-          ))}
-          <option value={CUSTOM} className="text-slate-900">Custom exercise…</option>
-        </select>
+        <ExercisePicker
+          id={`ex-${r.key}`}
+          value={r.name}
+          customValue={CUSTOM}
+          customName={r.customName}
+          options={options.map((name) => ({ name, mine: !!savedCustom(name) }))}
+          onPick={(name, customName) =>
+            updateRow(r.key, {
+              name,
+              mode: undefined,
+              ...(customName !== undefined ? { customName } : {}),
+              ...(engine && r.reps === '10' && name !== CUSTOM && defaultMode(name, savedCustom(name)?.measure ?? exerciseMeasure(name)) === 'time' ? { reps: '' } : {}),
+            })
+          }
+        />
       </>
     );
     const rowControls = (
@@ -764,6 +770,11 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             </div>
             <div>
               <p className="label">Save to my exercises for future</p>
+              {r.saveTo.length === 0 && (
+                <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">
+                  Tick Strength and/or HYROX Engine to save {r.customName.trim() ? `“${r.customName.trim()}”` : 'this exercise'} for next time. Otherwise it's only kept in this workout.
+                </p>
+              )}
               <div className="flex flex-wrap gap-3">
                 {SAVE_TO_TYPES.map((t) => (
                   <label key={t} className="inline-flex items-center gap-2 text-sm text-slate-700">

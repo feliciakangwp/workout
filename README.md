@@ -179,6 +179,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   so this chooses who is offered it rather than hiding it.
 - **Weights are the total load**: both dumbbells together, and both hands for carries (2 × 16 kg = 32 kg). The
   HYROX station check compares the farmer's carry with both race kettlebells.
+- **Exercise search**: tap an exercise box to search (every typed word must match, e.g. "bar sq"). With no match it
+  says so and offers *Create custom exercise "…"* with the typed name. A new custom exercise shows a reminder to tick
+  Strength and/or HYROX Engine so it is saved for next time.
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Slow runs become walks**: a Running session averaging slower than 15:00 /km is saved as a walk (a note says so
