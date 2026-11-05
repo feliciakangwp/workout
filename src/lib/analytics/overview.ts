@@ -13,6 +13,8 @@ export interface PeriodStats {
   runKm: number;
   strengthIndex: number;
   musclesOnTarget: number;
+  /** Muscle groups with any training in the 7 days (on target or not). */
+  musclesTrained: number;
 }
 
 /** This week so far (Mon → today) and all of last week (Mon → Sun). */
@@ -22,12 +24,15 @@ export function weekComparison(workouts: Workout[], today = DEMO_TODAY) {
   const lastTo = addDays(thisFrom, -1); // all of last week
   const stats = (from: string, to: string): PeriodStats => {
     const ws = workoutsBetween(workouts, from, to);
+    const coverage = muscleCoverage(workouts, '7d', to);
     return {
       workouts: ws.length,
       minutes: ws.reduce((a, w) => a + w.durationMin, 0),
       runKm: totalKm(runs(ws)),
       strengthIndex: strengthIndexAt(workouts, to) ?? 100,
-      musclesOnTarget: muscleCoverage(workouts, '7d', to).filter((m) => m.status === 'within').length,
+      // On target = at least 80% of the muscle's weekly set target over the 7 days.
+      musclesOnTarget: coverage.filter((m) => m.status === 'within').length,
+      musclesTrained: coverage.filter((m) => m.weeklySets > 0).length,
     };
   };
   const current = stats(thisFrom, today);

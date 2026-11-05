@@ -29,7 +29,7 @@ export function Overview({ onNavigate }: { onNavigate: (p: PageId) => void }) {
         <StatCard icon={Clock} label="Training duration" value={fmtDuration(c.minutes)} delta={shown(c.minutes - p.minutes)} deltaLabel={fmtPct(pctChange(c.minutes, p.minutes))} comparison={`Last week: ${fmtDuration(p.minutes)}`} accent="sky" />
         <StatCard icon={Footprints} label="Running distance" value={c.runKm.toFixed(1)} unit="km" delta={shown(c.runKm - p.runKm)} deltaLabel={fmtPct(pctChange(c.runKm, p.runKm))} comparison={`Last week: ${p.runKm.toFixed(1)} km`} accent="violet" />
         <StatCard icon={Dumbbell} label="Strength index" value={c.strengthIndex.toFixed(1)} unit="pts" delta={c.strengthIndex - p.strengthIndex} deltaLabel={`${c.strengthIndex - p.strengthIndex >= 0 ? '+' : ''}${(c.strengthIndex - p.strengthIndex).toFixed(1)}`} comparison={`Last week: ${p.strengthIndex.toFixed(1)} · 100 = block start`} accent="amber" />
-        <StatCard icon={Activity} label="Muscle coverage" value={`${c.musclesOnTarget}/10`} unit="on target" delta={c.musclesOnTarget - p.musclesOnTarget} deltaLabel={`${c.musclesOnTarget - p.musclesOnTarget >= 0 ? '+' : ''}${c.musclesOnTarget - p.musclesOnTarget}`} comparison={`Last week: ${p.musclesOnTarget}/10`} accent="emerald" />
+        <StatCard icon={Activity} label="Muscles on weekly target" value={`${c.musclesOnTarget}/10`} unit="on target" delta={c.musclesOnTarget - p.musclesOnTarget} deltaLabel={`${c.musclesOnTarget - p.musclesOnTarget >= 0 ? '+' : ''}${c.musclesOnTarget - p.musclesOnTarget}`} comparison={`${c.musclesTrained}/10 trained this week · last week ${p.musclesOnTarget}/10 on target`} accent="emerald" />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-3">
