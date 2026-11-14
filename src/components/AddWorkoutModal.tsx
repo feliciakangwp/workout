@@ -452,6 +452,9 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     }
     return { run, station, total: run + station };
   }, [splits]);
+  /** Estimated minutes shown in the Duration field while it is left to the app (HYROX sims too). */
+  const estimateMin = type === 'HYROX' ? Math.max(1, Math.ceil(simTotals.total / 60)) : Math.ceil(autoSec / 60);
+  const showingEstimate = !duration.trim() && (type === 'HYROX' ? simTotals.total > 0 : (type === 'HYROX Engine' || type === 'Strength') && autoSec > 0);
 
   const chooseType = (t: WorkoutType) => {
     setType(t);
@@ -982,7 +985,22 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         {type !== 'Running' && (
           <div>
             <label className="label" htmlFor="aw-dur">Duration (min)</label>
-            <input id="aw-dur" type="number" inputMode="numeric" min={1} className="input" value={duration} placeholder={type === 'HYROX' ? `auto ${Math.max(1, Math.ceil(simTotals.total / 60))}` : type === 'HYROX Engine' || type === 'Strength' ? (autoSec ? `auto ${Math.ceil(autoSec / 60)}` : 'min') : undefined} onChange={(e) => setDuration(e.target.value)} />
+            {/* The estimate shows as the value (marked auto) until the athlete types their own; clearing goes back to it. */}
+            <div className="relative">
+              <input
+                id="aw-dur"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                className={`input ${showingEstimate ? 'bg-blue-50 pr-12 text-blue-900' : ''}`}
+                value={showingEstimate ? String(estimateMin) : duration}
+                placeholder="min"
+                onChange={(e) => setDuration(e.target.value)}
+                // Tapping the estimate selects it, so typing replaces it rather than adding digits to it.
+                onFocus={(e) => showingEstimate && e.target.select()}
+              />
+              {showingEstimate && <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded bg-blue-100 px-1 text-[10px] font-semibold text-blue-700">auto</span>}
+            </div>
           </div>
         )}
         <div>
