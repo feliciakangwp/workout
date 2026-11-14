@@ -29,7 +29,7 @@ export function MuscleAnalysis() {
     <div>
       <PageHeader
         title="Muscle Analysis"
-        subtitle="Coverage is calculated from logged sets: primary muscles get 1 set per set performed, secondary muscles 0.5, conditioning efforts half credit."
+        subtitle="Coverage is calculated from logged sets: primary muscles get 1 set per set performed, secondary muscles 0.5, conditioning efforts half credit. Timed HYROX Engine work counts about a set per minute, station distance by its share of the station, big rep counts a set per 15 reps. Stretches and runs don't add sets."
         actions={
           <>
             <DemoBadge />

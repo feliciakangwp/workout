@@ -1,6 +1,7 @@
 import { addDays, startOfWeek } from '../dates';
 import { EXERCISE_BY_NAME } from '../../data/exercises';
 import { MUSCLES, MUSCLE_BY_ID } from '../../data/muscles';
+import { STATIONS } from '../../data/stations';
 import { DATA_START, DEMO_TODAY } from '../../data/mockData';
 import type { ExerciseEntry, MuscleGroup, Workout } from '../../data/types';
 import { sortByDate, workoutsBetween } from './common';
@@ -23,12 +24,29 @@ export function exerciseMuscles(e: ExerciseEntry): { primary: MuscleGroup[]; sec
   return { primary: e.customMuscles ?? [], secondary: [], factor: 1 };
 }
 
+/**
+ * Working sets an entry is worth for muscle coverage. Strength sets count as logged. HYROX
+ * Engine style work counts by how much was done, not as one set per block: timed work about a
+ * set per minute, untimed station distance by its share of the station (a full station is
+ * 4 sets, as in sims), and big rep counts about a set per 15 reps.
+ */
+export function entrySets(e: ExerciseEntry): number {
+  if (e.creditSets !== undefined) return e.creditSets;
+  if (e.durationSec && (!e.reps || e.mode === 'time')) return e.sets * Math.max(1, e.durationSec / 60);
+  if (e.distanceM) {
+    const station = STATIONS.find((st) => st.unit === 'm' && (st.exercise === e.name || (st.id === 'farmersCarry' && e.name === "Farmer's Carry")));
+    if (station) return e.sets * Math.max(1, (4 * e.distanceM) / station.amount);
+  }
+  if (e.mode && e.reps) return e.sets * Math.max(1, e.reps / 15);
+  return e.sets;
+}
+
 export function setCredits(workouts: Workout[]): Record<MuscleGroup, number> {
   const out = Object.fromEntries(MUSCLES.map((m) => [m.id, 0])) as Record<MuscleGroup, number>;
   for (const w of workouts)
     for (const e of w.exercises) {
       const { primary, secondary, factor } = exerciseMuscles(e);
-      const sets = e.creditSets ?? e.sets;
+      const sets = entrySets(e);
       primary.forEach((m) => (out[m] += sets * factor));
       secondary.forEach((m) => (out[m] += sets * factor * 0.5));
     }
@@ -111,7 +129,7 @@ export function muscleDetail(workouts: Workout[], muscle: MuscleGroup, today = D
       const isPrimary = primary.includes(muscle);
       if (!factor || (!isPrimary && !secondary.includes(muscle))) continue;
       const cur = exMap.get(e.name) ?? { name: e.name, sets: 0, lastDate: w.date, primary: isPrimary };
-      cur.sets += e.creditSets ?? e.sets;
+      cur.sets += entrySets(e);
       if (w.date > cur.lastDate) cur.lastDate = w.date;
       exMap.set(e.name, cur);
     }

@@ -15,6 +15,8 @@ export interface PeriodStats {
   musclesOnTarget: number;
   /** Muscle groups with any training in the 7 days (on target or not). */
   musclesTrained: number;
+  /** Average progress toward each muscle's weekly set target (each capped at 100%). */
+  muscleProgressPct: number;
 }
 
 /** This week so far (Mon → today) and all of last week (Mon → Sun). */
@@ -33,6 +35,7 @@ export function weekComparison(workouts: Workout[], today = DEMO_TODAY) {
       // On target = at least 80% of the muscle's weekly set target over the 7 days.
       musclesOnTarget: coverage.filter((m) => m.status === 'within').length,
       musclesTrained: coverage.filter((m) => m.weeklySets > 0).length,
+      muscleProgressPct: Math.round(coverage.reduce((a, m) => a + Math.min(100, m.pct), 0) / coverage.length),
     };
   };
   const current = stats(thisFrom, today);
