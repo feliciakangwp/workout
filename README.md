@@ -188,6 +188,9 @@ they come back into view and every minute. If sharing a tagged race fails, the r
   earn no training credit in Muscle Analysis. *Surprise me* for Recovery starts with a 10–15 min walk, then 3 lower,
   2 upper and 2 mobility picks, favouring the muscles worked hardest in the last 7 days (sets vs weekly target, plus
   running for the legs) with two rounds for the top ones, while keeping a spread across the body.
+- **Strength duration** is estimated, not a fixed 60 min: each set 1–2 min of work (2 min at or near your best weight
+  for the exercise, or 5 reps or fewer; 1 min at 60% of best or lighter, or with no history; timed holds use their
+  time) plus 2 min rest between sets. Leave Duration empty to use it; planned Strength days use it too.
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Slow runs become walks**: a Running session averaging slower than 15:00 /km is saved as a walk (a note says so

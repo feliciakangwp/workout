@@ -2,6 +2,7 @@ import { MODE_MEASURE, defaultMode, exerciseMeasure } from '../data/exercises';
 import { planKey, type CustomExercise, type DraftForm, type ExerciseEntry, type RunData, type WeekPlan, type Workout, type WorkoutDraft, type WorkoutType } from '../data/types';
 import { DEFAULT_TITLE } from './workoutTitles';
 import { parseTime } from './format';
+import { strengthSessionSec } from './strengthTime';
 import { F45_MINUTES, functionalF45 } from './f45';
 
 const CUSTOM = '__custom__';
@@ -75,7 +76,10 @@ export function plannedAsDone(plan: WeekPlan, details: Record<string, DraftForm>
       const exercises = assumed ? functionalF45(logged) : planned.exercises;
       // HYROX Engine without a duration: estimated from its timed exercises and runs, like the form does.
       const engineSec = type === 'HYROX Engine' ? exercises.reduce((a, e) => a + e.sets * (e.durationSec ?? 0), 0) + (run ? run.distanceKm * run.paceSecPerKm : 0) : 0;
-      const minutes = num(form?.duration ?? '') ?? (run && type === 'Running' ? Math.ceil((run.distanceKm * run.paceSecPerKm) / 60) : engineSec ? Math.ceil(engineSec / 60) : DEFAULT_MINUTES[type]);
+      // Strength without a duration: its sets (1–2 min each, heavier = longer) plus 2 min rests.
+      const bestKg = (name: string) => Math.max(0, ...logged.flatMap((w) => w.exercises.filter((e) => e.name === name && e.weightKg).map((e) => e.weightKg!))) || undefined;
+      const strengthSec = type === 'Strength' && !assumed ? strengthSessionSec(exercises.map((e) => ({ sets: e.sets, reps: e.reps, weightKg: e.weightKg, durationSec: e.durationSec, bestKg: bestKg(e.name) }))) : 0;
+      const minutes = num(form?.duration ?? '') ?? (run && type === 'Running' ? Math.ceil((run.distanceKm * run.paceSecPerKm) / 60) : engineSec ? Math.ceil(engineSec / 60) : strengthSec ? Math.ceil(strengthSec / 60) : DEFAULT_MINUTES[type]);
       out.push({
         id: `plan:${key}`,
         date,

@@ -3,6 +3,7 @@ import { surpriseEngine, surpriseRecovery, surpriseStrength } from '../lib/surpr
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EXERCISES, EXERCISE_BY_NAME, MODE_MEASURE, defaultMode, entryMeasure, exerciseMeasure } from '../data/exercises';
 import { DEFAULT_TITLE } from '../lib/workoutTitles';
+import { strengthSessionSec } from '../lib/strengthTime';
 import { RECOVERY_BY_NAME, RECOVERY_EXERCISES, RECOVERY_NOTE } from '../data/recovery';
 import { F45_MINUTES, functionalF45 } from '../lib/f45';
 import { MUSCLES } from '../data/muscles';
@@ -60,7 +61,7 @@ const blankForm = (today: string, division: Division): DraftForm => ({
   date: today,
   type: 'Strength',
   title: '',
-  duration: '60',
+  duration: '', // Strength estimates its own duration from the sets
   intensity: 7,
   rows: [newRow()],
   runKind: 'Easy',
@@ -185,7 +186,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     if (draft) return draft.form;
     if (planRef) {
       const saved = planDetails[planKey(planRef.date, planRef.type)];
-      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), ...(planRef.type === 'HYROX Engine' ? { rows: [], runRows: [] } : {}), duration: planRef.type === 'HYROX' || planRef.type === 'HYROX Engine' ? '' : planRef.type === 'F45' ? String(F45_MINUTES) : '60' };
+      const base = saved ?? { ...blankForm(planRef.date, defaultDivision), ...(planRef.type === 'HYROX Engine' ? { rows: [], runRows: [] } : {}), duration: planRef.type === 'HYROX' || planRef.type === 'HYROX Engine' || planRef.type === 'Strength' ? '' : planRef.type === 'F45' ? String(F45_MINUTES) : '60' };
       // A planned workout is logged on its own day (today, or an earlier day being filled in).
       return { ...base, type: planRef.type, date: plan ? plan.date : start && start.date < today ? start.date : today };
     }
@@ -325,7 +326,8 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     setRows(exRows.length ? exRows : [newRow()]);
     setRunRows(type === 'HYROX Engine' ? runList : [newRunRow()]);
     setOrder(keys);
-    setDuration(String(s.durationMin));
+    // Strength works out its own duration from the sets; Engine and Recovery take the surprise's.
+    setDuration(type === 'Strength' ? '' : String(s.durationMin));
     if (!title.trim() || title.startsWith('Surprise')) setTitle(s.title);
     setSurpriseNotes(s.notes);
   };
@@ -396,6 +398,48 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     }
     return sec;
   }, [type, rows, runTotals.sec, customExercises]);
+  /** Strength: each set 1–2 min of work (heavier for the athlete = longer) plus 2 min rest between sets. */
+  const strengthSec = useMemo(() => {
+    if (type !== 'Strength') return 0;
+    return strengthSessionSec(
+      rows
+        // Rows with an exercise chosen (the empty-row helper is defined further down).
+        .filter((r) => r.name && Number(r.sets) > 0)
+        .map((r) => {
+          const timed = rowMeasure(r) !== 'weight';
+          return {
+            sets: Number(r.sets),
+            reps: timed ? undefined : Number(r.reps) || undefined,
+            weightKg: timed ? undefined : Number(r.weight) || undefined,
+            durationSec: timed ? parseSplit(r.time) || undefined : undefined,
+            bestKg: bests[r.name]?.weightKg,
+          };
+        }),
+    );
+  }, [type, rows, bests, customExercises]);
+  /** Duration worked out from the session when none is typed (HYROX Engine and Strength). */
+  const autoSec = type === 'HYROX Engine' ? engineSec : strengthSec;
+
+  /** Estimated duration for HYROX Engine and Strength, with a way back to it after typing a duration. */
+  const estimateBox = (
+    <>
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-blue-50 px-3 py-2.5">
+        <div>
+          <p className="text-xs font-medium text-blue-900">Estimated workout time</p>
+          <p className="text-[11px] text-blue-800/80">
+            {type === 'Strength'
+              ? 'Each set 1–2 min (longer when heavy for you), plus 2 min rest between sets.'
+              : 'Exercises with a time (sets × time) plus runs. Untimed exercises and rest aren\'t counted.'}
+          </p>
+        </div>
+        <p className="shrink-0 text-lg font-semibold text-blue-900">{autoSec ? fmtDuration(Math.ceil(autoSec / 60)) : '—'}</p>
+      </div>
+      {autoSec > 0 && duration.trim() && Number(duration) !== Math.ceil(autoSec / 60) && (
+        <button className="mt-1.5 text-xs font-medium text-blue-700 hover:underline" onClick={() => setDuration('')}>Use the estimate ({Math.ceil(autoSec / 60)} min) as the duration</button>
+      )}
+    </>
+  );
+
 
   const simTotals = useMemo(() => {
     let run = 0;
@@ -419,14 +463,14 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
       setRows((rs) => (rs.length ? rs : [newRow()]));
       setRunRows((rs) => (rs.length ? rs : [newRunRow()]));
     }
-    if (t === 'HYROX Engine') {
-      // The duration is estimated from the times entered.
+    if (t === 'HYROX Engine' || t === 'Strength') {
+      // The duration is estimated from the session (times entered, or sets and rest).
       if (duration === '60') setDuration('');
     } else if (t === 'HYROX') {
       setDivision(defaultDivision);
       setDuration(''); // derived from the sim's total time unless entered
     } else if (t === 'F45' && (!duration || duration === '60')) setDuration(String(F45_MINUTES));
-    else if (!duration) setDuration('60');
+    else if (!duration && t !== 'Running') setDuration('60');
   };
 
   const submit = () => (type === 'HYROX' ? submitHyrox() : submitGeneral());
@@ -536,10 +580,11 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
     if (isRunning && !run && !errs.length) errs.push('Add at least one run with a distance and time.');
     const engine = type === 'HYROX Engine';
     // HYROX Engine without a typed duration uses the estimate from the exercise and run times.
-    const dur = isRunning ? Math.ceil(runTotals.sec / 60) : engine && !duration.trim() ? Math.ceil(engineSec / 60) : Number(duration);
+    const auto = (engine || type === 'Strength') && !duration.trim();
+    const dur = isRunning ? Math.ceil(runTotals.sec / 60) : auto ? Math.ceil(autoSec / 60) : Number(duration);
     const engineEmpty = engine && rows.every(isEmptyExercise) && runRows.every(isEmptyRun);
     if (engineEmpty) errs.push('Add at least one exercise or run.');
-    else if (engine && !duration.trim() && !engineSec) errs.push('Enter the duration, or add exercise or run times to estimate it.');
+    else if (auto && !autoSec) errs.push(engine ? 'Enter the duration, or add exercise or run times to estimate it.' : 'Enter the duration, or add exercises with sets to estimate it.');
     else if (!isRunning && !(dur > 0 && dur <= 600)) errs.push('Duration must be between 1 and 600 minutes.');
 
     const exercises: ExerciseEntry[] = [];
@@ -937,7 +982,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
         {type !== 'Running' && (
           <div>
             <label className="label" htmlFor="aw-dur">Duration (min)</label>
-            <input id="aw-dur" type="number" inputMode="numeric" min={1} className="input" value={duration} placeholder={type === 'HYROX' ? `auto ${Math.max(1, Math.ceil(simTotals.total / 60))}` : type === 'HYROX Engine' ? (engineSec ? `auto ${Math.ceil(engineSec / 60)}` : 'min') : undefined} onChange={(e) => setDuration(e.target.value)} />
+            <input id="aw-dur" type="number" inputMode="numeric" min={1} className="input" value={duration} placeholder={type === 'HYROX' ? `auto ${Math.max(1, Math.ceil(simTotals.total / 60))}` : type === 'HYROX Engine' || type === 'Strength' ? (autoSec ? `auto ${Math.ceil(autoSec / 60)}` : 'min') : undefined} onChange={(e) => setDuration(e.target.value)} />
           </div>
         )}
         <div>
@@ -980,16 +1025,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             {addMoreButton('Add exercise', addExercise)}
             {addMoreButton('Add run', addRun)}
           </div>
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-blue-50 px-3 py-2.5">
-            <div>
-              <p className="text-xs font-medium text-blue-900">Estimated workout time</p>
-              <p className="text-[11px] text-blue-800/80">Exercises with a time (sets × time) plus runs. Untimed exercises and rest aren't counted.</p>
-            </div>
-            <p className="shrink-0 text-lg font-semibold text-blue-900">{engineSec ? fmtDuration(Math.ceil(engineSec / 60)) : '—'}</p>
-          </div>
-          {engineSec > 0 && duration.trim() && Number(duration) !== Math.ceil(engineSec / 60) && (
-            <button className="mt-1.5 text-xs font-medium text-blue-700 hover:underline" onClick={() => setDuration('')}>Use the estimate ({Math.ceil(engineSec / 60)} min) as the duration</button>
-          )}
+          {estimateBox}
           <p className="mt-1.5 text-[11px] text-slate-500">Grey text shows your best previous effort for each exercise. Weight is the total load: both dumbbells together, and both hands for carries (2 × 16 kg = 32 kg). Times are m:ss; a plain number is minutes (5 = 5:00).</p>
         </div>
       )}
@@ -1010,6 +1046,7 @@ export function AddWorkoutModal({ draftId, date: forDate, plan, start, edit, onC
             {rows.map((r, i) => renderExercise(r, i, rows.length > 1 ? moveControls(i, rows.length, (dir) => moveRow(r.key, dir)) : undefined))}
           </div>
           {addMoreButton('Add another exercise', addExercise)}
+          {type === 'Strength' && estimateBox}
           {type === 'Recovery' ? (
             <p className="mt-1.5 text-[11px] text-slate-500">Stretches and mobility drills, plus an easy walk for circulation. They don't count as training sets in Muscle Analysis. {RECOVERY_NOTE}</p>
           ) : (
