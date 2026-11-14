@@ -276,17 +276,16 @@ export function surpriseEngine(workouts: Workout[], date: string, customs: Custo
 /**
  * About half an hour of recovery: an easy walk for circulation, then stretches and mobility
  * spread over lower body, upper body and spine. Muscles worked hardest in the last 7 days
- * (training sets against their weekly target, plus running for the legs) are more likely to
+ * (training sets, running included, against their weekly target) are more likely to
  * be stretched, and held longer, but no single area takes over.
  */
 export function surpriseRecovery(workouts: Workout[], date: string): Surprise {
   const recent = workouts.filter((w) => w.date >= addDays(date, -6) && w.date <= date && !w.fromPlan);
   const sets = setCredits(recent);
   const runKm = runs(recent).reduce((a, r) => a + r.distanceKm, 0);
-  // A kilometre of running loads the legs roughly like a fraction of a set.
-  const legs: Partial<Record<MuscleGroup, number>> = { quadriceps: 0.6, hamstrings: 0.5, calves: 0.6, glutes: 0.4 };
+  // Training sets now include running for the legs.
   const strain = Object.fromEntries(
-    (Object.keys(sets) as MuscleGroup[]).map((m) => [m, (sets[m] + (legs[m] ?? 0) * runKm) / MUSCLE_BY_ID[m].weeklyTargetSets]),
+    (Object.keys(sets) as MuscleGroup[]).map((m) => [m, sets[m] / MUSCLE_BY_ID[m].weeklyTargetSets]),
   ) as Record<MuscleGroup, number>;
   const ranked = (Object.keys(strain) as MuscleGroup[]).sort((a, b) => strain[b] - strain[a]);
   const top = new Set(ranked.slice(0, 3).filter((m) => strain[m] > 0.2));

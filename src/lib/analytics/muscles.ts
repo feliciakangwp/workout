@@ -41,6 +41,13 @@ export function entrySets(e: ExerciseEntry): number {
   return e.sets;
 }
 
+/**
+ * Running counts too: sets of credit per km for the legs it works (quads, hamstrings and
+ * calves; glutes supporting). Every run counts (Running, HYROX Engine and sim runs), not walks.
+ */
+export const RUN_CREDIT_PER_KM: Partial<Record<MuscleGroup, number>> = { quadriceps: 0.5, hamstrings: 0.5, calves: 0.5, glutes: 0.25 };
+export const runKmOf = (w: Workout) => (w.run && w.run.kind !== 'Walking' ? w.run.distanceKm : 0);
+
 export function setCredits(workouts: Workout[]): Record<MuscleGroup, number> {
   const out = Object.fromEntries(MUSCLES.map((m) => [m.id, 0])) as Record<MuscleGroup, number>;
   for (const w of workouts)
@@ -50,16 +57,22 @@ export function setCredits(workouts: Workout[]): Record<MuscleGroup, number> {
       primary.forEach((m) => (out[m] += sets * factor));
       secondary.forEach((m) => (out[m] += sets * factor * 0.5));
     }
+  for (const w of workouts) {
+    const km = runKmOf(w);
+    if (km) for (const [m, perKm] of Object.entries(RUN_CREDIT_PER_KM) as [MuscleGroup, number][]) out[m] += km * perKm;
+  }
   return out;
 }
 
 export const workoutMuscles = (w: Workout): MuscleGroup[] => {
   const set = new Set<MuscleGroup>();
   w.exercises.forEach((e) => exerciseMuscles(e).primary.forEach((m) => set.add(m)));
+  if (runKmOf(w)) (['quadriceps', 'hamstrings', 'calves'] as MuscleGroup[]).forEach((m) => set.add(m));
   return MUSCLES.map((m) => m.id).filter((m) => set.has(m));
 };
 
 export const hitsMuscle = (w: Workout, m: MuscleGroup) =>
+  (runKmOf(w) > 0 && !!RUN_CREDIT_PER_KM[m]) ||
   w.exercises.some((e) => {
     const { primary, secondary, factor } = exerciseMuscles(e);
     return factor > 0 && (primary.includes(m) || secondary.includes(m)); // stretching isn't training
@@ -132,6 +145,17 @@ export function muscleDetail(workouts: Workout[], muscle: MuscleGroup, today = D
       cur.sets += entrySets(e);
       if (w.date > cur.lastDate) cur.lastDate = w.date;
       exMap.set(e.name, cur);
+    }
+  // Running shows as one line among the exercises that trained this muscle.
+  const perKm = RUN_CREDIT_PER_KM[muscle];
+  if (perKm)
+    for (const w of last28) {
+      const km = runKmOf(w);
+      if (!km) continue;
+      const cur = exMap.get('Running') ?? { name: 'Running', sets: 0, lastDate: w.date, primary: perKm >= 0.5 };
+      cur.sets += km * perKm;
+      if (w.date > cur.lastDate) cur.lastDate = w.date;
+      exMap.set('Running', cur);
     }
 
   const progression = [...exMap.values()]
