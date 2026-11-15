@@ -1,11 +1,11 @@
-import { Droplet, Dumbbell, Image as ImageIcon, Info, Lightbulb, Percent, Plus, Scale, Trash2 } from 'lucide-react';
+import { AlertTriangle, Droplet, Dumbbell, Image as ImageIcon, Info, Lightbulb, Pencil, Percent, Plus, Scale, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHeader, ChartTooltip, EmptyState, Modal, PageHeader, Segmented, StatCard, TrendBadge } from '../components/ui';
 import { WeighInModal } from '../components/WeighInModal';
 import { useData } from '../context/DataContext';
 import type { BodySegment, WeighIn } from '../data/types';
-import { type Change, compareWeighIns, fmtDelta, segmentTotal } from '../lib/analytics/body';
+import { type Change, compareWeighIns, fmtDelta, segmentTotal, weighInIssues } from '../lib/analytics/body';
 import { fmtLong, fmtShort } from '../lib/dates';
 import { AXIS, GRID, SERIES } from '../lib/theme';
 
@@ -43,6 +43,8 @@ export function BodyComposition() {
 function OwnBodyComposition() {
   const { weighIns, readOnly, removeWeighIn, athlete } = useData();
   const [adding, setAdding] = useState(false);
+  /** Weigh-in being corrected. */
+  const [editing, setEditing] = useState<WeighIn | null>(null);
   const [panel, setPanel] = useState<Panel>('lean');
   const [metric, setMetric] = useState<Metric>('weight');
   const [viewing, setViewing] = useState<WeighIn | null>(null);
@@ -113,6 +115,22 @@ function OwnBodyComposition() {
               <div className="p-4 sm:p-5">
                 {cmp ? (
                   <>
+                    {cmp.issues.length > 0 && (
+                      <div className="mb-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900" role="status">
+                        <p className="flex items-center gap-1.5 font-semibold"><AlertTriangle size={14} /> Some values look misread, so they're left out below</p>
+                        <ul className="mt-1 space-y-1">
+                          {cmp.issues.map((i) => {
+                            const w = weighIns.find((x) => x.id === i.id);
+                            return (
+                              <li key={i.id + i.text} className="flex flex-wrap items-center gap-x-2">
+                                <span>{fmtShort(i.date)}: {i.text}.</span>
+                                {w && !w.isSample && !readOnly && <button className="font-semibold text-amber-800 underline" onClick={() => setEditing(w)}>Fix it</button>}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
                     <ul className="space-y-2 text-sm text-slate-700">
                       {cmp.summary.map((s) => (
                         <li key={s} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />{s}</li>
@@ -167,11 +185,20 @@ function OwnBodyComposition() {
                     {w.image ? <img src={w.image} alt="" className="h-full w-full object-cover" /> : <ImageIcon size={18} />}
                   </button>
                   <button className="min-w-0 flex-1 text-left" onClick={() => setViewing(w)}>
-                    <p className="text-sm font-medium text-slate-800">{fmtLong(w.date)}{w.isSample && <span className="ml-2 text-[11px] font-normal text-amber-700">example</span>}</p>
+                    <p className="text-sm font-medium text-slate-800">
+                      {fmtLong(w.date)}
+                      {w.isSample && <span className="ml-2 text-[11px] font-normal text-amber-700">example</span>}
+                      {Object.keys(weighInIssues(w)).length > 0 && <span className="ml-2 inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-700"><AlertTriangle size={11} /> check values</span>}
+                    </p>
                     <p className="truncate text-xs text-slate-500">
-                      {[w.weightKg !== undefined && `${w.weightKg} kg`, w.skeletalMuscleKg !== undefined && `muscle ${w.skeletalMuscleKg} kg`, w.bodyFatPct !== undefined && `fat ${w.bodyFatPct}%`, w.notes].filter(Boolean).join(' · ') || 'Segmental values only'}
+                      {[w.weightKg !== undefined && `${w.weightKg} kg`, w.skeletalMuscleKg !== undefined && `muscle ${w.skeletalMuscleKg} kg`, w.bodyFatKg !== undefined && `fat ${w.bodyFatKg} kg`, w.bodyFatPct !== undefined && `${w.bodyFatPct}%`, w.notes].filter(Boolean).join(' · ') || 'Segmental values only'}
                     </p>
                   </button>
+                  {!readOnly && !w.isSample && (
+                    <button className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`Edit weigh-in ${fmtLong(w.date)}`} onClick={() => setEditing(w)}>
+                      <Pencil size={16} />
+                    </button>
+                  )}
                   {!readOnly && !w.isSample && (
                     <button className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label={`Delete weigh-in ${fmtLong(w.date)}`} onClick={() => confirm('Delete this weigh-in?') && removeWeighIn(w.id)}>
                       <Trash2 size={16} />
@@ -185,6 +212,7 @@ function OwnBodyComposition() {
       )}
 
       {adding && <WeighInModal onClose={() => setAdding(false)} />}
+      {editing && <WeighInModal key={editing.id} edit={editing} onClose={() => setEditing(null)} />}
       {viewing && (
         <Modal open wide onClose={() => setViewing(null)} title={`Weigh-in · ${fmtLong(viewing.date)}`}>
           {viewing.image && <img src={viewing.image} alt="Body composition scan" className="mb-4 max-h-[50vh] w-full rounded-lg bg-slate-50 object-contain" />}

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { useUI } from '../context/UIContext';
 import type { BodySegment, SegmentReading, WeighIn } from '../data/types';
-import { EVALUATION_OPTIONS, SEGMENTS } from '../lib/analytics/body';
+import { EVALUATION_OPTIONS, SEGMENTS, weighInIssues } from '../lib/analytics/body';
 import { compressImage, readBodyScan, type ScanResult } from '../lib/bodyScanOcr';
 
 type SegForm = Record<BodySegment, { kg: string; pct: string; evaluation: string }>;
@@ -17,17 +17,19 @@ const toNum = (s: string) => {
 };
 
 /** Adds a weigh-in: upload the scan photo, read its values, review and save. */
-export function WeighInModal({ onClose }: { onClose: () => void }) {
+export function WeighInModal({ onClose, edit }: { onClose: () => void; /** A saved weigh-in to correct. */ edit?: WeighIn }) {
   const { backend } = useAuth();
-  const { today, addWeighIn } = useData();
+  const { today, addWeighIn, updateWeighIn } = useData();
   const { notify } = useUI();
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(edit?.date ?? today);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [whole, setWhole] = useState({ weightKg: '', skeletalMuscleKg: '', bodyFatKg: '', bodyFatPct: '' });
-  const [lean, setLean] = useState<SegForm>(emptySegs);
-  const [fat, setFat] = useState<SegForm>(emptySegs);
-  const [notes, setNotes] = useState('');
+  const [whole, setWhole] = useState({ weightKg: str(edit?.weightKg), skeletalMuscleKg: str(edit?.skeletalMuscleKg), bodyFatKg: str(edit?.bodyFatKg), bodyFatPct: str(edit?.bodyFatPct) });
+  const fromSaved = (r?: Partial<Record<BodySegment, SegmentReading>>): SegForm =>
+    Object.fromEntries(SEGMENTS.map(({ id }) => [id, { kg: str(r?.[id]?.kg), pct: str(r?.[id]?.pct), evaluation: r?.[id]?.evaluation ?? '' }])) as SegForm;
+  const [lean, setLean] = useState<SegForm>(() => (edit ? fromSaved(edit.lean) : emptySegs()));
+  const [fat, setFat] = useState<SegForm>(() => (edit ? fromSaved(edit.fat) : emptySegs()));
+  const [notes, setNotes] = useState(edit?.notes ?? '');
   const [reading, setReading] = useState<number | null>(null);
   const [status, setStatus] = useState<{ tone: 'ok' | 'warn' | 'error'; text: string } | null>(null);
   const [error, setError] = useState('');
@@ -116,8 +118,13 @@ export function WeighInModal({ onClose }: { onClose: () => void }) {
     } catch {
       // Save without the photo if it can't be processed.
     }
-    addWeighIn(entry);
-    notify('Weigh-in saved');
+    if (edit) {
+      updateWeighIn(edit.id, entry);
+      notify('Weigh-in updated');
+    } else {
+      addWeighIn(entry);
+      notify('Weigh-in saved');
+    }
     onClose();
   };
 
@@ -156,7 +163,7 @@ export function WeighInModal({ onClose }: { onClose: () => void }) {
       open
       wide
       onClose={onClose}
-      title="Add weigh-in"
+      title={edit ? `Edit weigh-in · ${edit.date}` : 'Add weigh-in'}
       footer={
         <>
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
@@ -201,6 +208,16 @@ export function WeighInModal({ onClose }: { onClose: () => void }) {
           {wholeField('bodyFatKg', 'Body fat mass (kg)')}
           {wholeField('bodyFatPct', 'Body fat (%)')}
         </div>
+        {(() => {
+          // Numbers that can't all be right, usually a misread scan: say so before saving.
+          const issues = weighInIssues({ id: '', date, lean: {}, fat: {}, weightKg: toNum(whole.weightKg), skeletalMuscleKg: toNum(whole.skeletalMuscleKg), bodyFatKg: toNum(whole.bodyFatKg), bodyFatPct: toNum(whole.bodyFatPct) });
+          const list = [issues.fatKg, issues.muscleKg].filter(Boolean);
+          return list.length ? (
+            <p className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">
+              Check against your scan sheet: {list.join('; ')}.
+            </p>
+          ) : null;
+        })()}
 
         <div className="grid gap-3 lg:grid-cols-2">
           {segTable('Segmental lean (muscle)', lean, setLean, 'text-blue-700')}

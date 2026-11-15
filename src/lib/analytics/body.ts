@@ -66,6 +66,25 @@ export interface Change {
   good: 'up' | 'down';
 }
 
+/**
+ * Values on a weigh-in that can't be right, usually a misread scan: body fat mass far from
+ * weight × body fat %, or skeletal muscle that is an implausible share of the weight.
+ */
+export function weighInIssues(w: WeighIn): { fatKg?: string; muscleKg?: string } {
+  const out: { fatKg?: string; muscleKg?: string } = {};
+  if (w.weightKg && w.bodyFatPct !== undefined && w.bodyFatKg !== undefined) {
+    const expected = (w.weightKg * w.bodyFatPct) / 100;
+    if (Math.abs(w.bodyFatKg - expected) > Math.max(1, expected * 0.1))
+      out.fatKg = `body fat mass ${w.bodyFatKg} kg doesn't match ${w.weightKg} kg × ${w.bodyFatPct}% (≈${expected.toFixed(1)} kg)`;
+  }
+  if (w.weightKg && w.skeletalMuscleKg !== undefined) {
+    const share = w.skeletalMuscleKg / w.weightKg;
+    if (share < 0.2 || share > 0.6 || (w.bodyFatKg !== undefined && w.skeletalMuscleKg + w.bodyFatKg > w.weightKg))
+      out.muscleKg = `skeletal muscle ${w.skeletalMuscleKg} kg is not plausible for ${w.weightKg} kg body weight`;
+  }
+  return out;
+}
+
 /** Changes between two weigh-ins, whole body and per segment. */
 export function compareWeighIns(prev: WeighIn, cur: WeighIn) {
   const ch = (key: string, label: string, from: number | undefined, to: number | undefined, good: 'up' | 'down', unit: 'kg' | '%' = 'kg'): Change => ({
@@ -77,17 +96,33 @@ export function compareWeighIns(prev: WeighIn, cur: WeighIn) {
     delta: from !== undefined && to !== undefined ? round(to - from, 2) : undefined,
     good,
   });
+  // Misread values stay out of the comparison: a wrong fat mass is replaced by weight × body fat %,
+  // an implausible muscle value is left out; both are listed as issues to fix.
+  const pi = weighInIssues(prev);
+  const ci = weighInIssues(cur);
+  const fatOf = (w: WeighIn, bad?: string) => (bad ? (w.weightKg && w.bodyFatPct !== undefined ? round((w.weightKg * w.bodyFatPct) / 100, 1) : undefined) : w.bodyFatKg);
+  const issues = [
+    ...[pi.fatKg, pi.muscleKg].filter(Boolean).map((t) => ({ id: prev.id, date: prev.date, text: t! })),
+    ...[ci.fatKg, ci.muscleKg].filter(Boolean).map((t) => ({ id: cur.id, date: cur.date, text: t! })),
+  ];
   const totals = [
     ch('weight', 'Weight', prev.weightKg, cur.weightKg, 'down'),
-    ch('smm', 'Skeletal muscle', prev.skeletalMuscleKg, cur.skeletalMuscleKg, 'up'),
-    ch('fatKg', 'Body fat mass', prev.bodyFatKg, cur.bodyFatKg, 'down'),
+    ch('smm', 'Skeletal muscle', pi.muscleKg ? undefined : prev.skeletalMuscleKg, ci.muscleKg ? undefined : cur.skeletalMuscleKg, 'up'),
+    ch('fatKg', 'Body fat mass', fatOf(prev, pi.fatKg), fatOf(cur, ci.fatKg), 'down'),
     ch('pbf', 'Body fat', prev.bodyFatPct, cur.bodyFatPct, 'down', '%'),
     ch('leanTotal', 'Segmental lean total', segmentTotal(prev.lean), segmentTotal(cur.lean), 'up'),
     ch('fatTotal', 'Segmental fat total', segmentTotal(prev.fat), segmentTotal(cur.fat), 'down'),
   ];
+  // A muscle change bigger than the weight change minus the fat change (plus a margin) can't be right:
+  // one of the two muscle readings is wrong, so leave it out and say so.
+  const [w, smm, fatCh] = [totals[0].delta, totals[1].delta, totals[2].delta];
+  if (smm !== undefined && w !== undefined && fatCh !== undefined && Math.abs(smm) > Math.abs(w - fatCh) + 1.5) {
+    issues.push({ id: cur.id, date: cur.date, text: `skeletal muscle ${smm > 0 ? '+' : ''}${smm.toFixed(1)} kg doesn't fit weight ${w > 0 ? '+' : ''}${w.toFixed(1)} kg and fat ${fatCh > 0 ? '+' : ''}${fatCh.toFixed(1)} kg; check the muscle values of both weigh-ins` });
+    totals[1] = { ...totals[1], delta: undefined };
+  }
   const lean = SEGMENTS.map(({ id, label }) => ch(`lean-${id}`, label, prev.lean[id]?.kg, cur.lean[id]?.kg, 'up'));
   const fat = SEGMENTS.map(({ id, label }) => ch(`fat-${id}`, label, prev.fat[id]?.kg, cur.fat[id]?.kg, 'down'));
-  return { days: diffDays(cur.date, prev.date), totals, lean, fat, summary: summarise(totals, lean, fat) };
+  return { days: diffDays(cur.date, prev.date), totals, lean, fat, issues, summary: summarise(totals, lean, fat) };
 }
 
 const fmt = (d: number, unit = 'kg') => `${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(unit === '%' ? 1 : Math.abs(d) < 1 ? 2 : 1)}${unit === '%' ? ' pts' : ' kg'}`;

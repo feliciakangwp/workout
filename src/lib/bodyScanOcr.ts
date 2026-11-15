@@ -194,6 +194,14 @@ export async function readBodyScan(file: Blob, onProgress?: (p: number) => void)
       bodyFatPct: after(/(?:Percent\s*Body\s*Fat|PBF)[^\d]{0,20}(\d{1,2}(?:\.\d)?)/i),
       found: 0,
     };
+    // The bar charts' scale numbers (70, 80, 90…) sit next to these labels and can be read instead
+    // of the value: drop readings that can't be right rather than save them.
+    const wt = result.weightKg;
+    if (wt && result.skeletalMuscleKg !== undefined && (result.skeletalMuscleKg < wt * 0.2 || result.skeletalMuscleKg > wt * 0.6)) result.skeletalMuscleKg = undefined;
+    if (wt && result.bodyFatKg !== undefined && result.bodyFatPct !== undefined) {
+      const expected = (wt * result.bodyFatPct) / 100;
+      if (Math.abs(result.bodyFatKg - expected) > Math.max(1, expected * 0.1)) result.bodyFatKg = Math.round(expected * 10) / 10;
+    } else if (wt && result.bodyFatKg !== undefined && result.bodyFatKg >= wt * 0.6) result.bodyFatKg = undefined;
     result.found =
       [result.weightKg, result.skeletalMuscleKg, result.bodyFatKg, result.bodyFatPct].filter((v) => v !== undefined).length +
       [...Object.values(result.lean), ...Object.values(result.fat)].reduce((a, r) => a + (r?.kg !== undefined ? 1 : 0), 0);

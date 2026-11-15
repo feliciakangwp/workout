@@ -51,6 +51,8 @@ interface DataContextValue {
   weighIns: WeighIn[];
   addWeighIn: (w: Omit<WeighIn, 'id' | 'isSample'>) => void;
   removeWeighIn: (id: string) => void;
+  /** Corrects a saved weigh-in (e.g. a misread scan value). */
+  updateWeighIn: (id: string, w: Omit<WeighIn, 'id' | 'isSample'>) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -420,6 +422,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [update],
   );
   const removeWeighIn = useCallback((id: string) => update((d) => ({ ...d, weighIns: (d.weighIns ?? []).filter((w) => w.id !== id) })), [update]);
+  const updateWeighIn = useCallback(
+    (id: string, w: Omit<WeighIn, 'id' | 'isSample'>) => update((d) => ({ ...d, weighIns: (d.weighIns ?? []).map((x) => (x.id === id ? { ...w, id, image: w.image ?? x.image } : x)) })),
+    [update],
+  );
 
   // Invented sample weigh-ins are shown only until the athlete uploads their own.
   const weighIns = useMemo(() => {
@@ -503,9 +509,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
             weighIns,
             addWeighIn,
             removeWeighIn,
+            updateWeighIn,
           }
         : null,
-    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, shareCustomExercise, addSharedExercise, weighIns, latestWeight, addWeighIn, removeWeighIn],
+    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, shareCustomExercise, addSharedExercise, weighIns, latestWeight, addWeighIn, removeWeighIn, updateWeighIn],
   );
 
   if (!value)

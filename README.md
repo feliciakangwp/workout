@@ -191,6 +191,10 @@ they come back into view and every minute. If sharing a tagged race fails, the r
 - **Strength duration** is estimated, not a fixed 60 min: each set 1–2 min of work (2 min at or near your best weight
   for the exercise, or 5 reps or fewer; 1 min at 60% of best or lighter, or with no history; timed holds use their
   time) plus 2 min rest between sets. Leave Duration empty to use it; planned Strength days use it too.
+- **Weigh-in checks**: a weigh-in whose body fat mass doesn't match weight × body fat %, whose skeletal muscle is an
+  implausible share of the weight, or whose muscle change between two weigh-ins doesn't fit the weight and fat change,
+  is flagged ("check values"). Flagged values are left out of "What changed" and each has a *Fix it* link; weigh-ins
+  can be edited from the history list. The scan reader also drops such readings (often a chart scale number).
 - **Edit a logged workout**: open it from the Workout Log or a calendar day and tap *Edit workout* to fix the
   duration, add a forgotten set or exercise, or correct runs and sim splits; *Save changes* updates it in place.
 - **Slow runs become walks**: a Running session averaging slower than 15:00 /km is saved as a walk (a note says so
