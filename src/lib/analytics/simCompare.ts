@@ -69,6 +69,8 @@ const individual = (p: Performance) => p.format !== 'doubles';
 export interface Best {
   sec: number;
   from: Performance;
+  /** For a run: the station it led into. */
+  station?: StationId;
 }
 const bestOf = (list: Performance[], station: StationId, part: 'runSec' | 'stationSec'): Best | undefined =>
   list.reduce<Best | undefined>((b, p) => {
@@ -76,6 +78,23 @@ const bestOf = (list: Performance[], station: StationId, part: 'runSec' | 'stati
     return sec && (!b || sec < b.sec) ? { sec, from: p } : b;
   }, undefined);
 
+/** Fastest single 1 km run in any of `list`, whichever station it came before: every run is the same activity. */
+const bestRunOf = (list: Performance[]): Best | undefined =>
+  list.reduce<Best | undefined>((b, p) => {
+    for (const st of STATIONS) {
+      const sec = p.splits[st.id]?.runSec;
+      if (sec && (!b || sec < b.sec)) b = { sec, from: p, station: st.id };
+    }
+    return b;
+  }, undefined);
+
+/** Average run of an effort (its runs logged), per km. */
+const runAvgOf = (p: Performance) => {
+  const xs = STATIONS.map((s) => p.splits[s.id]?.runSec).filter((x): x is number => !!x);
+  return xs.length ? sum(xs) / xs.length : undefined;
+};
+
+const STATION_NAME = Object.fromEntries(STATIONS.map((s) => [s.id, s.name])) as Record<StationId, string>;
 const sum = (xs: (number | undefined)[]) => xs.reduce<number>((a, x) => a + (x ?? 0), 0);
 
 export interface SimStationRow {
@@ -94,13 +113,15 @@ export interface SimStationRow {
 export function compareSim(workout: Workout, performances: Performance[]) {
   const me = performances.find((p) => p.id === workout.id);
   const others = performances.filter((p) => p.id !== workout.id && individual(p));
+  // Runs are one activity: compare with the fastest run anywhere, not the run before the same station.
+  const bestRun = bestRunOf(others);
   const rows: SimStationRow[] = STATIONS.map((s) => ({
     station: s.id,
     name: s.name,
     runSec: me?.splits[s.id]?.runSec,
     stationSec: me?.splits[s.id]?.stationSec,
     rawStationSec: workout.hyrox?.splits.find((x) => x.station === s.id)?.stationSec,
-    bestRun: bestOf(others, s.id, 'runSec'),
+    bestRun,
     bestStation: bestOf(others, s.id, 'stationSec'),
   }));
   const complete = rows.every((r) => r.runSec && r.stationSec);
@@ -111,8 +132,10 @@ export function compareSim(workout: Workout, performances: Performance[]) {
     .map((p) => ({ p, sec: sum(STATIONS.flatMap((s) => [p.splits[s.id]!.runSec, p.splits[s.id]!.stationSec])) }))
     .sort((a, b) => a.sec - b.sec);
   const bestFull = fullEfforts[0];
-  // Fastest possible: every station and run at its best, including this sim.
-  const combinedBest = sum(rows.flatMap((r) => [Math.min(r.runSec ?? Infinity, r.bestRun?.sec ?? Infinity), Math.min(r.stationSec ?? Infinity, r.bestStation?.sec ?? Infinity)].map((x) => (x === Infinity ? undefined : x))));
+  // Fastest possible: every station at its best plus the best set of runs (one effort's runs, this sim included).
+  const runSets = [me, ...others].filter((p): p is Performance => !!p && STATIONS.every((st) => p.splits[st.id]?.runSec)).map((p) => sum(STATIONS.map((st) => p.splits[st.id]!.runSec)));
+  const stationsBest = sum(rows.map((r) => { const x = Math.min(r.stationSec ?? Infinity, r.bestStation?.sec ?? Infinity); return x === Infinity ? undefined : x; }));
+  const combinedBest = stationsBest + (runSets.length ? Math.min(...runSets) : sum(rows.map((r) => r.runSec)));
 
   const newBests = rows.filter((r) => r.stationSec && (!r.bestStation || r.stationSec < r.bestStation.sec));
   const gaps = rows
@@ -120,10 +143,14 @@ export function compareSim(workout: Workout, performances: Performance[]) {
     .sort((a, b) => b.stationSec! - b.bestStation!.sec - (a.stationSec! - a.bestStation!.sec));
   const runRows = rows.filter((r) => r.runSec);
   const runAvg = runRows.length ? sum(runRows.map((r) => r.runSec)) / runRows.length : undefined;
-  const bestRunAvg = (() => {
-    const b = rows.map((r) => r.bestRun?.sec).filter((x): x is number => !!x);
-    return b.length ? sum(b) / b.length : undefined;
-  })();
+  // Overall run comparison: this sim's average run against the best average run of any other effort.
+  const bestRunAvg = others.reduce<{ sec: number; p: Performance } | undefined>((b, p) => {
+    const avg = runAvgOf(p);
+    return avg && (!b || avg < b.sec) ? { sec: avg, p } : b;
+  }, undefined);
+  // This sim's fastest run, and whether it beats every earlier run.
+  const myFastest = me ? bestRunOf([me]) : undefined;
+  const newRunBest = myFastest && (!bestRun || myFastest.sec < bestRun.sec) && bestRun ? myFastest : undefined;
 
   const insights: string[] = [];
   if (workout.hyrox && workout.hyrox.sim !== 'full')
@@ -134,11 +161,12 @@ export function compareSim(workout: Workout, performances: Performance[]) {
   }
   if (newBests.length) insights.push(`New best on ${newBests.map((r) => r.name).join(', ')}.`);
   if (gaps.length) insights.push(`Most time lost vs your best: ${gaps.slice(0, 2).map((r) => `${r.name} (+${fmtTime(r.stationSec! - r.bestStation!.sec)})`).join(', ')}.`);
+  if (newRunBest) insights.push(`New best run: ${fmtTime(newRunBest.sec)} (before ${STATION_NAME[newRunBest.station!]}), beating ${fmtTime(bestRun!.sec)}.`);
   if (runAvg && bestRunAvg) {
-    const d = Math.round(runAvg - bestRunAvg);
-    insights.push(d <= 0 ? `Runs averaged ${fmtTime(runAvg)}/km, on par with your best runs.` : `Runs averaged ${fmtTime(runAvg)}/km, ${d}s/km slower than your best runs.`);
+    const d = Math.round(runAvg - bestRunAvg.sec);
+    insights.push(d < 0 ? `Runs averaged ${fmtTime(runAvg)}/km, ${-d}s/km faster than your best run average (${fmtTime(bestRunAvg.sec)}/km).` : d === 0 ? `Runs averaged ${fmtTime(runAvg)}/km, on par with your best run average.` : `Runs averaged ${fmtTime(runAvg)}/km, ${d}s/km slower than your best run average (${fmtTime(bestRunAvg.sec)}/km, ${bestRunAvg.p.label}).`);
   }
-  return { rows, complete, estimatedSec, bestFull, combinedBest, insights, hasHistory: others.length > 0 };
+  return { rows, complete, estimatedSec, bestFull, combinedBest, insights, hasHistory: others.length > 0, bestRun, newRunBest, runAvg, bestRunAvg };
 }
 
 export interface EstimateRow {

@@ -85,17 +85,18 @@ export function useRaceEstimate(race: Race): TeamEstimate | null {
   }, [race, performances, loaded, key, goals.races, today]);
 }
 
-function Split({ label, sec, raw, best }: { label: string; sec?: number; raw?: string; best?: Best }) {
+function Split({ label, sec, raw, best, isNew, bestText }: { label: string; sec?: number; raw?: string; best?: Best; isNew?: boolean; bestText?: string }) {
+  const newBest = isNew ?? (sec !== undefined && best !== undefined && sec < best.sec);
   return (
     <div className="flex items-center justify-between gap-2 text-sm">
       <span className="min-w-0">
         <span className="text-slate-500">{label} </span>
         <b className="font-semibold text-slate-900">{sec ? fmtTime(sec) : '—'}</b>
         {raw && <span className="block text-[11px] text-slate-400">{raw}</span>}
-        <span className="block truncate text-[11px] text-slate-500">{best ? `Best ${fmtTime(best.sec)} · ${best.from.label}` : 'No earlier result'}</span>
+        <span className="block truncate text-[11px] text-slate-500">{best ? `${bestText ?? 'Best'} ${fmtTime(best.sec)} · ${best.from.label}` : 'No earlier result'}</span>
       </span>
       {sec && best ? (
-        sec < best.sec ? (
+        newBest ? (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"><Award size={12} /> New best</span>
         ) : (
           <TrendBadge delta={sec - best.sec} label={signed(sec - best.sec)} good="down" />
@@ -126,6 +127,16 @@ export function SimComparison({ workout }: { workout: Workout }) {
         <MiniStat label="Best full effort" value={c.bestFull ? fmtTime(c.bestFull.sec) : '—'} sub={c.bestFull?.p.label} />
         <MiniStat label="All bests combined" value={c.combinedBest ? fmtTime(c.combinedBest) : '—'} sub="every split at its best" />
       </div>
+      {c.runAvg !== undefined && (
+        <div className="grid grid-cols-3 gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm">
+          <span><span className="block text-[11px] text-slate-500">Average run</span><b className="font-semibold text-slate-900">{fmtTime(c.runAvg)}/km</b>
+            <span className="block text-[11px] text-slate-500">{c.bestRunAvg ? `best avg ${fmtTime(c.bestRunAvg.sec)}` : 'first with runs'}</span></span>
+          <span><span className="block text-[11px] text-slate-500">Fastest run</span><b className="font-semibold text-slate-900">{fmtTime(Math.min(...c.rows.map((r) => r.runSec ?? Infinity)))}</b>
+            {c.newRunBest && <span className="mt-0.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"><Award size={11} /> New run PB</span>}</span>
+          <span><span className="block text-[11px] text-slate-500">Run PB before</span><b className="font-semibold text-slate-900">{c.bestRun ? fmtTime(c.bestRun.sec) : '—'}</b>
+            <span className="block truncate text-[11px] text-slate-500">{c.bestRun ? `before ${STATION_BY_ID[c.bestRun.station!].name}` : 'no earlier run'}</span></span>
+        </div>
+      )}
       <ol className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
         {c.rows.map((r) => (
           <li key={r.station} className="grid gap-x-4 gap-y-1.5 px-3 py-2.5 sm:grid-cols-[9rem_1fr_1fr]">
@@ -133,14 +144,14 @@ export function SimComparison({ workout }: { workout: Workout }) {
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">{STATION_BY_ID[r.station].order}</span>
               <span className="text-sm font-medium text-slate-800">{r.name}</span>
             </span>
-            <Split label="Run" sec={r.runSec} best={r.bestRun} />
+            <Split label="Run" sec={r.runSec} best={r.bestRun} bestText="Run PB" isNew={!!c.newRunBest && c.newRunBest.station === r.station} />
             <Split label="Station" sec={r.stationSec} raw={scaled && r.rawStationSec ? `full-distance estimate · ${fmtTime(r.rawStationSec)} at ${simLabel(sim).replace(' Sim', '')}` : undefined} best={r.bestStation} />
           </li>
         ))}
       </ol>
       <p className="flex gap-1.5 text-[11px] text-slate-500">
         <Info size={12} className="mt-0.5 shrink-0" />
-        Compared with your other sims, solo races and relay legs (doubles stations are shared, so not compared). Half and ¾ sims are scaled to full distance plus a fatigue allowance (stations +4% / +2%, runs +2% / +1%). Roxzone is not included.
+        Compared with your other sims, solo races and relay legs (doubles stations are shared, so not compared). Every run is compared with your fastest run, whichever station it came before. Half and ¾ sims are scaled to full distance plus a fatigue allowance (stations +4% / +2%, runs +2% / +1%). Roxzone is not included.
       </p>
     </div>
   );
@@ -157,7 +168,7 @@ export function SimAnalysisCard() {
       id="sim-analysis"
       icon={Timer}
       title="HYROX sim analysis"
-      subtitle="Each run and station against your best from any sim or race"
+      subtitle="Each station against your best, and your runs against your fastest run, from any sim or race"
       summary={sim ? <SimSummary workout={sim} /> : <p className="text-sm text-slate-500">No HYROX sims logged yet.</p>}
     >
       <div className="space-y-4 p-4 sm:p-5">
