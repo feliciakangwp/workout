@@ -30,6 +30,8 @@ export function WeighInModal({ onClose, edit }: { onClose: () => void; /** A sav
   const [lean, setLean] = useState<SegForm>(() => (edit ? fromSaved(edit.lean) : emptySegs()));
   const [fat, setFat] = useState<SegForm>(() => (edit ? fromSaved(edit.fat) : emptySegs()));
   const [notes, setNotes] = useState(edit?.notes ?? '');
+  /** The athlete confirms flagged values match their scan sheet. */
+  const [checked, setChecked] = useState(!!edit?.checked);
   const [reading, setReading] = useState<number | null>(null);
   const [status, setStatus] = useState<{ tone: 'ok' | 'warn' | 'error'; text: string } | null>(null);
   const [error, setError] = useState('');
@@ -108,6 +110,7 @@ export function WeighInModal({ onClose, edit }: { onClose: () => void; /** A sav
       lean: segs(lean),
       fat: segs(fat),
       notes: notes.trim() || undefined,
+      checked: checked || undefined,
     };
     const hasValues = [entry.weightKg, entry.skeletalMuscleKg, entry.bodyFatKg, entry.bodyFatPct].some((v) => v !== undefined) || Object.keys(entry.lean).length || Object.keys(entry.fat).length;
     if (!hasValues) return setError('Enter at least one value, or read them from your scan photo.');
@@ -173,7 +176,7 @@ export function WeighInModal({ onClose, edit }: { onClose: () => void; /** A sav
     >
       {error && <p className="mb-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
       <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[10rem_minmax(0,1fr)]">
           <div>
             <label className="label" htmlFor="wi-date">Date</label>
             <input id="wi-date" type="date" className="input" max={today} value={date} onChange={(e) => setDate(e.target.value)} />
@@ -182,7 +185,7 @@ export function WeighInModal({ onClose, edit }: { onClose: () => void; /** A sav
             <span className="label">Scan photo</span>
             <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-blue-300 bg-blue-50/50 px-3 py-2.5 text-sm text-blue-700 hover:bg-blue-50">
               {file ? <ImageUp size={16} /> : <Camera size={16} />}
-              <span className="truncate">{file ? file.name : 'Upload or take a photo of your body composition scan'}</span>
+              <span className="min-w-0 truncate">{file ? file.name : 'Upload or take a photo of your body composition scan'}</span>
               <input type="file" accept="image/*" className="sr-only" aria-label="Scan photo" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setStatus(null); }} />
             </label>
           </div>
@@ -210,12 +213,19 @@ export function WeighInModal({ onClose, edit }: { onClose: () => void; /** A sav
         </div>
         {(() => {
           // Numbers that can't all be right, usually a misread scan: say so before saving.
-          const issues = weighInIssues({ id: '', date, lean: {}, fat: {}, weightKg: toNum(whole.weightKg), skeletalMuscleKg: toNum(whole.skeletalMuscleKg), bodyFatKg: toNum(whole.bodyFatKg), bodyFatPct: toNum(whole.bodyFatPct) });
+          const issues = weighInIssues({ id: '', date, lean: {}, fat: {}, checked: false, weightKg: toNum(whole.weightKg), skeletalMuscleKg: toNum(whole.skeletalMuscleKg), bodyFatKg: toNum(whole.bodyFatKg), bodyFatPct: toNum(whole.bodyFatPct) });
           const list = [issues.fatKg, issues.muscleKg].filter(Boolean);
           return list.length ? (
-            <p className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">
-              Check against your scan sheet: {list.join('; ')}.
-            </p>
+            <div className="-mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">
+              <p>Check against your scan sheet: {list.join('; ')}.</p>
+              {issues.swapped && (
+                <button type="button" className="mt-1 font-semibold underline" onClick={() => setWhole((x) => ({ ...x, skeletalMuscleKg: x.bodyFatKg, bodyFatKg: x.skeletalMuscleKg }))}>Swap muscle and fat</button>
+              )}
+              <label className="mt-1.5 flex items-center gap-2 font-medium text-emerald-800">
+                <input type="checkbox" className="h-4 w-4 accent-emerald-600" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
+                Values checked: they match my scan sheet
+              </label>
+            </div>
           ) : null;
         })()}
 

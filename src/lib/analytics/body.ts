@@ -70,11 +70,25 @@ export interface Change {
  * Values on a weigh-in that can't be right, usually a misread scan: body fat mass far from
  * weight × body fat %, or skeletal muscle that is an implausible share of the weight.
  */
-export function weighInIssues(w: WeighIn): { fatKg?: string; muscleKg?: string } {
-  const out: { fatKg?: string; muscleKg?: string } = {};
+/** Whether body fat mass fits weight × body fat % (within 1 kg or 10%). */
+const fatFits = (fatKg: number, weightKg: number, pct: number) => Math.abs(fatKg - (weightKg * pct) / 100) <= Math.max(1, ((weightKg * pct) / 100) * 0.1);
+
+/** Skeletal muscle and body fat mass entered the wrong way round: swapping them makes the fat mass fit. */
+export const looksSwapped = (w: Pick<WeighIn, 'weightKg' | 'bodyFatPct' | 'bodyFatKg' | 'skeletalMuscleKg'>) =>
+  !!w.weightKg && w.bodyFatPct !== undefined && w.bodyFatKg !== undefined && w.skeletalMuscleKg !== undefined &&
+  !fatFits(w.bodyFatKg, w.weightKg, w.bodyFatPct) && fatFits(w.skeletalMuscleKg, w.weightKg, w.bodyFatPct);
+
+export function weighInIssues(w: WeighIn): { fatKg?: string; muscleKg?: string; swapped?: boolean } {
+  const out: { fatKg?: string; muscleKg?: string; swapped?: boolean } = {};
+  if (w.checked) return out; // confirmed against the scan sheet
+  if (looksSwapped(w)) {
+    out.swapped = true;
+    out.fatKg = `muscle ${w.skeletalMuscleKg} kg and fat ${w.bodyFatKg} kg look swapped (fat should be ≈${((w.weightKg! * w.bodyFatPct!) / 100).toFixed(1)} kg for ${w.weightKg} kg × ${w.bodyFatPct}%)`;
+    return out;
+  }
   if (w.weightKg && w.bodyFatPct !== undefined && w.bodyFatKg !== undefined) {
     const expected = (w.weightKg * w.bodyFatPct) / 100;
-    if (Math.abs(w.bodyFatKg - expected) > Math.max(1, expected * 0.1))
+    if (!fatFits(w.bodyFatKg, w.weightKg, w.bodyFatPct))
       out.fatKg = `body fat mass ${w.bodyFatKg} kg doesn't match ${w.weightKg} kg × ${w.bodyFatPct}% (≈${expected.toFixed(1)} kg)`;
   }
   if (w.weightKg && w.skeletalMuscleKg !== undefined) {
@@ -102,12 +116,12 @@ export function compareWeighIns(prev: WeighIn, cur: WeighIn) {
   const ci = weighInIssues(cur);
   const fatOf = (w: WeighIn, bad?: string) => (bad ? (w.weightKg && w.bodyFatPct !== undefined ? round((w.weightKg * w.bodyFatPct) / 100, 1) : undefined) : w.bodyFatKg);
   const issues = [
-    ...[pi.fatKg, pi.muscleKg].filter(Boolean).map((t) => ({ id: prev.id, date: prev.date, text: t! })),
-    ...[ci.fatKg, ci.muscleKg].filter(Boolean).map((t) => ({ id: cur.id, date: cur.date, text: t! })),
+    ...[pi.fatKg, pi.muscleKg].filter(Boolean).map((t) => ({ ids: [prev.id], date: prev.date, text: t!, swapped: pi.swapped })),
+    ...[ci.fatKg, ci.muscleKg].filter(Boolean).map((t) => ({ ids: [cur.id], date: cur.date, text: t!, swapped: ci.swapped })),
   ];
   const totals = [
     ch('weight', 'Weight', prev.weightKg, cur.weightKg, 'down'),
-    ch('smm', 'Skeletal muscle', pi.muscleKg ? undefined : prev.skeletalMuscleKg, ci.muscleKg ? undefined : cur.skeletalMuscleKg, 'up'),
+    ch('smm', 'Skeletal muscle', pi.muscleKg || pi.swapped ? undefined : prev.skeletalMuscleKg, ci.muscleKg || ci.swapped ? undefined : cur.skeletalMuscleKg, 'up'),
     ch('fatKg', 'Body fat mass', fatOf(prev, pi.fatKg), fatOf(cur, ci.fatKg), 'down'),
     ch('pbf', 'Body fat', prev.bodyFatPct, cur.bodyFatPct, 'down', '%'),
     ch('leanTotal', 'Segmental lean total', segmentTotal(prev.lean), segmentTotal(cur.lean), 'up'),
@@ -116,8 +130,8 @@ export function compareWeighIns(prev: WeighIn, cur: WeighIn) {
   // A muscle change bigger than the weight change minus the fat change (plus a margin) can't be right:
   // one of the two muscle readings is wrong, so leave it out and say so.
   const [w, smm, fatCh] = [totals[0].delta, totals[1].delta, totals[2].delta];
-  if (smm !== undefined && w !== undefined && fatCh !== undefined && Math.abs(smm) > Math.abs(w - fatCh) + 1.5) {
-    issues.push({ id: cur.id, date: cur.date, text: `skeletal muscle ${smm > 0 ? '+' : ''}${smm.toFixed(1)} kg doesn't fit weight ${w > 0 ? '+' : ''}${w.toFixed(1)} kg and fat ${fatCh > 0 ? '+' : ''}${fatCh.toFixed(1)} kg; check the muscle values of both weigh-ins` });
+  if (!(prev.checked && cur.checked) && smm !== undefined && w !== undefined && fatCh !== undefined && Math.abs(smm) > Math.abs(w - fatCh) + 1.5) {
+    issues.push({ swapped: false, ids: [prev.id, cur.id], date: cur.date, text: `skeletal muscle ${smm > 0 ? '+' : ''}${smm.toFixed(1)} kg doesn't fit weight ${w > 0 ? '+' : ''}${w.toFixed(1)} kg and fat ${fatCh > 0 ? '+' : ''}${fatCh.toFixed(1)} kg; check the muscle values of both weigh-ins` });
     totals[1] = { ...totals[1], delta: undefined };
   }
   const lean = SEGMENTS.map(({ id, label }) => ch(`lean-${id}`, label, prev.lean[id]?.kg, cur.lean[id]?.kg, 'up'));

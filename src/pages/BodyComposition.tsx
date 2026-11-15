@@ -1,4 +1,4 @@
-import { AlertTriangle, Droplet, Dumbbell, Image as ImageIcon, Info, Lightbulb, Pencil, Percent, Plus, Scale, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Droplet, Dumbbell, Image as ImageIcon, Info, Lightbulb, Pencil, Percent, Plus, Scale, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, CardHeader, ChartTooltip, EmptyState, Modal, PageHeader, Segmented, StatCard, TrendBadge } from '../components/ui';
@@ -41,7 +41,7 @@ export function BodyComposition() {
 }
 
 function OwnBodyComposition() {
-  const { weighIns, readOnly, removeWeighIn, athlete } = useData();
+  const { weighIns, readOnly, removeWeighIn, confirmWeighIns, updateWeighIn, athlete } = useData();
   const [adding, setAdding] = useState(false);
   /** Weigh-in being corrected. */
   const [editing, setEditing] = useState<WeighIn | null>(null);
@@ -53,6 +53,12 @@ function OwnBodyComposition() {
   const [compareId, setCompareId] = useState<string | null>(null);
   const prev = earlier.find((w) => w.id === compareId) ?? earlier[earlier.length - 1];
   const cmp = useMemo(() => (latest && prev ? compareWeighIns(prev, latest) : null), [latest, prev]);
+  // Segmental analysis can show any weigh-in with segment readings, against the one before it.
+  const withSegments = weighIns.filter((w) => Object.keys(w.lean).length || Object.keys(w.fat).length);
+  const [segId, setSegId] = useState<string | null>(null);
+  const segW = withSegments.find((w) => w.id === segId) ?? withSegments[withSegments.length - 1] ?? latest;
+  const segPrev = segW ? withSegments.filter((w) => w.date < segW.date || (w.date === segW.date && w.id < segW.id)).pop() : undefined;
+  const segCmp = useMemo(() => (segW && segPrev ? compareWeighIns(segPrev, segW) : null), [segW, segPrev]);
   const samples = weighIns.some((w) => w.isSample);
   // Only metrics the athlete has recorded can be charted.
   const metrics = METRICS.filter((x) => weighIns.filter((w) => x.get(w) !== undefined).length > 1);
@@ -91,11 +97,26 @@ function OwnBodyComposition() {
               <CardHeader
                 icon={Scale}
                 title="Segmental analysis"
-                subtitle={`${fmtLong(latest.date)}${prev ? ` · change since ${fmtShort(prev.date)}` : ''}`}
+                subtitle={`${fmtLong(segW.date)}${segPrev ? ` · change since ${fmtShort(segPrev.date)}` : ''}`}
                 action={<Segmented value={panel} onChange={setPanel} options={[{ value: 'lean', label: 'Lean (muscle)' }, { value: 'fat', label: 'Fat' }]} />}
               />
               <div className="p-4 sm:p-5">
-                <BodyGrid weighIn={latest} panel={panel} changes={cmp ? (panel === 'lean' ? cmp.lean : cmp.fat) : undefined} />
+                {withSegments.length > 1 && (
+                  <div className="-mx-1 mb-3 flex gap-1.5 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Weigh-in">
+                    {[...withSegments].reverse().map((w, i) => (
+                      <button
+                        key={w.id}
+                        role="tab"
+                        aria-selected={w.id === segW.id}
+                        onClick={() => setSegId(w.id)}
+                        className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${w.id === segW.id ? 'bg-blue-600 text-white ring-blue-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}
+                      >
+                        {fmtShort(w.date)}{i === 0 ? ' · latest' : ''}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <BodyGrid weighIn={segW} panel={panel} changes={segCmp ? (panel === 'lean' ? segCmp.lean : segCmp.fat) : undefined} />
               </div>
             </Card>
 
@@ -120,11 +141,20 @@ function OwnBodyComposition() {
                         <p className="flex items-center gap-1.5 font-semibold"><AlertTriangle size={14} /> Some values look misread, so they're left out below</p>
                         <ul className="mt-1 space-y-1">
                           {cmp.issues.map((i) => {
-                            const w = weighIns.find((x) => x.id === i.id);
+                            const w = weighIns.find((x) => x.id === i.ids[i.ids.length - 1]);
+                            const own = w && !w.isSample && !readOnly;
                             return (
-                              <li key={i.id + i.text} className="flex flex-wrap items-center gap-x-2">
+                              <li key={i.ids.join() + i.text} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <span>{fmtShort(i.date)}: {i.text}.</span>
-                                {w && !w.isSample && !readOnly && <button className="font-semibold text-amber-800 underline" onClick={() => setEditing(w)}>Fix it</button>}
+                                {own && i.swapped && (
+                                  <button className="font-semibold text-amber-800 underline" onClick={() => { const { id: _id, isSample: _s, ...rest } = w; updateWeighIn(w.id, { ...rest, skeletalMuscleKg: w.bodyFatKg, bodyFatKg: w.skeletalMuscleKg }); }}>Swap them</button>
+                                )}
+                                {own && <button className="font-semibold text-amber-800 underline" onClick={() => setEditing(w)}>Fix it</button>}
+                                {own && (
+                                  <button className="inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200" onClick={() => confirmWeighIns(i.ids)}>
+                                    <Check size={12} /> Values checked
+                                  </button>
+                                )}
                               </li>
                             );
                           })}
@@ -189,11 +219,17 @@ function OwnBodyComposition() {
                       {fmtLong(w.date)}
                       {w.isSample && <span className="ml-2 text-[11px] font-normal text-amber-700">example</span>}
                       {Object.keys(weighInIssues(w)).length > 0 && <span className="ml-2 inline-flex items-center gap-0.5 text-[11px] font-medium text-amber-700"><AlertTriangle size={11} /> check values</span>}
+                      {w.checked && <span className="ml-2 inline-flex items-center gap-0.5 text-[11px] font-medium text-emerald-700"><Check size={11} /> checked</span>}
                     </p>
                     <p className="truncate text-xs text-slate-500">
                       {[w.weightKg !== undefined && `${w.weightKg} kg`, w.skeletalMuscleKg !== undefined && `muscle ${w.skeletalMuscleKg} kg`, w.bodyFatKg !== undefined && `fat ${w.bodyFatKg} kg`, w.bodyFatPct !== undefined && `${w.bodyFatPct}%`, w.notes].filter(Boolean).join(' · ') || 'Segmental values only'}
                     </p>
                   </button>
+                  {!readOnly && !w.isSample && Object.keys(weighInIssues(w)).length > 0 && (
+                    <button className="rounded-lg p-2 text-emerald-600 hover:bg-emerald-50" aria-label={`Values checked for ${fmtLong(w.date)}`} title="Values checked against my scan sheet" onClick={() => confirmWeighIns([w.id])}>
+                      <Check size={16} />
+                    </button>
+                  )}
                   {!readOnly && !w.isSample && (
                     <button className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={`Edit weigh-in ${fmtLong(w.date)}`} onClick={() => setEditing(w)}>
                       <Pencil size={16} />

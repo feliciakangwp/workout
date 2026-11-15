@@ -53,6 +53,8 @@ interface DataContextValue {
   removeWeighIn: (id: string) => void;
   /** Corrects a saved weigh-in (e.g. a misread scan value). */
   updateWeighIn: (id: string, w: Omit<WeighIn, 'id' | 'isSample'>) => void;
+  /** Marks weigh-ins as checked against the scan sheet, so they aren't flagged. */
+  confirmWeighIns: (ids: string[]) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -422,6 +424,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [update],
   );
   const removeWeighIn = useCallback((id: string) => update((d) => ({ ...d, weighIns: (d.weighIns ?? []).filter((w) => w.id !== id) })), [update]);
+  const confirmWeighIns = useCallback(
+    (ids: string[]) => update((d) => ({ ...d, weighIns: (d.weighIns ?? []).map((x) => (ids.includes(x.id) ? { ...x, checked: true } : x)) })),
+    [update],
+  );
   const updateWeighIn = useCallback(
     (id: string, w: Omit<WeighIn, 'id' | 'isSample'>) => update((d) => ({ ...d, weighIns: (d.weighIns ?? []).map((x) => (x.id === id ? { ...w, id, image: w.image ?? x.image } : x)) })),
     [update],
@@ -510,9 +516,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
             addWeighIn,
             removeWeighIn,
             updateWeighIn,
+            confirmWeighIns,
           }
         : null,
-    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, shareCustomExercise, addSharedExercise, weighIns, latestWeight, addWeighIn, removeWeighIn, updateWeighIn],
+    [data, sample, fromPlan, shared, today, athlete, readOnly, addWorkout, removeWorkout, updateWorkout, updateGoals, setDayPlan, setPlanDetail, saveDraft, deleteDraft, saveCustomExercises, renameCustomExercise, deleteCustomExercise, shareCustomExercise, addSharedExercise, weighIns, latestWeight, addWeighIn, removeWeighIn, updateWeighIn, confirmWeighIns],
   );
 
   if (!value)

@@ -311,6 +311,8 @@ export interface WeighIn {
   notes?: string;
   /** Demonstration weigh-ins are generated, not uploaded. */
   isSample?: boolean;
+  /** The athlete confirmed the values against their scan sheet: no plausibility warnings. */
+  checked?: boolean;
 }
 
 /** Everything stored for one athlete. */

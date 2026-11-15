@@ -197,6 +197,12 @@ export async function readBodyScan(file: Blob, onProgress?: (p: number) => void)
     // The bar charts' scale numbers (70, 80, 90…) sit next to these labels and can be read instead
     // of the value: drop readings that can't be right rather than save them.
     const wt = result.weightKg;
+    // Muscle and fat read the wrong way round (the fat mass then fits weight × body fat %): swap back.
+    if (wt && result.bodyFatPct !== undefined && result.bodyFatKg !== undefined && result.skeletalMuscleKg !== undefined) {
+      const exp = (wt * result.bodyFatPct) / 100;
+      const fits = (v: number) => Math.abs(v - exp) <= Math.max(1, exp * 0.1);
+      if (!fits(result.bodyFatKg) && fits(result.skeletalMuscleKg)) [result.bodyFatKg, result.skeletalMuscleKg] = [result.skeletalMuscleKg, result.bodyFatKg];
+    }
     if (wt && result.skeletalMuscleKg !== undefined && (result.skeletalMuscleKg < wt * 0.2 || result.skeletalMuscleKg > wt * 0.6)) result.skeletalMuscleKg = undefined;
     if (wt && result.bodyFatKg !== undefined && result.bodyFatPct !== undefined) {
       const expected = (wt * result.bodyFatPct) / 100;
